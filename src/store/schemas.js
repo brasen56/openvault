@@ -125,6 +125,8 @@ export const ScoredMemorySchema = z.object({
     memory: MemorySchema,
     score: z.number(),
     breakdown: ScoreBreakdownSchema,
+    // Optional reranker relevance score, attached when the external reranker runs (debug/diagnostics).
+    _rerankerScore: z.number().optional(),
 });
 
 // --- Event Schemas ---

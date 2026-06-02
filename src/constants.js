@@ -116,6 +116,11 @@ export const defaultSettings = {
     // Reflection control toggles
     reflectionGenerationEnabled: true, // Enable automatic reflection generation
     reflectionInjectionEnabled: true, // Enable reflection injection into context
+    // Reranker settings (optional second-pass reranking via external API)
+    rerankerEnabled: false, // Enable/disable reranker
+    rerankerApiUrl: '', // e.g., 'https://api.jina.ai/v1' or 'http://localhost:11434'
+    rerankerApiKey: '', // API key (leave empty for local servers)
+    rerankerModel: '', // Model name (leave empty for provider default, e.g., 'jina-reranker-v2-base-de')
     // Contradiction filter settings
     contradictionFilterEnabled: true, // Suppress older memories that contradict newer ones
     // LLM contradiction verification (Tier 2)

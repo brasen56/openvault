@@ -653,6 +653,9 @@ const PRESERVED_KEYS = [
     'backfillMaxRPM',
     'debugMode',
     'requestLogging',
+    'rerankerApiUrl',
+    'rerankerApiKey',
+    'rerankerModel',
 ];
 
 // Define fine-tune keys that should be reset to defaults
@@ -929,6 +932,56 @@ function bindUIElements() {
 
     $('#openvault_embedding_doc_prefix').on('change', function () {
         setSetting('embeddingDocPrefix', $(this).val());
+    });
+
+    // Reranker settings
+    bindSetting('reranker_enabled', 'rerankerEnabled', 'bool');
+
+    $('#openvault_reranker_url').on('change', function () {
+        setSetting('rerankerApiUrl', $(this).val().trim());
+    });
+
+    $('#openvault_reranker_api_key').on('change', function () {
+        setSetting('rerankerApiKey', $(this).val().trim());
+    });
+
+    $('#openvault_reranker_model').on('change', function () {
+        setSetting('rerankerModel', $(this).val().trim());
+    });
+
+    $('#openvault_test_reranker_btn').on('click', async function () {
+        const $btn = $(this);
+        const url = $('#openvault_reranker_url').val().trim();
+
+        if (!url) {
+            $btn.removeClass('success').addClass('error');
+            $btn.html('<i class="fa-solid fa-xmark"></i> No URL');
+            return;
+        }
+
+        $btn.removeClass('success error');
+        $btn.html('<i class="fa-solid fa-spinner fa-spin"></i> Testing...');
+
+        try {
+            const { testRerankerConnection } = await import('../retrieval/reranker.js');
+            const result = await testRerankerConnection();
+            if (result.success) {
+                $btn.removeClass('error').addClass('success');
+                $btn.html('<i class="fa-solid fa-check"></i> Connected');
+            } else {
+                $btn.removeClass('success').addClass('error');
+                $btn.html(`<i class="fa-solid fa-xmark"></i> ${result.message.slice(0, 30)}`);
+            }
+        } catch (err) {
+            $btn.removeClass('success').addClass('error');
+            $btn.html('<i class="fa-solid fa-xmark"></i> Failed');
+            logError('Reranker test failed', err);
+        }
+
+        setTimeout(() => {
+            $btn.removeClass('success error');
+            $btn.html('<i class="fa-solid fa-plug"></i> Test');
+        }, 3000);
     });
 
     $('#openvault_embedding_source').on('change', async function () {
@@ -1414,6 +1467,12 @@ export function updateUI() {
     // Backfill settings
     $('#openvault_backfill_rpm').val(settings.backfillMaxRPM);
     $('#openvault_backfill_rpm_value').text(settings.backfillMaxRPM);
+
+    // Reranker settings
+    $('#openvault_reranker_enabled').prop('checked', settings.rerankerEnabled);
+    $('#openvault_reranker_url').val(settings.rerankerApiUrl || '');
+    $('#openvault_reranker_api_key').val(settings.rerankerApiKey || '');
+    $('#openvault_reranker_model').val(settings.rerankerModel || '');
 
     // Embedding settings
     $('#openvault_embedding_source').val(settings.embeddingSource);

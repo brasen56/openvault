@@ -23,6 +23,7 @@ import { assignMemoriesToBuckets, getMemoryPosition } from '../utils/text.js';
 import { countTokens } from '../utils/tokens.js';
 import { filterContradictions } from './contradiction.js';
 import { cacheRetrievalDebug, cacheScoringDetails } from './debug-cache.js';
+import { rerankScoredMemories } from './reranker.js';
 import { rankToProxyScore, scoreMemories } from './math.js';
 import {
     buildBM25Tokens,
@@ -387,6 +388,25 @@ export function selectMemoriesWithSoftBalance(scoredMemories, tokenBudget, chatL
 }
 
 /**
+ * Build a query string for the reranker from the retrieval context.
+ * Uses the user's recent messages as the primary signal.
+ * @param {RetrievalContext} ctx - Retrieval context object
+ * @returns {string} Query string for the reranker
+ */
+function buildRerankerQuery(ctx) {
+    const { userMessages, recentContext } = ctx;
+    // Prefer user messages (intent), fall back to recent context
+    if (userMessages && typeof userMessages === 'string' && userMessages.trim()) {
+        return userMessages.trim().slice(-500);
+    }
+    if (recentContext && typeof recentContext === 'string' && recentContext.trim()) {
+        // Use last 500 chars of recent context
+        return recentContext.trim().slice(-500);
+    }
+    return '';
+}
+
+/**
  * Select relevant memories using scoring and token budget
  * @param {Memory[]} memories - Available memories
  * @param {RetrievalContext} ctx - Retrieval context object
@@ -407,7 +427,19 @@ export async function selectRelevantMemories(memories, ctx) {
         scoredResults,
         communityIds,
     } = await selectRelevantMemoriesSimple(activeMemories, ctx, 1000, hiddenMemories, ctx.idfCache || null);
-    let finalResults = selectMemoriesWithSoftBalance(scoredResults, finalTokens, ctx.chatLength);
+
+    // === Reranker (optional second-pass) ===
+    // Re-order scored memories using an external reranker API for better relevance.
+    // Runs after local scoring (forgetfulness + BM25 + vector) but before token budget filter.
+    let rerankedResults = scoredResults;
+    const rerankQuery = buildRerankerQuery(ctx);
+    if (rerankQuery) {
+        const { results: reranked, meta: rerankMeta } = await rerankScoredMemories(scoredResults, rerankQuery);
+        rerankedResults = reranked;
+        cacheRetrievalDebug({ reranker: rerankMeta });
+    }
+
+    let finalResults = selectMemoriesWithSoftBalance(rerankedResults, finalTokens, ctx.chatLength);
 
     // === Importance-5 Injection Cap ===
     // Prevent high-importance memories from dominating the context budget.

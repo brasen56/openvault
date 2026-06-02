@@ -146,6 +146,7 @@ export type ScoredMemory = {
         hitDamping?: number | undefined;
         frequencyFactor?: number | undefined;
     };
+    _rerankerScore?: number | undefined;
 };
 
 export type Entity = {

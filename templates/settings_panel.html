@@ -576,6 +576,35 @@
                     </div>
                 </div>
 
+                <!-- Reranker (optional) -->
+                <details class="openvault-details">
+                    <summary><i class="fa-solid fa-arrow-up-wide-short"></i> Reranker (Optional)</summary>
+                    <div class="openvault-settings-group">
+                        <label class="checkbox_label">
+                            <input type="checkbox" id="openvault_reranker_enabled" />
+                            <span>Enable External Reranker</span>
+                        </label>
+                        <small class="openvault-hint">Re-orders the top-scored memories using an external reranker API for improved relevance. Adds latency per retrieval. Disabled by default.</small>
+
+                        <label for="openvault_reranker_url" style="margin-top: 10px;">
+                            Reranker API URL
+                            <button id="openvault_test_reranker_btn" class="menu_button openvault-test-btn">
+                                <i class="fa-solid fa-plug"></i> Test
+                            </button>
+                        </label>
+                        <input type="text" id="openvault_reranker_url" class="text_pole" placeholder="https://api.jina.ai/v1" />
+                        <small class="openvault-hint">Base URL of the reranker API. Supports Jina, Cohere, or any OpenAI-compatible reranker. Path <code>/rerank</code> is appended automatically.</small>
+
+                        <label for="openvault_reranker_api_key">API Key</label>
+                        <input type="password" id="openvault_reranker_api_key" class="text_pole" placeholder="Leave empty for local servers" />
+                        <small class="openvault-hint">Optional for local servers (Ollama, vLLM). Required for cloud APIs (Jina, Cohere).</small>
+
+                        <label for="openvault_reranker_model">Model Name</label>
+                        <input type="text" id="openvault_reranker_model" class="text_pole" placeholder="jina-reranker-v2-base-de" />
+                        <small class="openvault-hint">Model identifier for the reranker API. Leave empty to use the provider's default model.</small>
+                    </div>
+                </details>
+
                 <!-- Scoring & Weights -->
                 <details class="openvault-details">
                     <summary><i class="fa-solid fa-scale-balanced"></i> Scoring & Weights</summary>
