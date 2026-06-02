@@ -1,0 +1,49 @@
+/* ==============================================================================
+   OpenVault Extension - Main Stylesheet
+   Imports all modular CSS files for the extension UI
+   ============================================================================== */
+
+/* Base variables and reset */
+@import url("css/base.css");
+
+/* Tab navigation */
+@import url("css/tabs.css");
+
+/* Card containers */
+@import url("css/cards.css");
+
+/* Dashboard stats and progress */
+@import url("css/dashboard.css");
+
+/* Form inputs, sliders, selects */
+@import url("css/forms.css");
+
+/* Navigation elements */
+@import url("css/navigation.css");
+
+/* World view (entities, communities) */
+@import url("css/world.css");
+
+/* Entity cards and badges */
+@import url("css/entities.css");
+
+/* Entity CRUD (edit, merge, delete) */
+@import url("css/entity-crud.css");
+
+/* Collapsible details/summary sections */
+@import url("css/details.css");
+
+/* Budget indicators and progress bars */
+@import url("css/budget.css");
+
+/* Prefill selector dropdown */
+@import url("css/prefill.css");
+
+/* Performance metrics table */
+@import url("css/perf.css");
+
+/* Side panel (persistent memory viewer) */
+@import url("css/side-panel.css");
+
+/* Transparency (extraction notifications, injection preview) */
+@import url("css/transparency.css");

@@ -1,0 +1,439 @@
+/**
+ * OpenVault Event Handlers
+ *
+ * Handles all SillyTavern event subscriptions and processing.
+ */
+
+import { extensionName, MEMORIES_KEY, METADATA_KEY, RETRIEVAL_TIMEOUT_MS } from './constants.js';
+import { getDeps } from './deps.js';
+import './settings.js'; // Side-effect import to initialize settings with lodash.merge
+import { loadFromChat as loadPerfFromChat, record } from './perf/store.js';
+import {
+    clearGenerationLock,
+    isChatLoadingCooldown,
+    isSessionDisabled,
+    operationState,
+    resetOperationStatesIfSafe,
+    resetSessionController,
+    setChatLoadingCooldown,
+    setGenerationLock,
+    setSessionDisabled,
+} from './state.js';
+import { getOpenVaultData } from './store/chat-data.js';
+import { runSchemaMigrations } from './store/migrations/index.js';
+import { refreshAllUI, resetMemoryBrowserPage } from './ui/render.js';
+import { setStatus } from './ui/status.js';
+import { resetSessionStartTime, recordInjection } from './ui/transparency.js';
+import { showToast } from './utils/dom.js';
+import { logDebug, logError } from './utils/logging.js';
+import { isExtensionEnabled, safeSetExtensionPrompt, withTimeout } from './utils/st-helpers.js';
+
+// =============================================================================
+// Auto-Hide Old Messages (inlined from auto-hide.js)
+// =============================================================================
+
+/**
+ * Auto-hide old messages when visible tokens exceed the budget or visible
+ * message count exceeds the cap.
+ * Uses token-sum logic with turn-boundary snapping.
+ * Messages are marked with is_system=true which excludes them from context.
+ * IMPORTANT: Only hides messages that have already been extracted into memories.
+ *
+ * Two independent constraints (both checked each run):
+ *   1. Token budget  — hide oldest extracted messages until visible tokens ≤ visibleChatBudget
+ *   2. Message cap   — hide oldest extracted messages until visible count ≤ maxVisibleMessages
+ *    When both are active, the MORE aggressive constraint wins (hides enough to satisfy both).
+ *    Set maxVisibleMessages to 0 to disable the message-count constraint (token-only mode).
+ */
+export async function autoHideOldMessages() {
+    const t0 = performance.now();
+    try {
+        const { getProcessedFingerprints, getFingerprint } = await import('./extraction/scheduler.js');
+        const { getMessageTokenCount, getTokenSum, snapToTurnBoundary } = await import('./utils/tokens.js');
+
+        const deps = getDeps();
+        const settings = deps.getExtensionSettings()[extensionName];
+        if (!settings.autoHideEnabled) return;
+
+        const context = deps.getContext();
+        const chat = context.chat || [];
+        const visibleChatBudget = settings.visibleChatBudget;
+        const maxVisibleMessages = settings.maxVisibleMessages || 0;
+
+        const data = getOpenVaultData();
+        const processedFps = getProcessedFingerprints(data);
+
+        // Get visible (non-system) message indices
+        const visibleIndices = [];
+        for (let i = 0; i < chat.length; i++) {
+            if (!chat[i].is_system) visibleIndices.push(i);
+        }
+
+        // Freeze initial replies: count bot messages to determine the boundary
+        const frozenReplies = settings.frozenReplies || 0;
+        let frozenBoundary = 0;
+        if (frozenReplies > 0) {
+            let botCount = 0;
+            for (const idx of visibleIndices) {
+                if (!chat[idx].is_user) botCount++;
+                if (botCount >= frozenReplies) {
+                    frozenBoundary = idx + 1;
+                    break;
+                }
+            }
+        }
+
+        const hideableIndices = frozenReplies > 0
+            ? visibleIndices.filter(idx => idx >= frozenBoundary)
+            : visibleIndices;
+
+        // ── Constraint 1: Token budget ──
+        const totalVisibleTokens = getTokenSum(chat, visibleIndices);
+        const tokenExcess = totalVisibleTokens - visibleChatBudget;
+        const needsTokenHide = tokenExcess > 0;
+
+        // ── Constraint 2: Message count cap ──
+        const messageExcess = maxVisibleMessages > 0 ? visibleIndices.length - maxVisibleMessages : 0;
+        const needsMessageHide = messageExcess > 0;
+
+        // Early exit if neither constraint is violated
+        if (!needsTokenHide && !needsMessageHide) return;
+
+        // Collect oldest visible messages to hide, skipping unextracted and frozen.
+        // Stop when BOTH constraints are satisfied (whichever requires more hiding wins).
+        const toHide = [];
+        let accumulatedTokens = 0;
+        let accumulatedCount = 0;
+
+        for (const idx of hideableIndices) {
+            const tokenSatisfied = !needsTokenHide || accumulatedTokens >= tokenExcess;
+            const countSatisfied = !needsMessageHide || accumulatedCount >= messageExcess;
+            if (tokenSatisfied && countSatisfied) break;
+
+            // Only hide already-extracted messages; skip unextracted
+            if (!processedFps.has(getFingerprint(chat[idx]))) continue;
+
+            toHide.push(idx);
+            accumulatedTokens += getMessageTokenCount(chat, idx);
+            accumulatedCount++;
+        }
+
+        // Snap to turn boundary
+        const snapped = snapToTurnBoundary(chat, toHide);
+
+        if (snapped.length === 0) return;
+
+        // Hide
+        for (const idx of snapped) {
+            chat[idx].is_system = true;
+            chat[idx].openvault_hidden = true;
+        }
+
+        await getDeps().saveChatConditional();
+        const reasons = [];
+        if (needsTokenHide) reasons.push(`token budget: ${visibleChatBudget}, was: ${totalVisibleTokens}`);
+        if (needsMessageHide) reasons.push(`message cap: ${maxVisibleMessages}, was: ${visibleIndices.length}`);
+        logDebug(
+            `Auto-hid ${snapped.length} messages (${reasons.join('; ')})`
+        );
+        showToast('info', `Auto-hid ${snapped.length} old messages`);
+    } finally {
+        record('auto_hide', performance.now() - t0);
+    }
+}
+
+// =============================================================================
+// Event Handlers
+// =============================================================================
+
+/**
+ * Handle pre-generation event
+ * @param {string} type - Generation type
+ * @param {object} options - Generation options
+ * @param {boolean} dryRun - If true, don't actually do retrieval
+ */
+export async function onBeforeGeneration(type, _options, dryRun = false) {
+    // Skip if disabled, manual mode, or dry run
+    if (!isExtensionEnabled() || dryRun) {
+        return;
+    }
+
+    // Skip if session disabled (migration failure)
+    if (isSessionDisabled()) {
+        logDebug('Skipping retrieval - session disabled due to migration failure');
+        return;
+    }
+
+    // Skip if already generating (prevent re-entry)
+    if (operationState.generationInProgress) {
+        logDebug('Skipping retrieval - generation already in progress');
+        return;
+    }
+
+    // Skip if retrieval already in progress
+    if (operationState.retrievalInProgress) {
+        logDebug('Skipping retrieval - retrieval already in progress');
+        return;
+    }
+
+    // Set retrieval flag immediately to prevent concurrent retrievals
+    operationState.retrievalInProgress = true;
+
+    try {
+        // Auto-hide old messages before building context
+        await autoHideOldMessages();
+
+        const { updateInjection } = await import('./retrieval/retrieve.js');
+
+        // Skip retrieval if no memories exist yet
+        const data = getOpenVaultData();
+        if (!data) {
+            logDebug('>>> Skipping retrieval - no context available');
+            return;
+        }
+        const memories = data[MEMORIES_KEY] || [];
+        if (memories.length === 0) {
+            logDebug('>>> Skipping retrieval - no memories yet');
+            return;
+        }
+
+        setStatus('retrieving');
+        setGenerationLock();
+
+        // Get context for retrieval - use the last user message if available
+        const context = getDeps().getContext();
+        const chat = context.chat || [];
+
+        // For new messages: GENERATION_AFTER_COMMANDS fires BEFORE chat.push()
+        // and BEFORE textarea is cleared, so the textarea still has the user's text.
+        // For regenerate/swipe/continue: the last user message is already in chat.
+        const isNewSend = type === 'normal' || !type;
+        let pendingUserMessage = '';
+        if (isNewSend) {
+            pendingUserMessage = String($('#send_textarea').val() || '').trim();
+        }
+        if (!pendingUserMessage) {
+            const lastUserMessage = [...chat].reverse().find((m) => m.is_user && !m.is_system);
+            pendingUserMessage = lastUserMessage?.mes || '';
+        }
+
+        // Show toast notification during retrieval
+        showToast('info', 'Retrieving memories...', 'OpenVault', { timeOut: 2000 });
+
+        // Do memory retrieval before generation
+        logDebug(
+            `>>> Pre-generation retrieval starting (type: ${type}, message: "${pendingUserMessage.substring(0, 50)}...")`
+        );
+        const t0Retrieval = performance.now();
+        const retrievalResult = await withTimeout(updateInjection(pendingUserMessage), RETRIEVAL_TIMEOUT_MS, 'Memory retrieval');
+        record('retrieval_injection', performance.now() - t0Retrieval);
+        logDebug('>>> Pre-generation retrieval complete');
+
+        // Record what was injected for the transparency injection preview
+        if (retrievalResult?.memories) {
+            recordInjection(retrievalResult.memories);
+        }
+
+        setStatus('ready');
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            logDebug('Retrieval aborted (chat switch)');
+            // Don't set error status — chat switch is not an error
+        } else {
+            logError('Error during pre-generation retrieval', error);
+            setStatus('error');
+        }
+        // Don't block generation on retrieval failure
+    } finally {
+        // Always clear retrieval flag
+        operationState.retrievalInProgress = false;
+    }
+}
+
+/**
+ * Handle generation ended event
+ */
+export function onGenerationEnded() {
+    clearGenerationLock();
+    logDebug('Generation ended, clearing lock');
+}
+
+/**
+ * Handle chat changed event
+ */
+export async function onChatChanged() {
+    // FIRST: abort all in-flight operations from previous chat
+    // This must run regardless of extension state to prevent stale workers
+    resetSessionController();
+
+    if (!isExtensionEnabled()) return;
+
+    const { clearEmbeddingCache } = await import('./embeddings.js');
+    const { cleanupCharacterStates } = await import('./extraction/extract.js');
+    const { clearRetrievalDebug } = await import('./retrieval/debug-cache.js');
+    const { clearTokenCache } = await import('./utils/tokens.js');
+    const { clearSanitizedTokenCache } = await import('./utils/message-sanitizer.js');
+
+    logDebug('Chat changed, clearing injection, cache and setting load cooldown');
+
+    const data = getOpenVaultData();
+    const context = getDeps().getContext();
+
+    // Check session kill-switch
+    if (isSessionDisabled()) {
+        logDebug('OpenVault disabled for this session due to migration failure');
+        return;
+    }
+
+    // Cleanup corrupted character states
+    if (data && context) {
+        const validCharNames = [context.name1, context.name2].filter(Boolean);
+        cleanupCharacterStates(data, validCharNames);
+    }
+
+    // Run schema migration if needed
+    if (data && (!data.schema_version || data.schema_version < 2)) {
+        const backup = structuredClone(data);
+
+        try {
+            const chat = context.chat || [];
+            if (runSchemaMigrations(data, chat)) {
+                showToast('info', 'OpenVault database optimized.', 'Data Migration');
+                const { saveOpenVaultData } = await import('./store/chat-data.js');
+                await saveOpenVaultData();
+            }
+        } catch (error) {
+            // Rollback
+            logError('Schema migration failed! Rolling back.', error);
+            context.chatMetadata[METADATA_KEY] = backup;
+
+            // Session kill-switch
+            setSessionDisabled(true);
+            showToast('error', 'Data migration failed. OpenVault disabled for this chat session.');
+            return;
+        }
+    }
+
+    // Check for embedding model mismatch and wipe stale vectors
+    const { invalidateStaleEmbeddings } = await import('./embeddings/migration.js');
+    const { saveOpenVaultData } = await import('./store/chat-data.js');
+    const settings = getDeps().getExtensionSettings()[extensionName];
+    if (data && settings?.embeddingSource) {
+        const wiped = await invalidateStaleEmbeddings(data, settings.embeddingSource);
+        if (wiped > 0) {
+            await saveOpenVaultData();
+            // Auto-trigger comprehensive re-embedding in background (fire-and-forget)
+            import('./embeddings.js')
+                .then(({ backfillAllEmbeddings }) => {
+                    backfillAllEmbeddings({ silent: true }).catch(() => {});
+                })
+                .catch(() => {});
+        }
+    }
+
+    // Clear token caches when switching chats
+    clearTokenCache();
+    clearSanitizedTokenCache();
+
+    // Clear embedding cache to free memory when switching chats
+    clearEmbeddingCache();
+    clearRetrievalDebug();
+
+    // Reset memoryBrowserPage to prevent showing wrong page after chat switch
+    resetMemoryBrowserPage();
+
+    // Reset transparency tracking for new chat
+    resetSessionStartTime();
+
+    // Set cooldown to prevent MESSAGE_RECEIVED from triggering extraction during chat load
+    setChatLoadingCooldown(2000, logDebug);
+
+    // Clear operation states on chat change to prevent stale locks
+    resetOperationStatesIfSafe();
+
+    // Clear current injection - it will be refreshed in onBeforeGeneration
+    safeSetExtensionPrompt('');
+
+    // Load perf data BEFORE refreshing UI so perf tab has data to render
+    loadPerfFromChat();
+    refreshAllUI();
+    setStatus('ready');
+}
+
+/**
+ * Handle message received event (automatic mode)
+ * Wakes the background worker to extract memories silently.
+ * Fire-and-forget — does not block SillyTavern.
+ * @param {number} messageId - The message ID
+ */
+export async function onMessageReceived(messageId) {
+    if (!isExtensionEnabled()) return;
+
+    // Skip if session disabled (migration failure)
+    if (isSessionDisabled()) {
+        logDebug('Skipping extraction - session disabled due to migration failure');
+        return;
+    }
+
+    const { wakeUpBackgroundWorker } = await import('./extraction/worker.js');
+
+    if (isChatLoadingCooldown()) {
+        logDebug(`Skipping extraction for message ${messageId} - chat load cooldown active`);
+        return;
+    }
+
+    const context = getDeps().getContext();
+    const chat = context.chat || [];
+    const message = chat[messageId];
+
+    // Wake worker on any real message (user or bot)
+    if (!message || message.is_system) {
+        return;
+    }
+
+    wakeUpBackgroundWorker();
+}
+
+// =============================================================================
+// Event Listener Management
+// =============================================================================
+
+/**
+ * Event type to handler mapping for DRY listener management
+ */
+const EVENT_MAP = [
+    ['GENERATION_AFTER_COMMANDS', onBeforeGeneration],
+    ['GENERATION_ENDED', onGenerationEnded],
+    ['GENERATION_STOPPED', onGenerationEnded],
+    ['MESSAGE_RECEIVED', onMessageReceived],
+    ['CHAT_CHANGED', onChatChanged],
+];
+
+/**
+ * Update event listeners based on settings
+ */
+export function updateEventListeners(_skipInitialization = false) {
+    const { eventSource, eventTypes } = getDeps();
+
+    // Reset operation state only if no generation in progress
+    resetOperationStatesIfSafe();
+
+    // Cleanup and register in one loop
+    EVENT_MAP.forEach(([type, handler]) => {
+        eventSource.removeListener(eventTypes[type], handler);
+        if (isExtensionEnabled()) {
+            eventSource.on(eventTypes[type], handler);
+            if (type === 'GENERATION_AFTER_COMMANDS') {
+                eventSource.makeFirst(eventTypes[type], handler);
+            }
+        }
+    });
+
+    if (isExtensionEnabled()) {
+        logDebug('Extension enabled - event listeners registered');
+    } else {
+        // Clear injection when disabled/manual
+        safeSetExtensionPrompt('');
+        logDebug('Manual mode - injection cleared');
+    }
+}

@@ -1,0 +1,44 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { cacheScoringDetails, clearRetrievalDebug, getCachedScoringDetails } from '../../src/retrieval/debug-cache.js';
+
+describe('cacheScoringDetails', () => {
+    beforeEach(() => {
+        clearRetrievalDebug();
+    });
+
+    it('includes importance, retrieval_hits, mentions, characters_involved', () => {
+        const results = [
+            {
+                memory: {
+                    id: 'm1',
+                    type: 'event',
+                    summary: 'Test',
+                    retrieval_hits: 5,
+                    mentions: 3,
+                    characters_involved: ['Alice', 'Bob'],
+                },
+                score: 4.0,
+                breakdown: {
+                    base: 2,
+                    baseAfterFloor: 2,
+                    recencyPenalty: 0,
+                    vectorSimilarity: 0,
+                    vectorBonus: 0,
+                    bm25Score: 0,
+                    bm25Bonus: 0,
+                    hitDamping: 1,
+                    frequencyFactor: 1,
+                    total: 4,
+                    distance: 10,
+                    importance: 3,
+                },
+            },
+        ];
+        cacheScoringDetails(results, new Set(['m1']));
+        const cached = getCachedScoringDetails();
+        expect(cached[0].importance).toBe(3);
+        expect(cached[0].retrieval_hits).toBe(5);
+        expect(cached[0].mentions).toBe(3);
+        expect(cached[0].characters_involved).toEqual(['Alice', 'Bob']);
+    });
+});

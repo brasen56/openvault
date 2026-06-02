@@ -1,0 +1,52 @@
+/* ─── Perf Tab ─── */
+.openvault-perf-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85em;
+}
+.openvault-perf-table th {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--SmartThemeEmColor, #888);
+    font-weight: 600;
+    font-size: 0.8em;
+    text-transform: uppercase;
+}
+.openvault-perf-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    white-space: nowrap;
+}
+.openvault-perf-table td:nth-child(3) {
+    font-family: monospace;
+    text-align: right;
+}
+.openvault-perf-table td:nth-child(4) {
+    color: var(--SmartThemeEmColor, #888);
+    font-size: 0.85em;
+}
+.openvault-perf-ok {
+    color: #4b4;
+}
+.openvault-perf-warn {
+    color: #f44;
+}
+.openvault-perf-icon {
+    width: 20px;
+    text-align: center;
+    color: var(--SmartThemeEmColor, #888);
+}
+.openvault-perf-status {
+    width: 20px;
+    text-align: center;
+    font-size: 1.1em;
+}
+.openvault-perf-sync-badge {
+    font-size: 0.7em;
+    background: rgba(255, 68, 68, 0.2);
+    color: #f88;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 4px;
+}

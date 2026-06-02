@@ -1,0 +1,1083 @@
+/* OpenVault — Side Panel (persistent memory viewer) */
+
+.openvault-side-panel {
+    position: fixed;
+    left: 0;
+    top: 40px;
+    bottom: 0;
+    width: clamp(280px, calc((100vw - var(--sheldWidth, 800px)) / 2), 420px);
+    z-index: 28;
+    display: none;
+    flex-direction: column;
+    background: var(--SmartThemeBlurTintColor, rgba(20, 20, 30, 0.92));
+    backdrop-filter: blur(var(--SmartThemeBlurStrength, 10px));
+    border-right: 1px solid var(--SmartThemeBorderColor, #333);
+    overflow: hidden;
+    font-size: 0.9em;
+}
+
+.openvault-side-panel.open {
+    display: flex;
+}
+
+/* Header: tabs + close */
+.openvault-side-panel-header {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #333);
+    flex-shrink: 0;
+}
+
+.openvault-side-panel-tabs {
+    display: flex;
+    flex: 1;
+    overflow-x: auto;
+}
+
+.openvault-side-tab {
+    flex: 1;
+    padding: 10px 6px;
+    border: none;
+    background: transparent;
+    color: var(--SmartThemeBodyColor, #ccc);
+    cursor: pointer;
+    font-size: 0.82em;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    opacity: 0.6;
+}
+
+.openvault-side-tab:hover {
+    opacity: 0.9;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.openvault-side-tab.active {
+    opacity: 1;
+    border-bottom-color: var(--SmartThemeEmColor, #48c);
+    color: var(--SmartThemeEmColor, #48c);
+}
+
+.openvault-side-tab i {
+    margin-right: 4px;
+}
+
+.openvault-side-panel-close {
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    color: var(--SmartThemeBodyColor, #ccc);
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+}
+
+.openvault-side-panel-close:hover {
+    opacity: 1;
+}
+
+/* Tab content */
+.openvault-side-tab-content {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.openvault-side-tab-content.active {
+    display: flex;
+}
+
+/* Scrollable area */
+.openvault-side-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 8px 32px 8px;
+    display: flex;
+    flex-direction: column;
+    scroll-padding-bottom: 48px;
+}
+
+/* Sidebar memory cards — compact, buttons beside date */
+.openvault-side-mem {
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-size: 0.88em;
+}
+
+.openvault-side-mem-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    gap: 6px;
+}
+
+.openvault-side-mem-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
+
+.openvault-side-mem-date {
+    font-size: 0.8em;
+    color: var(--SmartThemeEmColor, #888);
+    white-space: nowrap;
+}
+
+.openvault-side-mem-actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.openvault-side-mem-actions .openvault-entity-action-btn {
+    padding: 2px 4px;
+    font-size: 0.85em;
+}
+
+.openvault-side-mem .openvault-memory-card-summary {
+    font-size: 0.9em;
+    line-height: 1.35;
+}
+
+.openvault-side-mem .openvault-memory-card-badge {
+    font-size: 0.65em;
+    padding: 1px 6px;
+}
+
+/* Community cards in side panel */
+.openvault-side-scroll .openvault-community-item {
+    font-size: 0.88em;
+}
+
+.openvault-side-community-card {
+    border: 1px solid var(--SmartThemeBorderColor, #333);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2));
+}
+
+.openvault-community-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.openvault-community-card-body {
+    font-size: 0.95em;
+    line-height: 1.4;
+}
+
+.openvault-community-summary {
+    margin: 0 0 6px;
+    color: var(--SmartThemeBodyColor, #ccc);
+}
+
+.openvault-side-scroll .openvault-community-findings {
+    margin: 4px 0 8px;
+    padding-left: 20px;
+}
+
+.openvault-side-scroll .openvault-community-findings li {
+    margin-bottom: 4px;
+}
+
+.openvault-side-scroll .openvault-community-members {
+    color: var(--SmartThemeEmColor, #888);
+}
+
+/* Entity cards in side panel */
+.openvault-side-scroll .openvault-entity-card {
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    font-size: 0.88em;
+}
+
+/* Character items in side panel */
+.openvault-side-scroll .openvault-character-item {
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-size: 0.88em;
+}
+
+.openvault-character-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.openvault-character-delete {
+    background: none;
+    border: none;
+    color: var(--SmartThemeEmColor, #888);
+    cursor: pointer;
+    padding: 2px 4px;
+    font-size: 0.85em;
+    border-radius: 3px;
+    opacity: 0.5;
+    transition: opacity 0.15s, color 0.15s;
+    flex-shrink: 0;
+}
+
+.openvault-character-delete:hover {
+    opacity: 1;
+    color: #e74c3c;
+}
+
+.openvault-side-scroll .openvault-character-name {
+    font-size: 0.92em;
+    margin-bottom: 4px;
+}
+
+.openvault-side-scroll .openvault-emotion-label {
+    font-size: 0.8em;
+}
+
+/* Hide the emotion intensity bar — upstream hardcodes intensity to 5 (always 50%)
+   and never updates it from LLM output. Hide globally via fork-owned CSS. */
+.openvault-emotion-bar {
+    display: none;
+}
+
+.openvault-side-scroll .openvault-emotion-bar {
+    height: 6px;
+}
+
+/* Entity search/filter bar */
+.openvault-side-entity-filters {
+    display: flex;
+    gap: 6px;
+    padding: 8px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #333);
+    flex-shrink: 0;
+}
+
+.openvault-side-search {
+    flex: 1;
+    padding: 4px 8px;
+    border: 1px solid var(--SmartThemeBorderColor, #333);
+    border-radius: 4px;
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2));
+    color: var(--SmartThemeBodyColor, #ccc);
+    font-size: 0.85em;
+}
+
+.openvault-side-search:focus {
+    outline: none;
+    border-color: var(--SmartThemeEmColor, #48c);
+}
+
+.openvault-manage-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.openvault-manage-filters .openvault-side-search {
+    flex: 1;
+    min-width: 120px;
+}
+.openvault-manage-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.openvault-manage-select-label {
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.openvault-manage-select-label input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+.openvault-side-select {
+    padding: 4px 6px;
+    border: 1px solid var(--SmartThemeBorderColor, #333);
+    border-radius: 4px;
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2));
+    color: var(--SmartThemeBodyColor, #ccc);
+    font-size: 0.85em;
+    max-width: 90px;
+}
+
+/* Placeholder text */
+.openvault-side-placeholder {
+    padding: 20px;
+    text-align: center;
+    color: var(--SmartThemeEmColor, #888);
+    font-size: 0.88em;
+    opacity: 0.7;
+}
+
+/* Toggle button in main UI */
+#openvault_side_panel_toggle {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+}
+
+#openvault_side_panel_toggle:hover {
+    opacity: 1;
+}
+
+#openvault_side_panel_toggle.active {
+    opacity: 1;
+    color: var(--SmartThemeEmColor, #48c);
+}
+
+/* Panel toggle button in Quick Toggles header */
+.openvault-panel-toggle-btn {
+    background: none;
+    border: 1px solid var(--SmartThemeBorderColor, #444);
+    border-radius: 4px;
+    color: var(--SmartThemeBodyColor, #ccc);
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 0.85em;
+    opacity: 0.6;
+    transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+    flex-shrink: 0;
+}
+
+.openvault-panel-toggle-btn:hover {
+    opacity: 1;
+    border-color: var(--SmartThemeEmColor, #48c);
+    color: var(--SmartThemeEmColor, #48c);
+}
+
+.openvault-panel-toggle-btn.active {
+    opacity: 1;
+    color: var(--SmartThemeEmColor, #48c);
+    border-color: var(--SmartThemeEmColor, #48c);
+}
+
+/* Quick Toggles section */
+.openvault-quick-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    padding: 4px 0;
+}
+
+.openvault-quick-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.9em;
+    color: var(--SmartThemeBodyColor, #ccc);
+}
+
+.openvault-quick-toggle input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+.openvault-quick-toggle span {
+    user-select: none;
+}
+
+/* Graph visualization SVG */
+.openvault-graph-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    flex-shrink: 0;
+}
+
+/* Graph tooltip */
+.openvault-graph-tooltip {
+    position: fixed;
+    z-index: 1000;
+    background: var(--SmartThemeBlurTintColor, rgba(20, 20, 30, 0.95));
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--SmartThemeBorderColor, #555);
+    border-radius: 6px;
+    padding: 8px 12px;
+    max-width: 260px;
+    pointer-events: none;
+    font-size: 0.85em;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    display: none;
+}
+
+.ov-graph-tooltip-name {
+    font-weight: 600;
+    color: var(--SmartThemeEmColor, #48c);
+    margin-bottom: 4px;
+}
+
+.ov-graph-tooltip-type {
+    font-weight: 400;
+    font-size: 0.8em;
+    opacity: 0.7;
+    margin-left: 4px;
+}
+
+.ov-graph-tooltip-desc {
+    color: var(--SmartThemeBodyColor, #ccc);
+    line-height: 1.35;
+    margin-bottom: 4px;
+}
+
+.ov-graph-tooltip-aliases {
+    font-size: 0.8em;
+    color: var(--SmartThemeEmColor, #888);
+    margin-bottom: 4px;
+}
+
+.ov-graph-tooltip-meta {
+    font-size: 0.75em;
+    color: var(--SmartThemeEmColor, #666);
+    margin-top: 2px;
+}
+
+/* =============================================================================
+   Export/Import Panel (Feature #6)
+   ============================================================================= */
+
+.openvault-export-import-panel {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.openvault-ei-section {
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.15));
+    border: 1px solid var(--SmartThemeBorderColor, #333);
+    border-radius: 8px;
+    padding: 14px;
+}
+
+.openvault-ei-section h3 {
+    margin: 0 0 8px 0;
+    font-size: 0.95em;
+    color: var(--SmartThemeEmColor, #48c);
+}
+
+.openvault-ei-section h3 i {
+    margin-right: 6px;
+}
+
+.openvault-ei-desc {
+    margin: 0 0 10px 0;
+    font-size: 0.82em;
+    color: var(--SmartThemeEmColor, #888);
+    line-height: 1.4;
+}
+
+.openvault-ei-stats {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 4px;
+}
+
+.openvault-ei-stat {
+    text-align: center;
+}
+
+.openvault-ei-stat-value {
+    display: block;
+    font-size: 1.4em;
+    font-weight: 700;
+    color: var(--SmartThemeEmColor, #48c);
+}
+
+.openvault-ei-stat-label {
+    display: block;
+    font-size: 0.7em;
+    color: var(--SmartThemeEmColor, #888);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.openvault-ei-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.openvault-reclassify-lastn-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82em;
+    color: var(--SmartThemeEmColor, #888);
+}
+
+.openvault-reclassify-lastn-input {
+    width: 70px;
+    padding: 4px 8px;
+    border: 1px solid var(--SmartThemeBorderColor, #333);
+    border-radius: 4px;
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2));
+    color: var(--SmartThemeBodyColor, #ccc);
+    font-size: 0.85em;
+    text-align: center;
+}
+
+.openvault-ei-danger {
+    border-color: rgba(204, 85, 85, 0.3);
+}
+
+.openvault-ei-danger h3 {
+    color: #e88;
+}
+
+.openvault-export-import-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: 1px solid var(--SmartThemeBorderColor, #333);
+    border-radius: 6px;
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2));
+    color: var(--SmartThemeBodyColor, #ccc);
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.15s;
+}
+
+.openvault-export-import-btn:hover {
+    background: var(--SmartThemeEmColor, #48c);
+    color: #fff;
+    border-color: var(--SmartThemeEmColor, #48c);
+}
+
+.openvault-btn-danger {
+    border-color: #c55;
+    color: #e88;
+}
+
+.openvault-btn-danger:hover {
+    background: #c55;
+    color: #fff;
+}
+
+/* =============================================================================
+   Duplicate Resolution Panel (Feature #8)
+   ============================================================================= */
+
+.openvault-dup-summary-bar {
+    padding: 8px 12px;
+    background: rgba(255, 170, 0, 0.1);
+    border-bottom: 1px solid rgba(255, 170, 0, 0.2);
+    font-size: 0.85em;
+    color: var(--SmartThemeEmColor, #c90);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.openvault-dup-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.openvault-dup-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+    gap: 8px;
+    color: var(--SmartThemeEmColor, #888);
+}
+
+.openvault-dup-empty p {
+    margin: 0;
+    font-size: 1em;
+}
+
+.openvault-dup-empty small {
+    font-size: 0.8em;
+    opacity: 0.7;
+}
+
+.openvault-dup-pair {
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.15));
+    border: 1px solid var(--SmartThemeBorderColor, #333);
+    border-radius: 8px;
+}
+
+.openvault-dup-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.15);
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #333);
+    flex-wrap: wrap;
+}
+
+.openvault-dup-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(255, 170, 0, 0.2);
+    color: #c90;
+    font-size: 0.72em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.openvault-dup-scores {
+    font-size: 0.78em;
+    color: var(--SmartThemeBodyColor, #ccc);
+    opacity: 0.8;
+}
+
+.openvault-dup-reason {
+    font-size: 0.75em;
+    color: var(--SmartThemeEmColor, #888);
+    margin-left: auto;
+}
+
+.openvault-dup-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--SmartThemeBorderColor, #333);
+}
+
+.openvault-dup-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--SmartThemeBlurTintColor, rgba(20, 20, 30, 0.95));
+}
+
+.openvault-dup-card-label {
+    font-size: 0.72em;
+    font-weight: 600;
+    padding: 4px 10px;
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--SmartThemeEmColor, #888);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.openvault-dup-card-body {
+    padding: 10px 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.openvault-dup-summary {
+    font-size: 0.88em;
+    line-height: 1.5;
+    color: var(--SmartThemeBodyColor, #ccc);
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.openvault-dup-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 0.72em;
+    color: var(--SmartThemeEmColor, #888);
+}
+
+.openvault-dup-meta span {
+    display: inline-block;
+    padding: 1px 6px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+}
+
+.openvault-dup-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+    border-top: 1px solid var(--SmartThemeBorderColor, #333);
+    justify-content: center;
+}
+
+.openvault-dup-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border: 1px solid var(--SmartThemeBorderColor, #333);
+    border-radius: 4px;
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2));
+    color: var(--SmartThemeBodyColor, #ccc);
+    cursor: pointer;
+    font-size: 0.8em;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.openvault-dup-action-btn:hover {
+    background: var(--SmartThemeEmColor, #48c);
+    color: #fff;
+    border-color: var(--SmartThemeEmColor, #48c);
+}
+
+.openvault-dup-action-btn.secondary:hover {
+    background: #666;
+    border-color: #666;
+}
+
+/* =============================================================================
+   Timeline View (Feature #9)
+   ============================================================================= */
+
+.openvault-timeline-summary-bar {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #333);
+    font-size: 0.82em;
+    color: var(--SmartThemeBodyColor, #ccc);
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.openvault-timeline-legend {
+    display: flex;
+    gap: 12px;
+    font-size: 0.78em;
+    opacity: 0.8;
+}
+
+.openvault-timeline-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.openvault-timeline-track {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 12px 32px 12px;
+    scroll-behavior: smooth;
+}
+
+.openvault-timeline-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+    gap: 8px;
+    color: var(--SmartThemeEmColor, #888);
+}
+
+.openvault-timeline-empty p {
+    margin: 0;
+    font-size: 1em;
+}
+
+.openvault-timeline-empty small {
+    font-size: 0.8em;
+    opacity: 0.7;
+}
+
+/* Phase header */
+.openvault-timeline-phase {
+    margin-bottom: 4px;
+}
+
+.openvault-timeline-phase-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(72, 136, 204, 0.08);
+    border-left: 3px solid var(--SmartThemeEmColor, #48c);
+    border-radius: 0 4px 4px 0;
+    margin-bottom: 8px;
+}
+
+.openvault-timeline-phase-label {
+    font-weight: 600;
+    font-size: 0.85em;
+    color: var(--SmartThemeEmColor, #48c);
+}
+
+.openvault-timeline-phase-range {
+    font-size: 0.75em;
+    color: var(--SmartThemeEmColor, #888);
+}
+
+.openvault-timeline-phase-count {
+    margin-left: auto;
+    font-size: 0.75em;
+    color: var(--SmartThemeEmColor, #666);
+    background: rgba(0, 0, 0, 0.15);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+/* Timeline entry */
+.openvault-timeline-entry {
+    display: flex;
+    gap: 12px;
+    padding: 8px 0;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-radius: 4px;
+}
+
+.openvault-timeline-entry:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.openvault-timeline-entry.expanded .openvault-timeline-summary {
+    max-height: none;
+    -webkit-line-clamp: unset;
+}
+
+.openvault-timeline-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 16px;
+    flex-shrink: 0;
+    padding-top: 4px;
+}
+
+.openvault-timeline-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--SmartThemeEmColor, #48c);
+    border: 2px solid var(--SmartThemeEmColor, #48c);
+    flex-shrink: 0;
+}
+
+.openvault-timeline-dot.reflection {
+    background: transparent;
+    border: 2px solid #a78bfa;
+}
+
+.openvault-timeline-dot.transient {
+    background: #f59e0b;
+    border-color: #f59e0b;
+    animation: openvault-pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes openvault-pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.openvault-timeline-line {
+    width: 2px;
+    flex: 1;
+    min-height: 12px;
+    background: var(--SmartThemeBorderColor, #333);
+    margin-top: 2px;
+}
+
+.openvault-timeline-content {
+    flex: 1;
+    min-width: 0;
+    padding-bottom: 8px;
+}
+
+.openvault-timeline-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+
+.openvault-timeline-importance {
+    font-size: 0.7em;
+    letter-spacing: 1px;
+}
+
+.openvault-timeline-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 0.7em;
+    font-weight: 600;
+}
+
+.openvault-timeline-badge.reflection {
+    background: rgba(167, 139, 250, 0.15);
+    color: #a78bfa;
+}
+
+.openvault-timeline-badge.transient {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+}
+
+.openvault-timeline-date {
+    font-size: 0.72em;
+    color: var(--SmartThemeEmColor, #888);
+}
+
+.openvault-timeline-anchor {
+    font-size: 0.72em;
+    color: var(--SmartThemeEmColor, #48c);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.openvault-timeline-summary {
+    font-size: 0.85em;
+    line-height: 1.4;
+    color: var(--SmartThemeBodyColor, #ccc);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    transition: max-height 0.2s;
+}
+
+.openvault-timeline-chars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.openvault-character-tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: rgba(72, 136, 204, 0.12);
+    color: var(--SmartThemeEmColor, #48c);
+    font-size: 0.72em;
+}
+
+.openvault-timeline-level {
+    font-size: 0.7em;
+    color: var(--SmartThemeEmColor, #666);
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.openvault-timeline-actions {
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.openvault-timeline-entry:hover .openvault-timeline-actions {
+    opacity: 1;
+}
+
+.openvault-timeline-delete-btn {
+    background: none;
+    border: none;
+    color: var(--SmartThemeEmColor, #888);
+    cursor: pointer;
+    padding: 2px 5px;
+    font-size: 0.78em;
+    border-radius: 3px;
+    transition: color 0.15s;
+}
+
+.openvault-timeline-delete-btn:hover {
+    color: #e74c3c;
+}
+
+/* Timeline toolbar with refresh button */
+.openvault-timeline-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #333);
+    margin-bottom: 8px;
+}
+
+.openvault-timeline-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--SmartThemeBorderColor, #444);
+    border-radius: 4px;
+    background: rgba(72, 136, 204, 0.1);
+    color: var(--SmartThemeEmColor, #48c);
+    cursor: pointer;
+    font-size: 0.8em;
+    font-weight: 500;
+    transition: all 0.15s;
+}
+
+.openvault-timeline-refresh-btn:hover {
+    background: rgba(72, 136, 204, 0.2);
+    border-color: var(--SmartThemeEmColor, #48c);
+}
+
+.openvault-timeline-refresh-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.openvault-timeline-refresh-btn i {
+    font-size: 0.9em;
+}
+
+.openvault-timeline-orphaned-warning {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75em;
+    color: #f59e0b;
+    margin-left: auto;
+}
+
+/* Orphaned/archived entries (Inline Summary compatibility) */
+.openvault-timeline-badge.orphaned {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+}
+
+.openvault-timeline-dot.orphaned {
+    background: #666;
+    border-color: #888;
+    opacity: 0.7;
+}
+
+.openvault-timeline-entry.orphaned {
+    opacity: 0.85;
+}
+
+.openvault-timeline-entry.orphaned .openvault-timeline-summary {
+    font-style: italic;
+}
+
+.openvault-timeline-phase.summarized .openvault-timeline-phase-header {
+    background: rgba(245, 158, 11, 0.08);
+    border-left-color: #f59e0b;
+}
+
+.openvault-timeline-phase.summarized .openvault-timeline-phase-label {
+    color: #f59e0b;
+}

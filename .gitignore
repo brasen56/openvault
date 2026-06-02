@@ -1,0 +1,27 @@
+# Dependencies
+/node_modules/
+
+# Build output
+/dist/
+/coverage/
+
+# Vendored source
+/src/vendor/
+
+# Repomix generated bundles
+/repomix*.xml
+/repomix*.md
+
+# Runtime & temporary
+/tmp/
+/logs/
+
+# Git worktrees
+/.worktrees/
+
+# OTHER
+*.stackdump
+/.claude/
+/.wolf/
+
+nul

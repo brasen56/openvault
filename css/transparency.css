@@ -1,0 +1,141 @@
+/* OpenVault Transparency UI */
+
+/* ── Extraction Notification (toastr override) ── */
+.openvault-extraction-notify {
+    font-size: 0.85em;
+    line-height: 1.4;
+}
+.openvault-extraction-notify-header {
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--SmartThemeQuoteColor, #e0e0e0);
+}
+.openvault-extraction-notify-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 8px 0;
+}
+.openvault-extraction-notify-list li {
+    padding: 3px 0 3px 14px;
+    position: relative;
+    color: var(--SmartThemeBodyColor, #ccc);
+    opacity: 0.9;
+}
+.openvault-extraction-notify-list li::before {
+    content: '›';
+    position: absolute;
+    left: 0;
+    color: var(--SmartThemeQuoteColor, #8b9cf7);
+    font-weight: bold;
+}
+.openvault-extraction-notify-more {
+    font-style: italic;
+    opacity: 0.6 !important;
+}
+.openvault-extraction-notify-view {
+    display: inline-block;
+    padding: 3px 10px;
+    font-size: 0.85em;
+    border: 1px solid var(--SmartThemeBorderColor, #555);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--SmartThemeBodyColor, #ccc);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.openvault-extraction-notify-view:hover {
+    background: var(--SmartThemeBlurTintColor, rgba(255,255,255,0.1));
+}
+
+/* ── Injection Status Badge ── */
+#openvault_injection_badge {
+    font-size: 0.75em;
+    color: var(--SmartThemeBodyColor, #999);
+    opacity: 0.7;
+    margin-left: 6px;
+    white-space: nowrap;
+}
+
+/* ── Injection Preview Panel ── */
+.openvault-injection-preview-empty {
+    text-align: center;
+    padding: 24px 12px;
+    color: var(--SmartThemeBodyColor, #999);
+    opacity: 0.6;
+}
+.openvault-injection-preview-empty i {
+    font-size: 1.5em;
+    margin-bottom: 8px;
+    display: block;
+}
+.openvault-injection-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #333);
+    margin-bottom: 8px;
+}
+.openvault-injection-preview-count {
+    font-weight: 600;
+    color: var(--SmartThemeQuoteColor, #8b9cf7);
+}
+.openvault-injection-preview-time {
+    font-size: 0.8em;
+    opacity: 0.6;
+    color: var(--SmartThemeBodyColor, #999);
+}
+.openvault-injection-preview-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 4px 0;
+}
+.openvault-injection-preview-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--SmartThemeBlurTintColor, rgba(0,0,0,0.2));
+    border-left: 3px solid var(--SmartThemeBorderColor, #444);
+}
+.openvault-injection-preview-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.openvault-injection-preview-item-header i {
+    color: var(--SmartThemeQuoteColor, #8b9cf7);
+    font-size: 0.85em;
+}
+.openvault-injection-preview-importance {
+    font-size: 0.8em;
+    opacity: 0.7;
+}
+.openvault-injection-preview-importance.high {
+    color: #f59e0b;
+    opacity: 1;
+}
+.openvault-injection-preview-importance.medium {
+    color: #60a5fa;
+}
+.openvault-injection-preview-importance.low {
+    color: #6b7280;
+}
+.openvault-injection-preview-summary {
+    font-size: 0.9em;
+    line-height: 1.4;
+    color: var(--SmartThemeBodyColor, #ccc);
+}
+.openvault-injection-preview-chars {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+.openvault-injection-preview-char {
+    font-size: 0.75em;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--SmartThemeBorderColor, #333);
+    color: var(--SmartThemeBodyColor, #aaa);
+}

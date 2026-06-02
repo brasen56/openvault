@@ -1,0 +1,12 @@
+{
+    "display_name": "TestVault",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "Brasen",
+    "version": "23.00",
+    "homePage": "",
+    "auto_update": false
+}

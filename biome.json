@@ -1,0 +1,87 @@
+{
+    "$schema": "https://biomejs.dev/schemas/2.4.4/schema.json",
+    "vcs": {
+        "enabled": true,
+        "clientKind": "git",
+        "useIgnoreFile": true
+    },
+    "files": {
+        "ignoreUnknown": false
+    },
+    "formatter": {
+        "enabled": true,
+        "formatWithErrors": false,
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 120
+    },
+    "javascript": {
+        "formatter": {
+            "quoteStyle": "single",
+            "semicolons": "always",
+            "trailingCommas": "es5"
+        },
+        "globals": [
+            "window",
+            "document",
+            "console",
+            "fetch",
+            "setTimeout",
+            "clearTimeout",
+            "setInterval",
+            "clearInterval",
+            "confirm",
+            "prompt",
+            "alert",
+            "Worker",
+            "URL",
+            "navigator",
+            "jQuery",
+            "$",
+            "toastr"
+        ]
+    },
+    "linter": {
+        "enabled": true,
+        "rules": {
+            "recommended": true,
+            "suspicious": {
+                "noAssignInExpressions": "off",
+                "noConsole": "off"
+            },
+            "style": {
+                "useConst": "error",
+                "useBlockStatements": "off",
+                "useNodejsImportProtocol": "off",
+                "useTemplate": "off"
+            },
+            "complexity": {
+                "noForEach": "off"
+            },
+            "correctness": {
+                "noUnusedVariables": "warn",
+                "noInnerDeclarations": "warn"
+            },
+            "a11y": {
+                "useButtonType": "off"
+            }
+        }
+    },
+    "overrides": [
+        {
+            "includes": ["src/types.d.ts"],
+            "linter": {
+                "rules": {
+                    "suspicious": {
+                        "noExplicitAny": "off"
+                    }
+                }
+            }
+        }
+    ],
+    "html": {
+        "parser": {
+            "interpolation": true
+        }
+    }
+}

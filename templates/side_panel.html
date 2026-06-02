@@ -1,0 +1,129 @@
+<div id="openvault_side_panel" class="openvault-side-panel">
+    <div class="openvault-side-panel-header">
+        <div class="openvault-side-panel-tabs">
+            <button class="openvault-side-tab active" data-side-tab="memories">
+                <i class="fa-solid fa-brain"></i> Memories
+            </button>
+            <button class="openvault-side-tab" data-side-tab="communities">
+                <i class="fa-solid fa-circle-nodes"></i> Communities
+            </button>
+            <button class="openvault-side-tab" data-side-tab="entities">
+                <i class="fa-solid fa-diagram-project"></i> Entities
+            </button>
+            <button class="openvault-side-tab" data-side-tab="characters">
+                <i class="fa-solid fa-masks-theater"></i> Characters
+            </button>
+            <button class="openvault-side-tab" data-side-tab="graph">
+                <i class="fa-solid fa-share-nodes"></i> Graph
+            </button>
+            <button class="openvault-side-tab" data-side-tab="timeline">
+                <i class="fa-solid fa-timeline"></i> Timeline
+            </button>
+            <button class="openvault-side-tab" data-side-tab="duplicates">
+                <i class="fa-solid fa-clone"></i> Duplicates
+            </button>
+            <button class="openvault-side-tab" data-side-tab="manage">
+                <i class="fa-solid fa-sliders"></i> Manage
+            </button>
+            <button class="openvault-side-tab" data-side-tab="injection">
+                <i class="fa-solid fa-syringe"></i> Injection
+            </button>
+            <button class="openvault-side-tab" data-side-tab="export-import">
+                <i class="fa-solid fa-file-import"></i> Export
+            </button>
+        </div>
+        <button id="openvault_side_panel_close" class="openvault-side-panel-close" title="Close panel">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    </div>
+
+    <div class="openvault-side-tab-content active" data-side-tab-content="memories">
+        <div id="openvault_side_memories" class="openvault-side-scroll"></div>
+    </div>
+
+    <div class="openvault-side-tab-content" data-side-tab-content="communities">
+        <div id="openvault_side_communities" class="openvault-side-scroll"></div>
+    </div>
+
+    <div class="openvault-side-tab-content" data-side-tab-content="entities">
+        <div class="openvault-side-entity-filters">
+            <input type="text" id="openvault_side_entity_search" class="openvault-side-search" placeholder="Search entities..." />
+            <select id="openvault_side_entity_search_scope" class="openvault-side-select">
+                <option value="all">All fields</option>
+                <option value="name">Name only</option>
+                <option value="name_aliases">Name & Aliases</option>
+            </select>
+            <select id="openvault_side_entity_type" class="openvault-side-select">
+                <option value="">All Types</option>
+                <option value="PERSON">Person</option>
+                <option value="PLACE">Place</option>
+                <option value="ORGANIZATION">Org</option>
+                <option value="OBJECT">Object</option>
+                <option value="CONCEPT">Concept</option>
+            </select>
+        </div>
+        <div id="openvault_side_entities" class="openvault-side-scroll"></div>
+    </div>
+
+    <div class="openvault-side-tab-content" data-side-tab-content="characters">
+        <div id="openvault_side_characters" class="openvault-side-scroll"></div>
+    </div>
+
+    <div class="openvault-side-tab-content" data-side-tab-content="graph">
+        <div id="openvault_side_graph" class="openvault-side-scroll"></div>
+    </div>
+
+    <div class="openvault-side-tab-content" data-side-tab-content="timeline">
+        <div id="openvault_timeline_content" class="openvault-timeline-track"></div>
+    </div>
+
+    <div class="openvault-side-tab-content" data-side-tab-content="duplicates">
+        <div id="openvault_duplicates_content" class="openvault-dup-panel openvault-side-scroll"></div>
+    </div>
+
+    <div class="openvault-side-tab-content" data-side-tab-content="manage">
+        <div id="openvault_side_manage" class="openvault-side-scroll">
+            <div class="openvault-manage-filters">
+                <input type="text" id="openvault_side_manage_search" class="openvault-side-search" placeholder="Search memories..." />
+                <select id="openvault_side_manage_type" class="openvault-side-select">
+                    <option value="">All Types</option>
+                    <option value="event">Events</option>
+                    <option value="reflection">Reflections</option>
+                </select>
+                <select id="openvault_side_manage_sort" class="openvault-side-select">
+                    <option value="date">Newest First</option>
+                    <option value="importance">Importance ★</option>
+                </select>
+                <label class="openvault-filter-toggle" title="Include archived memories">
+                    <input type="checkbox" id="openvault_side_manage_archived" />
+                    <i class="fa-solid fa-box-archive"></i> Archived
+                </label>
+            </div>
+            <div id="openvault_side_manage_bulk" class="openvault-bulk-bar" style="display:none;">
+                <label class="openvault-select-all-label">
+                    <input type="checkbox" id="openvault_side_manage_select_all" />
+                    All
+                </label>
+                <button id="openvault_side_manage_archive_btn" class="menu_button" title="Archive selected">
+                    <i class="fa-solid fa-box-archive"></i>
+                </button>
+                <button id="openvault_side_manage_unarchive_btn" class="menu_button" title="Unarchive selected">
+                    <i class="fa-solid fa-box-open"></i>
+                </button>
+                <button id="openvault_side_manage_delete_btn" class="menu_button danger" title="Delete selected">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+                <span id="openvault_side_manage_count" class="openvault-bulk-count">0</span>
+            </div>
+            <div id="openvault_side_manage_list"></div>
+        </div>
+    </div>
+
+    <div class="openvault-side-tab-content" data-side-tab-content="injection">
+        <div id="openvault_injection_preview" class="openvault-side-scroll"></div>
+    </div>
+
+    <div class="openvault-side-tab-content" data-side-tab-content="export-import">
+        <div id="openvault_export_import_content" class="openvault-export-import-panel openvault-side-scroll"></div>
+    </div>
+</div>
