@@ -52,7 +52,7 @@ import {
 } from '../prompts/index.js';
 import { accumulateImportance, generateReflections, shouldReflect } from '../reflection/reflect.js';
 import { calculateIDF, cosineSimilarity, tokenize } from '../retrieval/math.js';
-import { checkNewMemoryContradictions } from '../retrieval/llm-contradiction.js';
+import { batchContradictionScan, checkNewMemoryContradictions } from '../retrieval/llm-contradiction.js';
 import { deleteItemsFromST, isStVectorSource, syncItemsToST } from '../services/st-vector.js';
 import { getSettings } from '../settings.js';
 import { clearAllLocks, getLastApiCallTime, isWorkerRunning, operationState, recordFailedCall, setLastApiCallTime } from '../state.js';
@@ -950,22 +950,59 @@ async function checkBatchForContradictions(events, data, settings, abortSignal) 
     const priorMemories = (data[MEMORIES_KEY] || []).filter((m) => !newEventIds.has(m.id));
     if (priorMemories.length === 0) return;
 
-    // Budget: cap how many events reach LLM verification (cost control). A `verified`
-    // result means at least one LLM call ran for that event; cheap skips (no overlap,
-    // neutral sentiment) don't count against the budget.
-    const maxVerifications = settings.llmContradictionMaxCalls || 5;
-    let verifications = 0;
+    // Budget: cap actual LLM calls (not events). Each event can cost up to 3 calls,
+    // so we track llmCallsUsed across all events and stop when the budget is exhausted.
+    const maxLLMCalls = settings.llmContradictionMaxCalls || 5;
+    let totalLLMCalls = 0;
+
+    // RPM spacing callback — reuses the extraction pipeline's rate limiter
+    const contradictionRpmDelay = () => rpmDelay(settings, 'Contradiction inter-call RPM');
 
     for (const event of events) {
-        if (verifications >= maxVerifications) break;
+        if (totalLLMCalls >= maxLLMCalls) break;
         if (abortSignal?.aborted) break;
+
+        // Remaining budget for this event
+        const remainingBudget = maxLLMCalls - totalLLMCalls;
+
         try {
-            const result = await checkNewMemoryContradictions(event, priorMemories);
-            if (result.verified) verifications++;
-            if (result.merged) {
+            const result = await checkNewMemoryContradictions(event, priorMemories, {
+                rpmDelayFn: contradictionRpmDelay,
+                maxCalls: remainingBudget,
+            });
+
+            totalLLMCalls += result.llmCallsUsed || 0;
+
+            if (result.merged && result.stSync) {
+                const { archived, updated, olderPreMergeSummary, newerPreMergeSummary } = result.stSync;
+
                 logDebug(
                     `Contradiction merge: new memory ${event.id} retired an older contradicting memory (${result.reason || 'no reason given'})`
                 );
+
+                // ST Vector re-sync: delete archived memory's stale vector,
+                // re-sync updated memory with its new merged summary.
+                if (isStVectorSource()) {
+                    const contradictionSyncChanges = { toSync: [], toDelete: [] };
+
+                    // Delete archived memory's old vector
+                    const archivedText = `[OV_ID:${archived.id}] ${olderPreMergeSummary}`;
+                    contradictionSyncChanges.toDelete.push({ hash: cyrb53(archivedText) });
+
+                    // Re-sync updated memory with new merged summary
+                    const updatedText = `[OV_ID:${updated.id}] ${updated.summary}`;
+                    contradictionSyncChanges.toSync.push({
+                        hash: cyrb53(updatedText),
+                        text: updatedText,
+                        item: updated,
+                    });
+
+                    // Also delete the older pre-merge vector (stale hash)
+                    const staleUpdatedText = `[OV_ID:${updated.id}] ${newerPreMergeSummary}`;
+                    contradictionSyncChanges.toDelete.push({ hash: cyrb53(staleUpdatedText) });
+
+                    await applySyncChanges(contradictionSyncChanges);
+                }
             }
         } catch (err) {
             logWarn(`Contradiction check failed for new memory ${event.id}: ${err.message}`);
@@ -1215,6 +1252,36 @@ export async function extractMemories(messageIds = null, targetChatId = null, op
             if (Math.floor(currCount / communityInterval) > Math.floor(prevCount / communityInterval)) {
                 await rpmDelay(settings, 'Phase 2 community rate limit');
                 await synthesizeCommunities(data, settings, characterName, userName);
+            }
+
+            // Stage 7: Periodic full-store contradiction scan (interval check)
+            // Mirrors the community-detection interval pattern. Only fires when
+            // Tier 2 + auto-merge are both enabled and the message count crosses
+            // a multiple of `llmContradictionBatchInterval`.
+            if (settings.llmContradictionEnabled && settings.llmContradictionAutoMerge) {
+                const batchInterval = settings.llmContradictionBatchInterval || 100;
+                if (Math.floor(currCount / batchInterval) > Math.floor(prevCount / batchInterval)) {
+                    await rpmDelay(settings, 'Phase 2 batch contradiction scan rate limit');
+                    try {
+                        const allMemories = data[MEMORIES_KEY] || [];
+                        const scanResults = await batchContradictionScan(allMemories, {
+                            maxCalls: settings.llmContradictionMaxCalls || 5,
+                            confidenceThreshold: settings.llmContradictionConfidence || 0.7,
+                            autoMerge: true,
+                        });
+                        if (scanResults.length > 0) {
+                            logDebug(`Batch contradiction scan: ${scanResults.length} contradictions resolved`);
+                            // Re-embed any merged memories
+                            const mergedIds = new Set(scanResults.filter((r) => r.merged).map((r) => r.newer));
+                            const mergedMemories = allMemories.filter((m) => mergedIds.has(m.id));
+                            if (mergedMemories.length > 0) {
+                                await enrichEventsWithEmbeddings(mergedMemories);
+                            }
+                        }
+                    } catch (scanError) {
+                        logWarn(`Batch contradiction scan failed: ${scanError.message}`);
+                    }
+                }
             }
 
             // Final save — Phase 2 enrichment persisted

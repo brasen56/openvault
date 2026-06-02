@@ -16,8 +16,7 @@ newer ones contradict them.
    - Gated by the `llmContradictionEnabled` setting (off by default).
    - Runs only when the batch produced events; skipped during backfill (the
      early `return` in the `isBackfill` branch sits above it).
-   - Per-batch budget caps how many events reach the paid LLM step
-     (`llmContradictionMaxCalls`, default 5).
+   - Per-batch budget caps actual LLM calls (`llmContradictionMaxCalls`, default 5).
    - Merges mutate `data.memories` in place; persisted by the existing final
      `saveOpenVaultData()`. Retrieval already excludes `archived` memories
      (`src/retrieval/retrieve.js:503` and `:620`), so an archived memory really
@@ -34,48 +33,51 @@ newer ones contradict them.
      (positive) memory and keep the fight — backwards. Same-batch conflicts are
      now left for Tier 2, which can read narrative order.
 
+3. **ST Vector re-sync after auto-merge** (#1).
+   - `mergeContradictingMemories()` now returns pre-merge summaries
+     (`olderPreMergeSummary`, `newerPreMergeSummary`) alongside the mutated
+     memory objects.
+   - `checkNewMemoryContradictions()` propagates this as `stSync` in its return
+     value when a merge occurred.
+   - `checkBatchForContradictions()` consumes `stSync` and pushes the correct
+     `toDelete` (archived memory's old hash, updated memory's stale hash) and
+     `toSync` (updated memory with new merged summary) to `applySyncChanges()`.
+   - Only runs when `isStVectorSource()` is true — no overhead for local/ollama.
+
+4. **Merge-metadata fields added to schema** (#2).
+   - `archive_reason`, `merged_into`, `merge_sources`, `merge_timestamp` added
+     to `MemorySchema` in `src/store/schemas.js`.
+   - Removed all `@type {any}` casts in `mergeContradictingMemories()` — fields
+     are now properly typed.
+   - Types regenerated via `npm run generate-types`.
+
+5. **Per-call RPM spacing for contradiction LLM calls** (#3).
+   - `checkNewMemoryContradictions()` accepts an `rpmDelayFn` option (async
+     callback). It's called between LLM verifications (i.e., after the first
+     call returns, before the next one fires).
+   - `checkBatchForContradictions()` passes `() => rpmDelay(settings, ...)`
+     so each call respects the shared rate limiter.
+
+6. **Cost budget counts actual LLM calls** (#4).
+   - `checkNewMemoryContradictions()` now returns `llmCallsUsed` (counting both
+     successful and failed LLM calls, but not cheap skips like neutral sentiment
+     or no overlap).
+   - `checkBatchForContradictions()` tracks `totalLLMCalls` across events and
+     stops when `maxLLMCalls` is exhausted. Each event's remaining budget is
+     passed as `maxCalls` to `checkNewMemoryContradictions()`.
+
+7. **Periodic full-store batch contradiction scan** (#7).
+   - Added as Stage 7 in `extractMemories()` Phase 2, after community detection.
+   - Mirrors the community-detection interval pattern: fires when
+     `graph_message_count` crosses a multiple of `llmContradictionBatchInterval`.
+   - Only runs when both `llmContradictionEnabled` AND `llmContradictionAutoMerge`
+     are enabled.
+   - Re-embeds merged memories after the scan.
+   - `batchContradictionScan()` imported in `extract.js`.
+
 ---
 
 ## 🔧 Remaining work (roughly priority order)
-
-### 1. ST Vector re-sync after an auto-merge  (only affects `embeddingSource: st_vector` + `llmContradictionAutoMerge: true`)
-`mergeContradictingMemories()` archives the older memory and rewrites the newer
-one's summary, then calls `enrichEventsWithEmbeddings([newer])`. But nothing
-updates the **ST Vector index**:
-- The archived memory's vector still lives in the index (harmless for
-  correctness — retrieval filters `archived` — but it's dead weight and can
-  occupy a query slot).
-- The merged memory's indexed text is **stale** (old summary), so vector search
-  matches the pre-merge wording.
-
-**Fix:** after a merge, push the archived memory to `toDelete` and the updated
-memory to `toSync`, then call `applySyncChanges()`. Follow the existing pattern
-in `extract.js` (the event-sync block that builds
-`{ hash: cyrb53(\`[OV_ID:${id}] ${summary}\`), text, item }`). Easiest path:
-have `checkNewMemoryContradictions()` / `mergeContradictingMemories()` return the
-affected memory refs (additive — won't break current tests, which only assert
-`.verified`/`.merged`), then sync them in `checkBatchForContradictions()`.
-See the "ST CHANGES CONTRACT" in `src/store/CLAUDE.md`.
-
-### 2. Add merge-metadata fields to the schema
-`mergeContradictingMemories()` writes `archive_reason`, `merged_into`,
-`merge_sources`, `merge_timestamp`. These are **not** in `MemorySchema`
-(`src/store/schemas.js:19`). They persist today only because `saveOpenVaultData()`
-doesn't `.parse()` on save — fragile. Per the "three-point update" rule in
-`src/store/CLAUDE.md`, add them to `MemorySchema` and regenerate types
-(`npm run generate-types`). Without this they're invisible to any future
-validation/migration and to the type system.
-
-### 3. Per-call RPM spacing for contradiction LLM calls
-There's a single `rpmDelay()` before Stage 5b, but `checkNewMemoryContradictions()`
-can fire up to 3 `callLLM` calls internally with no spacing between them. For
-RPM-limited / local users that can burst. Either thread an rpm-aware callback in,
-or move the loop out so each `verifyContradiction()` is individually spaced.
-
-### 4. Cost budget is coarse
-`checkBatchForContradictions()` caps the number of *events* that reach
-verification, not the number of *LLM calls* (each event can cost up to 3). Make
-the budget count actual calls if cost becomes a concern.
 
 ### 5. Tier 1 grouping: identical set vs. shared pair
 `detectContradictions()` keys groups on the **exact** sorted `characters_involved`
@@ -87,12 +89,6 @@ saying "share at least 2 characters." Witness-set drift = missed contradictions.
 Keyword classifier flips on negation: "no longer hates" → NEGATIVE,
 "stopped being friends" → POSITIVE. Inherent to the heuristic; Tier 2 is the
 real backstop. Consider a small negation guard if false suppressions show up.
-
-### 7. `batchContradictionScan()` is implemented + tested but never scheduled
-The setting `llmContradictionBatchInterval` (default 100) exists but nothing
-reads it. To enable periodic full-store scans (design-doc Phase 3), trigger
-`batchContradictionScan()` from the extraction worker on the interval — mirror the
-community-detection interval check in `extractMemories()` Phase 2.
 
 ### 8. Tier 1 effectiveness caveats (by design, document for users)
 - Runs **after** budgeting, on `finalResults` — only catches contradictions when
@@ -121,8 +117,8 @@ if auto-merge is commonly enabled.
 | `llmContradictionEnabled` | `false` | Master toggle for Tier 2 LLM checks |
 | `llmContradictionAutoMerge` | `false` | Archive+merge on confirmed contradiction (vs. just log) |
 | `llmContradictionConfidence` | `0.7` | Min confidence to act on |
-| `llmContradictionMaxCalls` | `5` | Per-batch verification budget |
-| `llmContradictionBatchInterval` | `100` | **Unused** — see item #7 |
+| `llmContradictionMaxCalls` | `5` | Per-batch LLM call budget (actual calls, not events) |
+| `llmContradictionBatchInterval` | `100` | Messages between periodic full-store scans |
 
 > Note: with `llmContradictionEnabled: true` but `autoMerge: false`, Tier 2 only
 > *detects* and logs — nothing is retired. Retirement requires `autoMerge: true`.
@@ -130,9 +126,10 @@ if auto-merge is commonly enabled.
 ## Key files
 - `src/retrieval/contradiction.js` — Tier 1 keyword filter (`detectContradictions`, `filterContradictions`)
 - `src/retrieval/llm-contradiction.js` — Tier 2 (`checkNewMemoryContradictions`, `batchContradictionScan`, `mergeContradictingMemories`)
-- `src/extraction/extract.js` — `checkBatchForContradictions()` + Stage 5b wiring
+- `src/extraction/extract.js` — `checkBatchForContradictions()` + Stage 5b wiring + Stage 7 batch scan
 - `src/retrieval/scoring.js` — Tier 1 invocation (`filterContradictions`, ~line 464)
 - `src/extraction/structured.js` — `ContradictionVerificationSchema` / parser
+- `src/store/schemas.js` — `MemorySchema` with merge metadata fields
 - `future_feature_llm_contradiction.md` — original design doc
 
 ## Tests

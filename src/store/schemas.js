@@ -44,6 +44,11 @@ export const MemorySchema = z.object({
     parent_ids: z.array(z.string()).optional(),
     _st_synced: z.boolean().optional(),
     _proxyVectorScore: z.number().optional(),
+    // Contradiction merge metadata (written by mergeContradictingMemories)
+    archive_reason: z.string().optional(),
+    merged_into: z.string().optional(),
+    merge_sources: z.array(z.string()).optional(),
+    merge_timestamp: z.number().optional(),
 });
 
 // --- Graph Schemas ---

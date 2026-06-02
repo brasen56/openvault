@@ -563,7 +563,7 @@ describe('checkNewMemoryContradictions', () => {
 
         const result = await checkNewMemoryContradictions(newMem, []);
 
-        expect(result).toEqual({ verified: false, merged: false });
+        expect(result).toEqual({ verified: false, merged: false, llmCallsUsed: 0 });
     });
 
     it('skips when new memory has fewer than 2 characters', async () => {
@@ -576,7 +576,7 @@ describe('checkNewMemoryContradictions', () => {
 
         const result = await checkNewMemoryContradictions(newMem, []);
 
-        expect(result).toEqual({ verified: false, merged: false });
+        expect(result).toEqual({ verified: false, merged: false, llmCallsUsed: 0 });
     });
 
     it('skips when new memory is neutral', async () => {
@@ -596,7 +596,7 @@ describe('checkNewMemoryContradictions', () => {
 
         const result = await checkNewMemoryContradictions(newMem, existing);
 
-        expect(result).toEqual({ verified: false, merged: false });
+        expect(result).toEqual({ verified: false, merged: false, llmCallsUsed: 0 });
     });
 
     it('skips when no opposing memories exist', async () => {
@@ -616,7 +616,7 @@ describe('checkNewMemoryContradictions', () => {
 
         const result = await checkNewMemoryContradictions(newMem, existing);
 
-        expect(result).toEqual({ verified: false, merged: false });
+        expect(result).toEqual({ verified: false, merged: false, llmCallsUsed: 0 });
     });
 
     it('triggers LLM verification for opposing memories', async () => {
@@ -721,6 +721,6 @@ describe('checkNewMemoryContradictions', () => {
         const result = await checkNewMemoryContradictions(newMem, existing);
 
         // All existing are filtered out, so no opposing memories found
-        expect(result).toEqual({ verified: false, merged: false });
+        expect(result).toEqual({ verified: false, merged: false, llmCallsUsed: 0 });
     });
 });

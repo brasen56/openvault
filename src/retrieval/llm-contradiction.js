@@ -122,24 +122,30 @@ export async function verifyContradiction(memoryA, memoryB, characterNames, opti
  * The older memory gets archived; the newer memory's summary is replaced
  * with the merged version.
  *
- * After merging, the caller should re-embed the newer memory via
- * `enrichEventsWithEmbeddings([newerMemory])` to update its vector.
+ * After merging, the caller should:
+ * 1. Re-embed the newer memory via `enrichEventsWithEmbeddings([newerMemory])`
+ * 2. Push ST Vector sync changes (delete archived, re-sync updated)
  *
  * @param {Memory} olderMemory - The older memory (will be archived)
  * @param {Memory} newerMemory - The newer memory (will be updated)
  * @param {string} mergedSummary - The merged summary from LLM
- * @returns {{ archived: Memory, updated: Memory }} The modified memory objects
+ * @returns {{ archived: Memory, updated: Memory, olderPreMergeSummary: string, newerPreMergeSummary: string }}
+ *   The modified memory objects plus pre-merge summaries for ST vector re-sync
  */
 export function mergeContradictingMemories(olderMemory, newerMemory, mergedSummary) {
+    // Save pre-merge summary for ST vector re-sync (hash is text-dependent)
+    const olderPreMergeSummary = olderMemory.summary;
+    const newerPreMergeSummary = newerMemory.summary;
+
     // Archive the older memory (soft delete)
     olderMemory.archived = true;
-    /** @type {any} */ (olderMemory).archive_reason = 'contradiction_merge';
-    /** @type {any} */ (olderMemory).merged_into = newerMemory.id;
+    olderMemory.archive_reason = 'contradiction_merge';
+    olderMemory.merged_into = newerMemory.id;
 
     // Update the newer memory with the merged summary
     newerMemory.summary = mergedSummary;
-    /** @type {any} */ (newerMemory).merge_sources = [olderMemory.id, newerMemory.id];
-    /** @type {any} */ (newerMemory).merge_timestamp = getDeps().Date.now();
+    newerMemory.merge_sources = [olderMemory.id, newerMemory.id];
+    newerMemory.merge_timestamp = getDeps().Date.now();
 
     // Preserve the higher importance
     newerMemory.importance = Math.max(olderMemory.importance || 3, newerMemory.importance || 3);
@@ -152,11 +158,11 @@ export function mergeContradictingMemories(olderMemory, newerMemory, mergedSumma
     ])];
 
     logDebug(
-        `Contradiction merge: archived "${olderMemory.summary?.slice(0, 60)}…" → ` +
+        `Contradiction merge: archived "${olderPreMergeSummary?.slice(0, 60)}…" → ` +
         `updated to "${mergedSummary?.slice(0, 60)}…"`
     );
 
-    return { archived: olderMemory, updated: newerMemory };
+    return { archived: olderMemory, updated: newerMemory, olderPreMergeSummary, newerPreMergeSummary };
 }
 
 // ---------------------------------------------------------------------------
@@ -362,8 +368,10 @@ export async function batchContradictionScan(allMemories, options = {}) {
  * @param {Object} [options={}] - Options
  * @param {number} [options.confidenceThreshold] - Override confidence threshold
  * @param {boolean} [options.autoMerge] - Override auto-merge setting
- * @returns {Promise<{verified: boolean, merged: boolean, reason?: string}>}
- *   Result of the verification
+ * @param {function(): Promise<void>} [options.rpmDelayFn] - Async callback to wait between LLM calls (RPM spacing)
+ * @param {number} [options.maxCalls=3] - Maximum LLM calls to make (cost control)
+ * @returns {Promise<{verified: boolean, merged: boolean, reason?: string, llmCallsUsed: number, stSync?: { archived: Memory, updated: Memory, olderPreMergeSummary: string, newerPreMergeSummary: string }}>}
+ *   Result of the verification, including LLM call count and ST sync info for merges
  */
 export async function checkNewMemoryContradictions(newMemory, existingMemories, options = {}) {
     const deps = getDeps();
@@ -371,14 +379,15 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
     const enabled = settings.llmContradictionEnabled ?? defaultSettings.llmContradictionEnabled;
     const confidenceThreshold = options.confidenceThreshold ?? settings.llmContradictionConfidence ?? defaultSettings.llmContradictionConfidence;
     const autoMerge = options.autoMerge ?? settings.llmContradictionAutoMerge ?? defaultSettings.llmContradictionAutoMerge;
+    const { rpmDelayFn, maxCalls = 3 } = options;
 
     if (!enabled) {
-        return { verified: false, merged: false };
+        return { verified: false, merged: false, llmCallsUsed: 0 };
     }
 
     const newChars = newMemory.characters_involved || [];
     if (newChars.length < 2) {
-        return { verified: false, merged: false };
+        return { verified: false, merged: false, llmCallsUsed: 0 };
     }
 
     // Find existing memories that share characters with the new memory
@@ -391,13 +400,13 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
     });
 
     if (overlappingMemories.length === 0) {
-        return { verified: false, merged: false };
+        return { verified: false, merged: false, llmCallsUsed: 0 };
     }
 
     // Tier 1 pre-filter: only check memories with opposing sentiment
     const newSentiment = classifySentiment(newMemory.summary);
     if (newSentiment.sentiment === Sentiment.NEUTRAL) {
-        return { verified: false, merged: false };
+        return { verified: false, merged: false, llmCallsUsed: 0 };
     }
 
     const opposingMemories = overlappingMemories.filter((m) => {
@@ -406,13 +415,19 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
     });
 
     if (opposingMemories.length === 0) {
-        return { verified: false, merged: false };
+        return { verified: false, merged: false, llmCallsUsed: 0 };
     }
 
-    // Tier 2: LLM verification for each opposing memory (limit to 3 for cost)
-    const toCheck = opposingMemories.slice(0, 3);
+    // Tier 2: LLM verification for each opposing memory (capped by maxCalls)
+    const toCheck = opposingMemories.slice(0, maxCalls);
+    let llmCallsUsed = 0;
 
     for (const existing of toCheck) {
+        // Per-call RPM spacing — avoids bursting RPM-limited / local users
+        if (llmCallsUsed > 0 && rpmDelayFn) {
+            await rpmDelayFn();
+        }
+
         try {
             const charNames = [...new Set([
                 ...(newMemory.characters_involved || []),
@@ -420,29 +435,37 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
             ])];
 
             const result = await verifyContradiction(newMemory, existing, charNames, { confidenceThreshold });
+            llmCallsUsed++;
 
             if (result.contradicts) {
                 const older = getRecency(newMemory) < getRecency(existing) ? newMemory : existing;
                 const newer = older === newMemory ? existing : newMemory;
 
+                /** @type {undefined|{ archived: Memory, updated: Memory, olderPreMergeSummary: string, newerPreMergeSummary: string }} */
+                let stSync;
+
                 if (autoMerge && result.merge) {
-                    mergeContradictingMemories(older, newer, result.merge);
+                    const mergeResult = mergeContradictingMemories(older, newer, result.merge);
                     await enrichEventsWithEmbeddings([newer]);
+                    stSync = mergeResult;
                 }
 
                 return {
                     verified: true,
                     merged: autoMerge && !!result.merge,
                     reason: result.reason,
+                    llmCallsUsed,
+                    stSync,
                 };
             }
         } catch (error) {
+            llmCallsUsed++;
             logWarn(`Post-extraction contradiction check failed: ${error.message}`);
             // Continue checking other pairs — don't let one failure stop the queue
         }
     }
 
-    return { verified: true, merged: false };
+    return { verified: true, merged: false, llmCallsUsed };
 }
 
 // ---------------------------------------------------------------------------

@@ -26,6 +26,10 @@ export type Memory = {
     parent_ids?: string[] | undefined;
     _st_synced?: boolean | undefined;
     _proxyVectorScore?: number | undefined;
+    archive_reason?: string | undefined;
+    merged_into?: string | undefined;
+    merge_sources?: string[] | undefined;
+    merge_timestamp?: number | undefined;
 };
 
 export type GraphNode = {
@@ -122,6 +126,10 @@ export type ScoredMemory = {
         parent_ids?: string[] | undefined;
         _st_synced?: boolean | undefined;
         _proxyVectorScore?: number | undefined;
+        archive_reason?: string | undefined;
+        merged_into?: string | undefined;
+        merge_sources?: string[] | undefined;
+        merge_timestamp?: number | undefined;
     };
     score: number;
     breakdown: {
@@ -246,6 +254,10 @@ export type OpenVaultData = {
         parent_ids?: string[] | undefined;
         _st_synced?: boolean | undefined;
         _proxyVectorScore?: number | undefined;
+        archive_reason?: string | undefined;
+        merged_into?: string | undefined;
+        merge_sources?: string[] | undefined;
+        merge_timestamp?: number | undefined;
     }[] | undefined;
     characters?: {
         [key: string]: {
@@ -377,6 +389,10 @@ export type StSyncChanges = {
             parent_ids?: string[] | undefined;
             _st_synced?: boolean | undefined;
             _proxyVectorScore?: number | undefined;
+            archive_reason?: string | undefined;
+            merged_into?: string | undefined;
+            merge_sources?: string[] | undefined;
+            merge_timestamp?: number | undefined;
         } | {
             name: string;
             type: "PERSON" | "PLACE" | "ORGANIZATION" | "OBJECT" | "CONCEPT";
@@ -467,6 +483,10 @@ export type GenerateReflectionsResult = {
         parent_ids?: string[] | undefined;
         _st_synced?: boolean | undefined;
         _proxyVectorScore?: number | undefined;
+        archive_reason?: string | undefined;
+        merged_into?: string | undefined;
+        merge_sources?: string[] | undefined;
+        merge_timestamp?: number | undefined;
     }[];
     stChanges: {
         toSync?: {
@@ -497,6 +517,10 @@ export type GenerateReflectionsResult = {
                 parent_ids?: string[] | undefined;
                 _st_synced?: boolean | undefined;
                 _proxyVectorScore?: number | undefined;
+                archive_reason?: string | undefined;
+                merged_into?: string | undefined;
+                merge_sources?: string[] | undefined;
+                merge_timestamp?: number | undefined;
             } | {
                 name: string;
                 type: "PERSON" | "PLACE" | "ORGANIZATION" | "OBJECT" | "CONCEPT";
@@ -561,6 +585,10 @@ export type ConsolidateEdgesResult = {
                 parent_ids?: string[] | undefined;
                 _st_synced?: boolean | undefined;
                 _proxyVectorScore?: number | undefined;
+                archive_reason?: string | undefined;
+                merged_into?: string | undefined;
+                merge_sources?: string[] | undefined;
+                merge_timestamp?: number | undefined;
             } | {
                 name: string;
                 type: "PERSON" | "PLACE" | "ORGANIZATION" | "OBJECT" | "CONCEPT";
@@ -625,6 +653,10 @@ export type MergeEntityResult = {
                 parent_ids?: string[] | undefined;
                 _st_synced?: boolean | undefined;
                 _proxyVectorScore?: number | undefined;
+                archive_reason?: string | undefined;
+                merged_into?: string | undefined;
+                merge_sources?: string[] | undefined;
+                merge_timestamp?: number | undefined;
             } | {
                 name: string;
                 type: "PERSON" | "PLACE" | "ORGANIZATION" | "OBJECT" | "CONCEPT";
@@ -773,6 +805,10 @@ export type RetrievalContext = {
         parent_ids?: string[] | undefined;
         _st_synced?: boolean | undefined;
         _proxyVectorScore?: number | undefined;
+        archive_reason?: string | undefined;
+        merged_into?: string | undefined;
+        merge_sources?: string[] | undefined;
+        merge_timestamp?: number | undefined;
     }[] | undefined;
     idfCache?: {
         memoryCount: number;
@@ -845,6 +881,10 @@ export type PromptContext = {
         parent_ids?: string[] | undefined;
         _st_synced?: boolean | undefined;
         _proxyVectorScore?: number | undefined;
+        archive_reason?: string | undefined;
+        merged_into?: string | undefined;
+        merge_sources?: string[] | undefined;
+        merge_timestamp?: number | undefined;
     }[] | undefined;
     charDesc?: string | undefined;
     personaDesc?: string | undefined;
@@ -882,6 +922,10 @@ export type BasePromptParams = {
             parent_ids?: string[] | undefined;
             _st_synced?: boolean | undefined;
             _proxyVectorScore?: number | undefined;
+            archive_reason?: string | undefined;
+            merged_into?: string | undefined;
+            merge_sources?: string[] | undefined;
+            merge_timestamp?: number | undefined;
         }[] | undefined;
         charDesc?: string | undefined;
         personaDesc?: string | undefined;
@@ -923,6 +967,10 @@ export type GraphPromptParams = {
             parent_ids?: string[] | undefined;
             _st_synced?: boolean | undefined;
             _proxyVectorScore?: number | undefined;
+            archive_reason?: string | undefined;
+            merged_into?: string | undefined;
+            merge_sources?: string[] | undefined;
+            merge_timestamp?: number | undefined;
         }[] | undefined;
         charDesc?: string | undefined;
         personaDesc?: string | undefined;
@@ -976,6 +1024,10 @@ export type ReflectionPromptParams = {
         parent_ids?: string[] | undefined;
         _st_synced?: boolean | undefined;
         _proxyVectorScore?: number | undefined;
+        archive_reason?: string | undefined;
+        merged_into?: string | undefined;
+        merge_sources?: string[] | undefined;
+        merge_timestamp?: number | undefined;
     }[];
     preamble: string;
     prefill: string;
