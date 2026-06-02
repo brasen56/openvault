@@ -421,10 +421,10 @@ async function handleResetAndBackfill() {
     if (
         !confirm(
             'This will:\n' +
-            '1. Un-hide all messages that OpenVault previously hid\n' +
-            '2. Delete all OpenVault data (memories, entities, graph)\n' +
-            '3. Re-extract the entire chat from scratch\n\n' +
-            'This uses LLM API calls. Continue?'
+                '1. Un-hide all messages that OpenVault previously hid\n' +
+                '2. Delete all OpenVault data (memories, entities, graph)\n' +
+                '3. Re-extract the entire chat from scratch\n\n' +
+                'This uses LLM API calls. Continue?'
         )
     ) {
         return;
@@ -548,7 +548,7 @@ async function handleGenerateReflections() {
         const { addMemories } = await import('../store/chat-data.js');
         const { applySyncChanges } = await import('../extraction/extract.js');
         const deps = getDeps();
-        const settings = deps.getExtensionSettings()?.[extensionName] || {};
+        const _settings = deps.getExtensionSettings()?.[extensionName] || {};
         const rpmPause = () => new Promise((r) => setTimeout(r, 3000));
 
         let totalGenerated = 0;
@@ -1004,72 +1004,17 @@ function bindUIElements() {
     $('#openvault_generate_reflections_btn').on('click', handleGenerateReflections);
 
     // ── Side Panel: Contradiction Settings ──
-    $('#openvault_side_contradiction_filter').on('change', function () {
-        setSetting('contradictionFilterEnabled', $(this).is(':checked'));
-    });
-
-    $('#openvault_side_llm_contradiction').on('change', function () {
-        const checked = $(this).is(':checked');
-        setSetting('llmContradictionEnabled', checked);
-        $('#openvault_side_llm_contradiction_options').toggle(checked);
-    });
-
-    $('#openvault_side_llm_contradiction_auto_merge').on('change', function () {
-        setSetting('llmContradictionAutoMerge', $(this).is(':checked'));
-    });
-
-    $('#openvault_side_llm_contradiction_batch_interval').on('input', function () {
-        const val = parseInt($(this).val(), 10);
-        setSetting('llmContradictionBatchInterval', val);
-        $('#openvault_side_llm_contradiction_batch_interval_value').text(val);
-    });
-
-    $('#openvault_side_llm_contradiction_max_calls').on('input', function () {
-        const val = parseInt($(this).val(), 10);
-        setSetting('llmContradictionMaxCalls', val);
-        $('#openvault_side_llm_contradiction_max_calls_value').text(val);
-    });
-
-    $('#openvault_side_run_contradiction_scan').on('click', async function () {
-        const { isWorkerRunning } = await import('../state.js');
-        if (isWorkerRunning()) {
-            showToast('warning', 'Background extraction in progress. Please wait.', 'OpenVault');
-            return;
-        }
-
-        const data = getOpenVaultData();
-        if (!data || !data.memories || data.memories.length < 2) {
-            showToast('warning', 'Need at least 2 memories to scan for contradictions.', 'OpenVault');
-            return;
-        }
-
-        const $btn = $(this);
-        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Scanning...');
-
-        try {
-            const { batchContradictionScan } = await import('../retrieval/llm-contradiction.js');
-            const results = await batchContradictionScan(data.memories);
-            const detected = Array.isArray(results) ? results.length : 0;
-            const merged = Array.isArray(results) ? results.filter((r) => r.merged).length : 0;
-            showToast(
-                merged > 0 ? 'success' : 'info',
-                merged > 0
-                    ? `Contradiction scan complete: ${detected} detected, ${merged} merged.`
-                    : detected > 0
-                      ? `Contradiction scan complete: ${detected} detected, 0 auto-merged.`
-                      : 'No contradictions found.',
-                'OpenVault'
-            );
-            refreshAllUI();
-        } catch (err) {
-            logError('Contradiction scan failed', err);
-            showToast('error', `Contradiction scan failed: ${err.message}`, 'OpenVault');
-        } finally {
-            $btn.prop('disabled', false).html('<i class="fa-solid fa-magnifying-glass"></i> Run Contradiction Scan Now');
-        }
-    });
+    // NOTE: These event handlers live in `bindSidePanelEvents()` in
+    // side-panel.js — NOT here. The side panel HTML is injected by
+    // initSidePanel() AFTER loadSettings() runs, so global `$('#openvault_side_…')`
+    // bindings here would resolve to an empty set and silently no-op. We
+    // export `bindSidePanelContradictionSettings($panel)` and
+    // `updateSidePanelContradictionSettings()` so the side panel can wire
+    // the handlers (scoped to $panel via delegation) and sync slider/checkbox
+    // values when its HTML is alive.
 
     // Memory browser filters
+
     $('#openvault_filter_type').on('change', function () {
         setSetting('filter_type', $(this).val());
         resetAndRender();
@@ -1188,6 +1133,146 @@ export function updateInjectionUI(type = 'both') {
 
     if (type === 'both' || type === 'memory') updateType('memory');
     if (type === 'both' || type === 'world') updateType('world');
+}
+
+// =============================================================================
+// Side Panel: Contradiction Settings
+// =============================================================================
+//
+// The Settings tab inside the side panel is rendered into the same DOM as
+// the rest of the side panel HTML, which is injected by `initSidePanel()`
+// AFTER `loadSettings()` runs during boot. That means global jQuery
+// bindings like `$('#openvault_side_…')` made inside `bindUIElements()`
+// would resolve to an empty set and silently no-op. The functions below
+// are called from `bindSidePanelEvents()` in side-panel.js once the panel
+// HTML is in place. We use event delegation scoped to `$panel` so the
+// handlers survive any inner re-renders of the panel.
+// =============================================================================
+
+/**
+ * Bind the contradiction-related settings controls inside the side panel.
+ * Uses jQuery delegation rooted on `$panel` so it works regardless of when
+ * the side panel HTML was injected relative to the rest of the extension
+ * boot. Safe to call multiple times — handlers are namespaced.
+ *
+ * @param {JQuery} $panel - The side panel root element.
+ */
+export function bindSidePanelContradictionSettings($panel) {
+    if (!$panel || !$panel.length) return;
+
+    // Master toggle: contradiction filter (Tier 1)
+    $panel.on('change.sideContradiction', '#openvault_side_contradiction_filter', function () {
+        setSetting('contradictionFilterEnabled', $(this).is(':checked'));
+    });
+
+    // Master toggle: LLM contradiction analysis (Tier 2)
+    $panel.on('change.sideContradiction', '#openvault_side_llm_contradiction', function () {
+        const checked = $(this).is(':checked');
+        setSetting('llmContradictionEnabled', checked);
+        $panel.find('#openvault_side_llm_contradiction_options').toggle(checked);
+    });
+
+    // Auto-merge sub-toggle
+    $panel.on('change.sideContradiction', '#openvault_side_llm_contradiction_auto_merge', function () {
+        setSetting('llmContradictionAutoMerge', $(this).is(':checked'));
+    });
+
+    // Slider: batch interval (messages between batch scans)
+    $panel.on('input.sideContradiction', '#openvault_side_llm_contradiction_batch_interval', function () {
+        const val = parseInt($(this).val(), 10);
+        setSetting('llmContradictionBatchInterval', val);
+        $panel.find('#openvault_side_llm_contradiction_batch_interval_value').text(val);
+    });
+
+    // Slider: max LLM calls per scan
+    $panel.on('input.sideContradiction', '#openvault_side_llm_contradiction_max_calls', function () {
+        const val = parseInt($(this).val(), 10);
+        setSetting('llmContradictionMaxCalls', val);
+        $panel.find('#openvault_side_llm_contradiction_max_calls_value').text(val);
+    });
+
+    // Manual scan trigger button
+    $panel.on('click.sideContradiction', '#openvault_side_run_contradiction_scan', async function () {
+        const $btn = $(this);
+        await handleRunContradictionScanClick($btn);
+    });
+}
+
+/**
+ * Push current settings values into the side panel's contradiction controls.
+ * Called from `updateUI()` so the slider/checkbox display stays in sync
+ * with the persisted settings (handy after `handleResetSettings()` or any
+ * other code path that mutates settings in bulk).
+ */
+export function updateSidePanelContradictionSettings() {
+    const settings = getSettings();
+    const $filter = $('#openvault_side_contradiction_filter');
+    const $llmToggle = $('#openvault_side_llm_contradiction');
+    const $llmOptions = $('#openvault_side_llm_contradiction_options');
+    const $autoMerge = $('#openvault_side_llm_contradiction_auto_merge');
+    const $batchInterval = $('#openvault_side_llm_contradiction_batch_interval');
+    const $batchIntervalVal = $('#openvault_side_llm_contradiction_batch_interval_value');
+    const $maxCalls = $('#openvault_side_llm_contradiction_max_calls');
+    const $maxCallsVal = $('#openvault_side_llm_contradiction_max_calls_value');
+
+    // If the side panel hasn't been injected yet, skip silently — these
+    // elements will be re-synced the next time `updateUI()` runs after
+    // `initSidePanel()` injects the HTML and calls bindSidePanelContradictionSettings.
+    if (!$llmToggle.length) return;
+
+    $filter.prop('checked', settings.contradictionFilterEnabled);
+    $llmToggle.prop('checked', settings.llmContradictionEnabled);
+    $llmOptions.toggle(settings.llmContradictionEnabled);
+    $autoMerge.prop('checked', settings.llmContradictionAutoMerge);
+    $batchInterval.val(settings.llmContradictionBatchInterval);
+    $batchIntervalVal.text(settings.llmContradictionBatchInterval);
+    $maxCalls.val(settings.llmContradictionMaxCalls);
+    $maxCallsVal.text(settings.llmContradictionMaxCalls);
+}
+
+/**
+ * Shared click handler for the "Run Contradiction Scan Now" button.
+ * Lives here so it can be reused whether the trigger is in the side panel
+ * or elsewhere in the future.
+ *
+ * @param {JQuery} $btn - The button element that was clicked.
+ */
+async function handleRunContradictionScanClick($btn) {
+    const { isWorkerRunning } = await import('../state.js');
+    if (isWorkerRunning()) {
+        showToast('warning', 'Background extraction in progress. Please wait.', 'OpenVault');
+        return;
+    }
+
+    const data = getOpenVaultData();
+    if (!data || !data.memories || data.memories.length < 2) {
+        showToast('warning', 'Need at least 2 memories to scan for contradictions.', 'OpenVault');
+        return;
+    }
+
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Scanning...');
+
+    try {
+        const { batchContradictionScan } = await import('../retrieval/llm-contradiction.js');
+        const results = await batchContradictionScan(data.memories);
+        const detected = Array.isArray(results) ? results.length : 0;
+        const merged = Array.isArray(results) ? results.filter((r) => r.merged).length : 0;
+        showToast(
+            merged > 0 ? 'success' : 'info',
+            merged > 0
+                ? `Contradiction scan complete: ${detected} detected, ${merged} merged.`
+                : detected > 0
+                  ? `Contradiction scan complete: ${detected} detected, 0 auto-merged.`
+                  : 'No contradictions found.',
+            'OpenVault'
+        );
+        refreshAllUI();
+    } catch (err) {
+        logError('Contradiction scan failed', err);
+        showToast('error', `Contradiction scan failed: ${err.message}`, 'OpenVault');
+    } finally {
+        $btn.prop('disabled', false).html('<i class="fa-solid fa-magnifying-glass"></i> Run Contradiction Scan Now');
+    }
 }
 
 // =============================================================================
@@ -1321,16 +1406,13 @@ export function updateUI() {
     $('#openvault_post_history_prompt').val(settings.postHistoryPrompt || '');
 
     // ── Side Panel: Contradiction Settings ──
-    $('#openvault_side_contradiction_filter').prop('checked', settings.contradictionFilterEnabled);
-    $('#openvault_side_llm_contradiction').prop('checked', settings.llmContradictionEnabled);
-    $('#openvault_side_llm_contradiction_options').toggle(settings.llmContradictionEnabled);
-    $('#openvault_side_llm_contradiction_auto_merge').prop('checked', settings.llmContradictionAutoMerge);
-    $('#openvault_side_llm_contradiction_batch_interval').val(settings.llmContradictionBatchInterval);
-    $('#openvault_side_llm_contradiction_batch_interval_value').text(settings.llmContradictionBatchInterval);
-    $('#openvault_side_llm_contradiction_max_calls').val(settings.llmContradictionMaxCalls);
-    $('#openvault_side_llm_contradiction_max_calls_value').text(settings.llmContradictionMaxCalls);
+    // Delegates to updateSidePanelContradictionSettings() — a no-op until
+    // the side panel HTML has been injected by initSidePanel() and the
+    // handlers have been bound via bindSidePanelContradictionSettings($panel).
+    updateSidePanelContradictionSettings();
 
     // Payload calculator — must run after sliders are synced
+
     updatePayloadCalculator();
 
     // Refresh all UI components
