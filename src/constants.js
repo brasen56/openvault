@@ -74,6 +74,9 @@ export const defaultSettings = {
     // Embedding settings (Local RAG)
     embeddingSource: 'multilingual-e5-small', // model name, 'ollama', or 'st_vector'
     ollamaUrl: '',
+    openaiCompatUrl: '',
+    openaiCompatApiKey: '',
+    openaiCompatModel: '',
     embeddingModel: '',
     embeddingQueryPrefix: '', // Empty by default — e5-small works best without prefixes
     embeddingDocPrefix: '', // Empty by default — e5-small works best without prefixes
@@ -153,6 +156,7 @@ export const embeddingModelPrefixes = {
 export const EMBEDDING_SOURCES = Object.freeze({
     LOCAL: 'local',
     OLLAMA: 'ollama',
+    OPENAI_COMPAT: 'openai_compat',
     ST_VECTOR: 'st_vector',
 });
 

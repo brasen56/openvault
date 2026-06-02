@@ -474,6 +474,142 @@ export async function testOllamaConnection(url) {
 }
 
 // =============================================================================
+// OpenAI-Compatible API Strategy
+// =============================================================================
+
+class OpenAICompatStrategy extends EmbeddingStrategy {
+    getId() {
+        return EMBEDDING_SOURCES.OPENAI_COMPAT;
+    }
+
+    isEnabled() {
+        const settings = getDeps().getExtensionSettings()[extensionName];
+        return !!(settings?.openaiCompatUrl && settings?.openaiCompatModel);
+    }
+
+    getStatus() {
+        const settings = getDeps().getExtensionSettings()[extensionName];
+        const url = settings?.openaiCompatUrl;
+        const model = settings?.openaiCompatModel;
+        if (url && model) {
+            // Show a shortened URL for readability
+            try {
+                const parsed = new URL(url);
+                const short = parsed.hostname + parsed.pathname.replace(/\/embeddings?$/, '').replace(/\/v1$/, '');
+                return `OpenAI API: ${model} (${short})`;
+            } catch {
+                return `OpenAI API: ${model}`;
+            }
+        }
+        return 'OpenAI API: Not configured';
+    }
+
+    async getEmbedding(text, { signal, url, apiKey, model } = {}) {
+        if (!url || !model) {
+            return null;
+        }
+
+        if (!text || text.trim().length === 0) {
+            return null;
+        }
+
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+        try {
+            const cleanUrl = url.replace(/\/+$/, '');
+            // Support both /v1/embeddings and bare base URL
+            const endpoint = cleanUrl.endsWith('/embeddings') || cleanUrl.endsWith('/embeddings/')
+                ? cleanUrl
+                : `${cleanUrl}/v1/embeddings`;
+
+            const headers = {
+                'Content-Type': 'application/json',
+            };
+            if (apiKey) {
+                headers['Authorization'] = `Bearer ${apiKey}`;
+            }
+
+            const response = await getDeps().fetch(endpoint, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    model: model,
+                    input: text.trim(),
+                }),
+                signal,
+            });
+
+            if (!response.ok) {
+                logDebug(`OpenAI-compatible embedding request failed: ${response.status} ${response.statusText}`);
+                return null;
+            }
+
+            const data = await response.json();
+            // OpenAI format: { data: [{ embedding: [...] }] }
+            const embedding = data?.data?.[0]?.embedding;
+            return embedding ? new Float32Array(embedding) : null;
+        } catch (error) {
+            if (error.name === 'AbortError') throw error;
+            logError('OpenAI-compatible embedding failed', error, {
+                modelName: model,
+                textSnippet: text?.slice(0, 100),
+            });
+            return null;
+        }
+    }
+
+    async getQueryEmbedding(text, options = {}) {
+        return this.getEmbedding(text, options);
+    }
+
+    async getDocumentEmbedding(text, options = {}) {
+        return this.getEmbedding(text, options);
+    }
+}
+
+/**
+ * Test OpenAI-compatible API connection by sending a tiny embedding request
+ * @param {string} url - API base URL (e.g., 'https://api.openai.com')
+ * @param {string} apiKey - API key (can be empty for local servers)
+ * @param {string} model - Model name (e.g., 'text-embedding-3-small')
+ * @returns {Promise<boolean>} True if connection successful
+ * @throws {Error} If HTTP error or network error occurs
+ */
+export async function testOpenAICompatConnection(url, apiKey, model) {
+    if (!url || !model) {
+        throw new Error('URL and model name are required');
+    }
+
+    const cleanUrl = url.replace(/\/+$/, '');
+    const endpoint = cleanUrl.endsWith('/embeddings') || cleanUrl.endsWith('/embeddings/')
+        ? cleanUrl
+        : `${cleanUrl}/v1/embeddings`;
+
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+    if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
+    const response = await getDeps().fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+            model: model,
+            input: 'test',
+        }),
+    });
+
+    if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}: ${body.slice(0, 200)}`);
+    }
+
+    return true;
+}
+
+// =============================================================================
 // ST Vector Storage Strategy
 // =============================================================================
 
@@ -542,6 +678,7 @@ const strategies = {
     'bge-small-en-v1.5': new TransformersStrategy(),
     'embeddinggemma-300m': new TransformersStrategy(),
     [EMBEDDING_SOURCES.OLLAMA]: new OllamaStrategy(),
+    [EMBEDDING_SOURCES.OPENAI_COMPAT]: new OpenAICompatStrategy(),
     [EMBEDDING_SOURCES.ST_VECTOR]: new StVectorStrategy(),
 };
 
@@ -597,8 +734,65 @@ function getOptimalChunkSize() {
         return 800;
     }
 
+    // For OpenAI-compatible APIs, use a safe default
+    if (source === EMBEDDING_SOURCES.OPENAI_COMPAT) {
+        return 800;
+    }
+
     // Fallback default
     return 1000;
+}
+
+/**
+ * Build strategy-specific embedding options from settings.
+ * Centralizes the mapping so every call site uses the same keys.
+ * @param {Object} settings - OpenVault extension settings
+ * @returns {Object} Options to pass to strategy methods
+ */
+function _buildEmbedOptions(settings) {
+    const source = settings.embeddingSource;
+    const base = {
+        prefix: settings.embeddingQueryPrefix,
+    };
+    if (source === EMBEDDING_SOURCES.OPENAI_COMPAT) {
+        return {
+            ...base,
+            url: settings.openaiCompatUrl,
+            apiKey: settings.openaiCompatApiKey,
+            model: settings.openaiCompatModel,
+        };
+    }
+    // Ollama (and legacy fallback)
+    return {
+        ...base,
+        url: settings.ollamaUrl,
+        model: settings.embeddingModel,
+    };
+}
+
+/**
+ * Same as _buildEmbedOptions but with doc prefix.
+ * @param {Object} settings - OpenVault extension settings
+ * @returns {Object} Options to pass to strategy methods
+ */
+function _buildDocEmbedOptions(settings) {
+    const source = settings.embeddingSource;
+    const base = {
+        prefix: settings.embeddingDocPrefix,
+    };
+    if (source === EMBEDDING_SOURCES.OPENAI_COMPAT) {
+        return {
+            ...base,
+            url: settings.openaiCompatUrl,
+            apiKey: settings.openaiCompatApiKey,
+            model: settings.openaiCompatModel,
+        };
+    }
+    return {
+        ...base,
+        url: settings.ollamaUrl,
+        model: settings.embeddingModel,
+    };
 }
 
 // =============================================================================
@@ -671,11 +865,10 @@ export async function getQueryEmbedding(text, { signal } = {}) {
     const settings = getDeps().getExtensionSettings()[extensionName];
     const source = settings.embeddingSource;
     const strategy = getStrategy(source);
+    const opts = _buildEmbedOptions(settings);
     const result = await strategy.getQueryEmbedding(text, {
         signal,
-        prefix: settings.embeddingQueryPrefix,
-        url: settings.ollamaUrl,
-        model: settings.embeddingModel,
+        ...opts,
     });
 
     if (embeddingCache.size >= MAX_CACHE_SIZE) {
@@ -709,11 +902,10 @@ export async function getDocumentEmbedding(summary, { signal } = {}) {
     const settings = getDeps().getExtensionSettings()[extensionName];
     const source = settings.embeddingSource;
     const strategy = getStrategy(source);
+    const opts = _buildDocEmbedOptions(settings);
     const result = await strategy.getDocumentEmbedding(summary, {
         signal,
-        prefix: settings.embeddingDocPrefix,
-        url: settings.ollamaUrl,
-        model: settings.embeddingModel,
+        ...opts,
     });
 
     if (embeddingCache.size >= MAX_CACHE_SIZE) {
@@ -772,13 +964,12 @@ export async function generateEmbeddingsForMemories(memories, { signal } = {}) {
     const settings = getDeps().getExtensionSettings()[extensionName];
     const source = settings.embeddingSource;
     const strategy = getStrategy(source);
+    const docOpts = _buildDocEmbedOptions(settings);
 
     const embeddings = await processInBatches(validMemories, 5, async (m) => {
         return strategy.getDocumentEmbedding(m.summary, {
             signal,
-            prefix: settings.embeddingDocPrefix,
-            url: settings.ollamaUrl,
-            model: settings.embeddingModel,
+            ...docOpts,
         });
     });
 
@@ -819,6 +1010,7 @@ export async function enrichEventsWithEmbeddings(events, { signal } = {}) {
     const settings = getDeps().getExtensionSettings()[extensionName];
     const source = settings.embeddingSource;
     const strategy = getStrategy(source);
+    const docOpts = _buildDocEmbedOptions(settings);
 
     const embeddings = await processInBatches(validEvents, 5, async (e) => {
         if (settings?.debugMode) {
@@ -826,9 +1018,7 @@ export async function enrichEventsWithEmbeddings(events, { signal } = {}) {
         }
         return strategy.getDocumentEmbedding(e.summary, {
             signal,
-            prefix: settings.embeddingDocPrefix,
-            url: settings.ollamaUrl,
-            model: settings.embeddingModel,
+            ...docOpts,
         });
     });
 
@@ -962,16 +1152,12 @@ export async function backfillAllEmbeddings({ signal, silent = false } = {}) {
         // 2. Graph node embeddings
         let nodeCount = 0;
         if (nodes.length > 0) {
-            const settings = getDeps().getExtensionSettings()[extensionName];
-            const source = settings.embeddingSource;
-            const strategy = getStrategy(source);
+            const nodeDocOpts = _buildDocEmbedOptions(settings);
 
             const nodeEmbeddings = await processInBatches(nodes, 5, async (n) => {
                 return strategy.getDocumentEmbedding(`${n.type}: ${n.name} - ${n.description}`, {
                     signal,
-                    prefix: settings.embeddingDocPrefix,
-                    url: settings.ollamaUrl,
-                    model: settings.embeddingModel,
+                    ...nodeDocOpts,
                 });
             });
             for (let i = 0; i < nodes.length; i++) {

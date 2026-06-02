@@ -211,6 +211,7 @@
                             </optgroup>
                             <optgroup label="External">
                                 <option value="ollama">Ollama (Custom server)</option>
+                                <option value="openai_compat">OpenAI-Compatible API</option>
                                 <option value="st_vector">ST Vector Storage (SillyTavern)</option>
                             </optgroup>
                         </select>
@@ -246,6 +247,26 @@
 
                             <label for="openvault_embedding_model">Model Name</label>
                             <input type="text" id="openvault_embedding_model" class="text_pole" placeholder="nomic-embed-text" />
+                        </div>
+
+                        <!-- OpenAI-Compatible API Settings (hidden by default) -->
+                        <div id="openvault_openai_compat_settings" style="display: none; margin-top: 10px;">
+                            <label for="openvault_openai_compat_url">
+                                API Base URL
+                                <button id="openvault_test_openai_compat_btn" class="menu_button openvault-test-btn">
+                                    <i class="fa-solid fa-plug"></i> Test
+                                </button>
+                            </label>
+                            <input type="text" id="openvault_openai_compat_url" class="text_pole" placeholder="https://api.openai.com" />
+                            <small class="openvault-hint">Base URL of the API. Supports OpenAI, LiteLLM, LM Studio, vLLM, etc. Path <code>/v1/embeddings</code> is appended automatically.</small>
+
+                            <label for="openvault_openai_compat_api_key">API Key</label>
+                            <input type="password" id="openvault_openai_compat_api_key" class="text_pole" placeholder="sk-... (leave empty for local servers)" />
+                            <small class="openvault-hint">Optional for local servers (LM Studio, vLLM). Required for cloud APIs (OpenAI, etc.)</small>
+
+                            <label for="openvault_openai_compat_model">Model Name</label>
+                            <input type="text" id="openvault_openai_compat_model" class="text_pole" placeholder="text-embedding-3-small" />
+                            <small class="openvault-hint">Model identifier as expected by the API (e.g., <code>text-embedding-3-small</code>, <code>nomic-embed-text</code>)</small>
                         </div>
 
                         <!-- WebGPU Help -->

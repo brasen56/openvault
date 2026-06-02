@@ -23,6 +23,7 @@ import {
     isEmbeddingsEnabled,
     setEmbeddingStatusCallback,
     testOllamaConnection,
+    testOpenAICompatConnection,
 } from '../embeddings.js';
 import { updateEventListeners } from '../events.js';
 import { executeEmergencyCut } from '../extraction/extract.js';
@@ -182,6 +183,46 @@ async function handleOllamaTestClick() {
         $btn.removeClass('success').addClass('error');
         $btn.html('<i class="fa-solid fa-xmark"></i> Failed');
         logError('Ollama test failed', err);
+    }
+
+    setTimeout(() => {
+        $btn.removeClass('success error');
+        $btn.html('<i class="fa-solid fa-plug"></i> Test');
+    }, 3000);
+}
+
+/**
+ * Handle OpenAI-Compatible API test button click.
+ */
+async function handleOpenAICompatTestClick() {
+    const $btn = $('#openvault_test_openai_compat_btn');
+    const url = $('#openvault_openai_compat_url').val().trim();
+    const apiKey = $('#openvault_openai_compat_api_key').val().trim();
+    const model = $('#openvault_openai_compat_model').val().trim();
+
+    if (!url) {
+        $btn.removeClass('success').addClass('error');
+        $btn.html('<i class="fa-solid fa-xmark"></i> No URL');
+        return;
+    }
+
+    if (!model) {
+        $btn.removeClass('success').addClass('error');
+        $btn.html('<i class="fa-solid fa-xmark"></i> No model');
+        return;
+    }
+
+    $btn.removeClass('success error');
+    $btn.html('<i class="fa-solid fa-spinner fa-spin"></i> Testing...');
+
+    try {
+        await testOpenAICompatConnection(url, apiKey, model);
+        $btn.removeClass('error').addClass('success');
+        $btn.html('<i class="fa-solid fa-check"></i> Connected');
+    } catch (err) {
+        $btn.removeClass('success').addClass('error');
+        $btn.html('<i class="fa-solid fa-xmark"></i> Failed');
+        logError('OpenAI-compatible API test failed', err);
     }
 
     setTimeout(() => {
@@ -603,6 +644,9 @@ const PRESERVED_KEYS = [
     'embeddingSource',
     'ollamaUrl',
     'embeddingModel',
+    'openaiCompatUrl',
+    'openaiCompatApiKey',
+    'openaiCompatModel',
     'embeddingQueryPrefix',
     'embeddingDocPrefix',
     'maxConcurrency',
@@ -937,10 +981,11 @@ function bindUIElements() {
         }
 
         $('#openvault_ollama_settings').toggle(value === 'ollama');
+        $('#openvault_openai_compat_settings').toggle(value === 'openai_compat');
         updateEmbeddingStatusDisplay(getEmbeddingStatus());
 
         // Reset strategy so the new model loads on next embed
-        if (value !== 'ollama') {
+        if (value !== 'ollama' && value !== 'openai_compat') {
             const strategy = getStrategy(value);
             if (typeof strategy.reset === 'function') strategy.reset();
         }
@@ -1032,6 +1077,20 @@ function bindUIElements() {
 
     // Test Ollama connection button
     $('#openvault_test_ollama_btn').on('click', handleOllamaTestClick);
+
+    // OpenAI-Compatible API settings bindings
+    $('#openvault_openai_compat_url').on('change', function () {
+        setSetting('openaiCompatUrl', $(this).val().trim());
+    });
+    $('#openvault_openai_compat_api_key').on('change', function () {
+        setSetting('openaiCompatApiKey', $(this).val().trim());
+    });
+    $('#openvault_openai_compat_model').on('change', function () {
+        setSetting('openaiCompatModel', $(this).val().trim());
+    });
+
+    // Test OpenAI-Compatible API connection button
+    $('#openvault_test_openai_compat_btn').on('click', handleOpenAICompatTestClick);
 
     // Perf tab clipboard copy button
     $('#openvault_copy_perf_btn').on('click', () => {
@@ -1361,6 +1420,10 @@ export function updateUI() {
     $('#openvault_ollama_settings').toggle(settings.embeddingSource === 'ollama');
     $('#openvault_ollama_url').val(settings.ollamaUrl);
     $('#openvault_embedding_model').val(settings.embeddingModel);
+    $('#openvault_openai_compat_settings').toggle(settings.embeddingSource === 'openai_compat');
+    $('#openvault_openai_compat_url').val(settings.openaiCompatUrl || '');
+    $('#openvault_openai_compat_api_key').val(settings.openaiCompatApiKey || '');
+    $('#openvault_openai_compat_model').val(settings.openaiCompatModel || '');
     $('#openvault_embedding_query_prefix').val(settings.embeddingQueryPrefix);
     $('#openvault_embedding_doc_prefix').val(settings.embeddingDocPrefix);
     updateEmbeddingStatusDisplay(getEmbeddingStatus());
