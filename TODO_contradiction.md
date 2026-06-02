@@ -97,10 +97,19 @@ real backstop. Consider a small negation guard if false suppressions show up.
 - Suppresses the **entire** losing side, so one recent negative blip hides all
   prior positive history for that pair until a newer positive appears.
 
-### 9. UI surface (design-doc §UI)
-No indicator for merged/flagged memories. Consider: ⚠️ badge on memories that
-were archived via `archive_reason: 'contradiction_merge'`, a collapsible
-"original summaries" view, and a session counter of contradiction LLM calls.
+### 9. UI surface (design-doc §UI) — **partially done**
+- ✅ Added "Settings" tab to the side panel (`templates/side_panel.html`) with:
+  - Contradiction Filter toggle (Tier 1 on/off)
+  - LLM Contradiction Analysis toggle (Tier 2 on/off) with collapsible sub-options
+  - Auto-merge checkbox
+  - Batch Scan Interval slider (10–500, default 100)
+  - Max LLM Calls per Scan slider (1–20, default 5)
+  - "Run Contradiction Scan Now" button (manual trigger)
+- ✅ Wired all controls in `src/ui/settings.js` (`bindUIElements` + `updateUI`)
+- ✅ Added contradiction keys to `RESETTABLE_KEYS` for settings reset
+- ✅ Added `llmContradictionBatchInterval` / `llmContradictionMaxCalls` to `UI_DEFAULT_HINTS`
+- Still TODO: ⚠️ badge on archived memories, collapsible original summaries view,
+  session LLM call counter.
 
 ### 10. Order vs. reflections (minor)
 Stage 5b currently runs **after** `synthesizeReflections()`. The design doc

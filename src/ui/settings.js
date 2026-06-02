@@ -635,6 +635,11 @@ const RESETTABLE_KEYS = [
     'topEntitiesCount',
     'entityBoostWeight',
     'communityDetectionInterval',
+    'contradictionFilterEnabled',
+    'llmContradictionEnabled',
+    'llmContradictionAutoMerge',
+    'llmContradictionBatchInterval',
+    'llmContradictionMaxCalls',
 ];
 
 export async function handleResetSettings() {
@@ -998,6 +1003,72 @@ function bindUIElements() {
     // Reflection manual trigger
     $('#openvault_generate_reflections_btn').on('click', handleGenerateReflections);
 
+    // ── Side Panel: Contradiction Settings ──
+    $('#openvault_side_contradiction_filter').on('change', function () {
+        setSetting('contradictionFilterEnabled', $(this).is(':checked'));
+    });
+
+    $('#openvault_side_llm_contradiction').on('change', function () {
+        const checked = $(this).is(':checked');
+        setSetting('llmContradictionEnabled', checked);
+        $('#openvault_side_llm_contradiction_options').toggle(checked);
+    });
+
+    $('#openvault_side_llm_contradiction_auto_merge').on('change', function () {
+        setSetting('llmContradictionAutoMerge', $(this).is(':checked'));
+    });
+
+    $('#openvault_side_llm_contradiction_batch_interval').on('input', function () {
+        const val = parseInt($(this).val(), 10);
+        setSetting('llmContradictionBatchInterval', val);
+        $('#openvault_side_llm_contradiction_batch_interval_value').text(val);
+    });
+
+    $('#openvault_side_llm_contradiction_max_calls').on('input', function () {
+        const val = parseInt($(this).val(), 10);
+        setSetting('llmContradictionMaxCalls', val);
+        $('#openvault_side_llm_contradiction_max_calls_value').text(val);
+    });
+
+    $('#openvault_side_run_contradiction_scan').on('click', async function () {
+        const { isWorkerRunning } = await import('../state.js');
+        if (isWorkerRunning()) {
+            showToast('warning', 'Background extraction in progress. Please wait.', 'OpenVault');
+            return;
+        }
+
+        const data = getOpenVaultData();
+        if (!data || !data.memories || data.memories.length < 2) {
+            showToast('warning', 'Need at least 2 memories to scan for contradictions.', 'OpenVault');
+            return;
+        }
+
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Scanning...');
+
+        try {
+            const { batchContradictionScan } = await import('../retrieval/llm-contradiction.js');
+            const results = await batchContradictionScan(data.memories);
+            const detected = Array.isArray(results) ? results.length : 0;
+            const merged = Array.isArray(results) ? results.filter((r) => r.merged).length : 0;
+            showToast(
+                merged > 0 ? 'success' : 'info',
+                merged > 0
+                    ? `Contradiction scan complete: ${detected} detected, ${merged} merged.`
+                    : detected > 0
+                      ? `Contradiction scan complete: ${detected} detected, 0 auto-merged.`
+                      : 'No contradictions found.',
+                'OpenVault'
+            );
+            refreshAllUI();
+        } catch (err) {
+            logError('Contradiction scan failed', err);
+            showToast('error', `Contradiction scan failed: ${err.message}`, 'OpenVault');
+        } finally {
+            $btn.prop('disabled', false).html('<i class="fa-solid fa-magnifying-glass"></i> Run Contradiction Scan Now');
+        }
+    });
+
     // Memory browser filters
     $('#openvault_filter_type').on('change', function () {
         setSetting('filter_type', $(this).val());
@@ -1248,6 +1319,16 @@ export function updateUI() {
 
     // Post-history prompt
     $('#openvault_post_history_prompt').val(settings.postHistoryPrompt || '');
+
+    // ── Side Panel: Contradiction Settings ──
+    $('#openvault_side_contradiction_filter').prop('checked', settings.contradictionFilterEnabled);
+    $('#openvault_side_llm_contradiction').prop('checked', settings.llmContradictionEnabled);
+    $('#openvault_side_llm_contradiction_options').toggle(settings.llmContradictionEnabled);
+    $('#openvault_side_llm_contradiction_auto_merge').prop('checked', settings.llmContradictionAutoMerge);
+    $('#openvault_side_llm_contradiction_batch_interval').val(settings.llmContradictionBatchInterval);
+    $('#openvault_side_llm_contradiction_batch_interval_value').text(settings.llmContradictionBatchInterval);
+    $('#openvault_side_llm_contradiction_max_calls').val(settings.llmContradictionMaxCalls);
+    $('#openvault_side_llm_contradiction_max_calls_value').text(settings.llmContradictionMaxCalls);
 
     // Payload calculator — must run after sliders are synced
     updatePayloadCalculator();

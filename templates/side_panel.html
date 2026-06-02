@@ -31,6 +31,9 @@
             <button class="openvault-side-tab" data-side-tab="export-import">
                 <i class="fa-solid fa-file-import"></i> Export
             </button>
+            <button class="openvault-side-tab" data-side-tab="settings">
+                <i class="fa-solid fa-gear"></i> Settings
+            </button>
         </div>
         <button id="openvault_side_panel_close" class="openvault-side-panel-close" title="Close panel">
             <i class="fa-solid fa-xmark"></i>
@@ -125,5 +128,60 @@
 
     <div class="openvault-side-tab-content" data-side-tab-content="export-import">
         <div id="openvault_export_import_content" class="openvault-export-import-panel openvault-side-scroll"></div>
+    </div>
+
+    <div class="openvault-side-tab-content" data-side-tab-content="settings">
+        <div id="openvault_side_settings" class="openvault-side-scroll">
+            <!-- Contradiction Detection -->
+            <div class="openvault-card">
+                <div class="openvault-card-header">
+                    <span class="openvault-card-title"><i class="fa-solid fa-shuffle"></i> Contradiction Detection</span>
+                </div>
+                <div class="openvault-settings-group">
+                    <label class="checkbox_label">
+                        <input type="checkbox" id="openvault_side_contradiction_filter" />
+                        <span>Contradiction Filter</span>
+                    </label>
+                    <small class="openvault-hint">Suppress older memories that contradict newer ones during retrieval</small>
+
+                    <div style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+                        <label class="checkbox_label">
+                            <input type="checkbox" id="openvault_side_llm_contradiction" />
+                            <span>LLM Contradiction Analysis</span>
+                        </label>
+                        <small class="openvault-hint">Use LLM to detect and resolve contradictions between memories (uses API calls)</small>
+
+                        <div id="openvault_side_llm_contradiction_options" style="margin-top: 10px; padding-left: 8px;">
+                            <label class="checkbox_label">
+                                <input type="checkbox" id="openvault_side_llm_contradiction_auto_merge" />
+                                <span>Auto-merge Confirmed Contradictions</span>
+                            </label>
+                            <small class="openvault-hint">Automatically merge memories when LLM confirms a contradiction</small>
+
+                            <label for="openvault_side_llm_contradiction_batch_interval" style="margin-top: 10px;">
+                                Batch Scan Interval: <span id="openvault_side_llm_contradiction_batch_interval_value">100</span> messages
+                                <small class="openvault-default-hint" data-default-key="llmContradictionBatchInterval"></small>
+                            </label>
+                            <input type="range" id="openvault_side_llm_contradiction_batch_interval" min="10" max="500" step="10" />
+                            <small class="openvault-hint">How many new messages before running a batch contradiction scan</small>
+
+                            <label for="openvault_side_llm_contradiction_max_calls" style="margin-top: 8px;">
+                                Max LLM Calls per Scan: <span id="openvault_side_llm_contradiction_max_calls_value">5</span>
+                                <small class="openvault-default-hint" data-default-key="llmContradictionMaxCalls"></small>
+                            </label>
+                            <input type="range" id="openvault_side_llm_contradiction_max_calls" min="1" max="20" step="1" />
+                            <small class="openvault-hint">Maximum LLM calls per batch contradiction scan. Higher = more thorough but costs more</small>
+
+                            <div style="margin-top: 12px;">
+                                <button id="openvault_side_run_contradiction_scan" class="menu_button wide">
+                                    <i class="fa-solid fa-magnifying-glass"></i> Run Contradiction Scan Now
+                                </button>
+                                <small class="openvault-hint">Manually trigger a contradiction scan for all memories in this chat</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>

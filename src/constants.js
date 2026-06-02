@@ -308,6 +308,9 @@ export const UI_DEFAULT_HINTS = {
     // Auto-hide
     frozenReplies: defaultSettings.frozenReplies,
     maxVisibleMessages: defaultSettings.maxVisibleMessages,
+    // Contradiction
+    llmContradictionBatchInterval: defaultSettings.llmContradictionBatchInterval,
+    llmContradictionMaxCalls: defaultSettings.llmContradictionMaxCalls,
 };
 
 // Performance monitoring thresholds (ms) — values above threshold show red
