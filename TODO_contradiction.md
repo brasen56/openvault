@@ -79,37 +79,48 @@ newer ones contradict them.
 
 ## 🔧 Remaining work (roughly priority order)
 
-### 5. Tier 1 grouping: identical set vs. shared pair
-`detectContradictions()` keys groups on the **exact** sorted `characters_involved`
-set, so `{Alex,Ezra}` and `{Alex,Ezra,Bob}` never compare — despite the comment
-saying "share at least 2 characters." Witness-set drift = missed contradictions.
-(Design-doc open question #4.) Decide: match on any shared pair, or keep strict.
+### 5. ~~Tier 1 grouping: identical set vs. shared pair~~ ✅ Done
+Tier 1 (`detectContradictions`) kept strict as designed. Tier 2 batch scan
+(`groupMemoriesByCharacterPair` in `llm-contradiction.js`) now uses **pairwise
+overlap**: a memory with `{Alex,Ezra,Bob}` is added to every 2-character subset
+group (`alex|ezra`, `alex|bob`, `ezra|bob`), so it will be compared against
+memories in any of those groups. This eliminates the witness-set drift gap
+without making the fast Tier 1 path more expensive.
 
-### 6. Sentiment negation not handled
-Keyword classifier flips on negation: "no longer hates" → NEGATIVE,
-"stopped being friends" → POSITIVE. Inherent to the heuristic; Tier 2 is the
-real backstop. Consider a small negation guard if false suppressions show up.
+### 6. ~~Sentiment negation not handled~~ ✅ Done
+`classifySentiment()` now includes a negation guard (`isNegated()`) that checks
+for `SENTIMENT_NEGATORS` within a 3-token window before each keyword match.
+Negated keywords are **dropped** (neutralized) rather than flipped — safe and
+conservative. Multi-word phrase matches are also negation-aware via
+`phraseStartIndex()`.
 
-### 8. Tier 1 effectiveness caveats (by design, document for users)
-- Runs **after** budgeting, on `finalResults` — only catches contradictions when
-  *both* memories are co-retrieved in the same turn.
-- Freed budget from a suppressed memory is **not** backfilled.
-- Suppresses the **entire** losing side, so one recent negative blip hides all
-  prior positive history for that pair until a newer positive appears.
+### 8. ~~Tier 1 effectiveness caveats~~ ✅ Done
+Added an informational `<details>` block in the side panel Settings tab
+(`templates/side_panel.html`) explaining the three by-design limitations:
+- Only catches contradictions when both memories are co-retrieved in the same turn.
+- Freed budget from a suppressed memory is not backfilled.
+- Suppresses the entire losing sentiment side for the group.
 
-### 9. UI surface (design-doc §UI) — **partially done**
+### 9. UI surface (design-doc §UI) — ✅ Done
 - ✅ Added "Settings" tab to the side panel (`templates/side_panel.html`) with:
-  - Contradiction Filter toggle (Tier 1 on/off)
-  - LLM Contradiction Analysis toggle (Tier 2 on/off) with collapsible sub-options
-  - Auto-merge checkbox
-  - Batch Scan Interval slider (10–500, default 100)
-  - Max LLM Calls per Scan slider (1–20, default 5)
-  - "Run Contradiction Scan Now" button (manual trigger)
+  - ✅ Contradiction Filter toggle (Tier 1 on/off)
+  - ✅ LLM Contradiction Analysis toggle (Tier 2 on/off) with collapsible sub-options
+  - ✅ Auto-merge checkbox
+  - ✅ Batch Scan Interval slider (10–500, default 100)
+  - ✅ Max LLM Calls per Scan slider (1–20, default 5)
+  - ✅ "Run Contradiction Scan Now" button (manual trigger)
 - ✅ Wired all controls in `src/ui/settings.js` (`bindUIElements` + `updateUI`)
 - ✅ Added contradiction keys to `RESETTABLE_KEYS` for settings reset
 - ✅ Added `llmContradictionBatchInterval` / `llmContradictionMaxCalls` to `UI_DEFAULT_HINTS`
-- Still TODO: ⚠️ badge on archived memories, collapsible original summaries view,
-  session LLM call counter.
+- ✅ Badge on archived memories — `renderSideMemoryItem()` now renders an
+  `📦 Archived` badge and merged-source info when `memory.archived` is true,
+  and a `🔗 Merged` badge with collapsible original summaries when
+  `merge_sources` is present.
+- ✅ Collapsible original summaries view — merged memory cards show a
+  `<details>` block with the merge timestamp and source memory IDs.
+- ✅ Session LLM call counter — a live counter (`#openvault_side_contradiction_session_calls`)
+  in the contradiction settings section shows how many LLM contradiction calls
+  have been made this session; incremented by the batch scan and manual scan.
 
 ### 10. Order vs. reflections (minor)
 Stage 5b currently runs **after** `synthesizeReflections()`. The design doc

@@ -1257,6 +1257,13 @@ async function handleRunContradictionScanClick($btn) {
         const results = await batchContradictionScan(data.memories);
         const detected = Array.isArray(results) ? results.length : 0;
         const merged = Array.isArray(results) ? results.filter((r) => r.merged).length : 0;
+
+        // Update session LLM call counter
+        if (detected > 0) {
+            const { incrementSessionLLMCallCount } = await import('./side-panel.js');
+            incrementSessionLLMCallCount(detected);
+        }
+
         showToast(
             merged > 0 ? 'success' : 'info',
             merged > 0

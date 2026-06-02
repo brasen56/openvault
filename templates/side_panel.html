@@ -178,7 +178,29 @@
                                 </button>
                                 <small class="openvault-hint">Manually trigger a contradiction scan for all memories in this chat</small>
                             </div>
+
+                            <div style="margin-top: 8px;">
+                                <small class="openvault-hint">
+                                    <i class="fa-solid fa-microchip"></i>
+                                    Session LLM calls: <span id="openvault_side_contradiction_session_calls">0</span>
+                                </small>
+                            </div>
                         </div>
+
+                        <details style="margin-top: 10px;">
+                            <summary style="cursor: pointer; font-size: 0.85em; color: var(--SmartThemeQuoteColor);">
+                                <i class="fa-solid fa-circle-info"></i> How Tier 1 (Keyword Filter) works
+                            </summary>
+                            <div style="padding: 6px 0; font-size: 0.8em; line-height: 1.5;">
+                                <p><strong>Tier 1</strong> is a fast, free keyword heuristic. It:</p>
+                                <ul style="margin: 4px 0; padding-left: 18px;">
+                                    <li>Only catches contradictions when <em>both</em> memories are co-retrieved in the same turn (it runs after scoring & budgeting).</li>
+                                    <li>Does <strong>not</strong> backfill freed budget when a memory is suppressed.</li>
+                                    <li>Suppresses the <em>entire</em> losing sentiment side for a character group until a newer memory of the opposite sentiment appears.</li>
+                                </ul>
+                                <p>For nuanced contradictions, enable <strong>LLM Contradiction Analysis</strong> (Tier 2) above.</p>
+                            </div>
+                        </details>
                     </div>
                 </div>
             </div>

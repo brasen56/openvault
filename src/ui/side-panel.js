@@ -602,11 +602,27 @@ function buildSideCharacterTags(characters) {
     return `<div class="openvault-memory-characters" style="margin-top: 4px;">${tags}</div>`;
 }
 
+// Session-level LLM contradiction call counter (reset on page load)
+let _sessionLLMCallCount = 0;
+
+/**
+ * Increment the session LLM call counter and update the UI element.
+ * Called from settings.js after manual or batch contradiction scans.
+ * @param {number} count - Number of LLM calls to add (default 1)
+ */
+export function incrementSessionLLMCallCount(count = 1) {
+    _sessionLLMCallCount += count;
+    const $el = $('#openvault_side_contradiction_session_calls');
+    if ($el.length) $el.text(_sessionLLMCallCount);
+}
+
 function renderSideMemoryItem(memory) {
     const id = escapeHtml(memory.id);
     const date = formatMemoryDate(memory.created_at);
     const stars = formatMemoryImportance(memory.importance || 3);
     const isReflection = memory.type === 'reflection';
+    const isArchived = !!memory.archived;
+    const isMerged = !!(memory.merge_sources && memory.merge_sources.length);
 
     // Reflections don't have time anchors — show a reflection badge in that slot instead
     let leadBadge = '';
@@ -617,15 +633,45 @@ function renderSideMemoryItem(memory) {
         leadBadge = `<span class="openvault-side-mem-date" style="color: var(--SmartThemeQuoteColor);"><i class="fa-solid fa-clock"></i> ${escapeHtml(memory.temporal_anchor)}</span>`;
     }
 
+    // Status badges (archived / merged)
+    const statusBadges = [];
+    if (isArchived) {
+        statusBadges.push('<span class="openvault-archived-badge"><i class="fa-solid fa-box-archive"></i> Archived</span>');
+    }
+    if (isMerged) {
+        statusBadges.push('<span class="openvault-merged-badge" style="color: #6bb5ff;"><i class="fa-solid fa-link"></i> Merged</span>');
+    }
+
     const charTags = buildSideCharacterTags(memory.characters_involved);
 
+    // Collapsible merge details
+    let mergeDetails = '';
+    if (isMerged) {
+        const sources = (memory.merge_sources || []).map((s) => escapeHtml(s)).join(', ');
+        const ts = memory.merge_timestamp ? new Date(memory.merge_timestamp).toLocaleString() : 'unknown';
+        mergeDetails = `
+            <details class="openvault-merge-details" style="margin-top: 4px;">
+                <summary style="cursor: pointer; font-size: 0.8em; color: var(--SmartThemeQuoteColor);">
+                    <i class="fa-solid fa-code-merge"></i> Merge info
+                </summary>
+                <div style="padding: 4px 0; font-size: 0.78em; line-height: 1.4;">
+                    <div><strong>Sources:</strong> ${sources}</div>
+                    <div><strong>Merged at:</strong> ${escapeHtml(ts)}</div>
+                </div>
+            </details>
+        `;
+    }
+
+    const archivedClass = isArchived ? ' openvault-card-archived' : '';
+
     return `
-        <div class="openvault-memory-card openvault-side-mem" data-id="${id}">
+        <div class="openvault-memory-card openvault-side-mem${archivedClass}" data-id="${id}">
             <div class="openvault-side-mem-header">
                 <div class="openvault-side-mem-meta">
                     ${leadBadge}
                     <span class="openvault-side-mem-date">${escapeHtml(date)}</span>
                     <span class="openvault-memory-card-badge importance">${stars}</span>
+                    ${statusBadges.join(' ')}
                 </div>
                 <div class="openvault-side-mem-actions">
                     <button class="openvault-entity-action-btn openvault-edit-memory" data-id="${id}" title="Edit">
@@ -638,6 +684,7 @@ function renderSideMemoryItem(memory) {
             </div>
             <div class="openvault-memory-card-summary">${escapeHtml(memory.summary || 'No summary')}</div>
             ${charTags}
+            ${mergeDetails}
         </div>
     `;
 }

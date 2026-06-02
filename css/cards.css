@@ -291,3 +291,26 @@
     color: var(--SmartThemeEmColor, #888);
     border: 1px solid rgba(128, 128, 128, 0.3);
 }
+
+/* Archived & Merged status badges (side-panel memory cards) */
+.openvault-archived-badge {
+    font-size: 0.7em;
+    background: rgba(128, 128, 128, 0.25);
+    color: var(--SmartThemeEmColor, #888);
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin-left: 4px;
+}
+
+.openvault-merged-badge {
+    font-size: 0.7em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin-left: 4px;
+}
+
+/* Dim archived memory cards */
+.openvault-card-archived {
+    opacity: 0.55;
+}

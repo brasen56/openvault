@@ -182,7 +182,15 @@ function characterGroupKey(names) {
 }
 
 /**
- * Group non-archived event memories by their character pair overlap.
+ * Group non-archived event memories by **pairwise** character overlap.
+ *
+ * Unlike Tier 1's strict exact-set matching, this generates a group key for
+ * every 2-character **subset** of `characters_involved`. A memory about
+ * `{Alex, Ezra, Bob}` is added to groups `alex|bob`, `alex|ezra`, and
+ * `bob|ezra`, so it will be compared against memories about any of those
+ * pairs. This eliminates witness-set drift without making the fast Tier 1
+ * path more expensive.
+ *
  * Only memories with ≥2 characters are grouped (single-character memories
  * can't form relationship pairs).
  *
@@ -194,12 +202,20 @@ export function groupMemoriesByCharacterPair(memories) {
 
     for (const m of memories) {
         if (m.archived || m.type === 'reflection') continue;
-        const chars = m.characters_involved || [];
+        const chars = (m.characters_involved || []).map((c) => c.toLowerCase().trim());
         if (chars.length < 2) continue;
 
-        const key = characterGroupKey(chars);
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(m);
+        // Generate all 2-element subsets (pairs) and add to each group
+        const seen = new Set();
+        for (let i = 0; i < chars.length; i++) {
+            for (let j = i + 1; j < chars.length; j++) {
+                const key = [chars[i], chars[j]].sort().join('|');
+                if (seen.has(key)) continue;
+                seen.add(key);
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(m);
+            }
+        }
     }
 
     return groups;
@@ -369,9 +385,11 @@ export async function batchContradictionScan(allMemories, options = {}) {
  * @param {number} [options.confidenceThreshold] - Override confidence threshold
  * @param {boolean} [options.autoMerge] - Override auto-merge setting
  * @param {function(): Promise<void>} [options.rpmDelayFn] - Async callback to wait between LLM calls (RPM spacing)
- * @param {number} [options.maxCalls=3] - Maximum LLM calls to make (cost control)
- * @returns {Promise<{verified: boolean, merged: boolean, reason?: string, llmCallsUsed: number, stSync?: { archived: Memory, updated: Memory, olderPreMergeSummary: string, newerPreMergeSummary: string }}>}
- *   Result of the verification, including LLM call count and ST sync info for merges
+ * @param {number} [options.maxCalls=3] - Maximum LLM calls to make in this call (cost control)
+ * @param {number} [options.skip=0] - Opposing candidates to skip before verifying (lets the batch caller round-robin across events)
+ * @param {number} [options.priorCalls=0] - LLM calls already made elsewhere this batch (so the first call here is RPM-spaced when it isn't the batch's first)
+ * @returns {Promise<{verified: boolean, merged: boolean, reason?: string, llmCallsUsed: number, opposingTotal?: number, stSync?: { archived: Memory, updated: Memory, olderPreMergeSummary: string, newerPreMergeSummary: string }}>}
+ *   Result of the verification, including LLM call count, total opposing candidates, and ST sync info for merges
  */
 export async function checkNewMemoryContradictions(newMemory, existingMemories, options = {}) {
     const deps = getDeps();
@@ -379,7 +397,7 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
     const enabled = settings.llmContradictionEnabled ?? defaultSettings.llmContradictionEnabled;
     const confidenceThreshold = options.confidenceThreshold ?? settings.llmContradictionConfidence ?? defaultSettings.llmContradictionConfidence;
     const autoMerge = options.autoMerge ?? settings.llmContradictionAutoMerge ?? defaultSettings.llmContradictionAutoMerge;
-    const { rpmDelayFn, maxCalls = 3 } = options;
+    const { rpmDelayFn, maxCalls = 3, skip = 0, priorCalls = 0 } = options;
 
     if (!enabled) {
         return { verified: false, merged: false, llmCallsUsed: 0 };
@@ -418,13 +436,18 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
         return { verified: false, merged: false, llmCallsUsed: 0 };
     }
 
-    // Tier 2: LLM verification for each opposing memory (capped by maxCalls)
-    const toCheck = opposingMemories.slice(0, maxCalls);
+    // Tier 2: LLM verification for opposing memories. `skip` lets the batch caller
+    // round-robin across events (verify candidate [skip] this pass); `maxCalls` caps
+    // how many candidates we verify in this single invocation.
+    const opposingTotal = opposingMemories.length;
+    const toCheck = opposingMemories.slice(skip, skip + maxCalls);
     let llmCallsUsed = 0;
 
     for (const existing of toCheck) {
-        // Per-call RPM spacing — avoids bursting RPM-limited / local users
-        if (llmCallsUsed > 0 && rpmDelayFn) {
+        // Per-call RPM spacing — avoids bursting RPM-limited / local users.
+        // priorCalls counts calls already made elsewhere in the batch, so the first
+        // call of this invocation is also spaced unless it's the batch's very first.
+        if ((priorCalls + llmCallsUsed) > 0 && rpmDelayFn) {
             await rpmDelayFn();
         }
 
@@ -455,6 +478,7 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
                     merged: autoMerge && !!result.merge,
                     reason: result.reason,
                     llmCallsUsed,
+                    opposingTotal,
                     stSync,
                 };
             }
@@ -465,7 +489,7 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
         }
     }
 
-    return { verified: true, merged: false, llmCallsUsed };
+    return { verified: true, merged: false, llmCallsUsed, opposingTotal };
 }
 
 // ---------------------------------------------------------------------------

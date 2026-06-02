@@ -473,6 +473,25 @@ export const SENTIMENT_NEGATIVE = new Set([
     'напал', 'напала', 'нападение',
 ]);
 
+/**
+ * Negation cues. When one of these appears within a few tokens BEFORE a matched
+ * sentiment keyword, the match is neutralized (dropped, not flipped) — so
+ * "no longer hates" / "не доверяет" don't register as their literal keyword's polarity.
+ * Apostrophes are token boundaries, so contractions surface as stems ("doesn't" → "doesn").
+ * "won" is deliberately excluded (ambiguous with the past tense of "win").
+ */
+export const SENTIMENT_NEGATORS = new Set([
+    // English — explicit
+    'not', 'no', 'never', 'without', 'neither', 'nor', 'barely', 'hardly',
+    'stopped', 'stop', 'ceased', 'quit',
+    // English — contraction stems (post apostrophe-split)
+    'doesn', 'didn', 'don', 'isn', 'wasn', 'aren', 'weren',
+    'hasn', 'haven', 'hadn', 'wouldn', 'couldn', 'shouldn', 'ain',
+    // Russian
+    'не', 'нет', 'ни', 'никогда', 'без',
+    'перестал', 'перестала', 'прекратил', 'прекратила',
+]);
+
 // ============== ST API Endpoints ==============
 export const ST_API_ENDPOINTS = Object.freeze({
     INSERT: '/api/vector/insert',

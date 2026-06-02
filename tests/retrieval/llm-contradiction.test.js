@@ -275,6 +275,22 @@ describe('groupMemoriesByCharacterPair', () => {
         expect(bobCarol).toHaveLength(1);
     });
 
+    it('groups 3-character memories into all pair subsets', async () => {
+        const { groupMemoriesByCharacterPair } = await import('../../src/retrieval/llm-contradiction.js');
+
+        const memories = [
+            makeMemory({ id: 'trio', characters_involved: ['Alex', 'Ezra', 'Bob'], extraction_count: 1 }),
+            makeMemory({ id: 'pair', characters_involved: ['Alex', 'Ezra'], extraction_count: 5 }),
+        ];
+
+        const groups = groupMemoriesByCharacterPair(memories);
+
+        // trio appears in all 3 pair groups
+        expect(groups.get('alex|bob')).toHaveLength(1);
+        expect(groups.get('alex|ezra')).toHaveLength(2); // trio + pair
+        expect(groups.get('bob|ezra')).toHaveLength(1);
+    });
+
     it('excludes archived memories', async () => {
         const { groupMemoriesByCharacterPair } = await import('../../src/retrieval/llm-contradiction.js');
 

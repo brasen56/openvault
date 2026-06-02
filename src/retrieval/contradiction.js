@@ -22,7 +22,7 @@
 
 /** @typedef {import('../types').Memory} Memory */
 
-import { SENTIMENT_POSITIVE, SENTIMENT_NEGATIVE } from '../constants.js';
+import { SENTIMENT_POSITIVE, SENTIMENT_NEGATIVE, SENTIMENT_NEGATORS } from '../constants.js';
 import { logDebug } from '../utils/logging.js';
 
 /**
@@ -48,36 +48,42 @@ export function classifySentiment(summary) {
         return { sentiment: Sentiment.NEUTRAL, positiveCount: 0, negativeCount: 0 };
     }
 
-    // Lowercase and split into words / bigrams for matching
     const lower = summary.toLowerCase();
+    // Ordered tokens (NOT a Set) so we can look back for a preceding negator.
+    const tokens = lower.match(/[\p{L}0-9_]+/gu) || [];
 
-    // Check single-word matches
-    const words = new Set(lower.match(/[\p{L}0-9_]+/gu) || []);
-
-    // Also check multi-word phrases (bigrams, trigrams from the keyword sets)
-    // Some keywords like "made up", "fell out" are multi-word
-    const positivePhrases = [...SENTIMENT_POSITIVE].filter(k => k.includes(' '));
-    const negativePhrases = [...SENTIMENT_NEGATIVE].filter(k => k.includes(' '));
+    // A matched keyword is neutralized (dropped, not flipped) when a negator sits
+    // within NEGATION_WINDOW tokens before it — e.g. "no longer hates", "не доверяет".
+    // Dropping a wrong signal is safe; guessing the opposite polarity is not.
+    const NEGATION_WINDOW = 3;
+    const isNegated = (start) => {
+        for (let i = Math.max(0, start - NEGATION_WINDOW); i < start; i++) {
+            if (SENTIMENT_NEGATORS.has(tokens[i])) return true;
+        }
+        return false;
+    };
 
     let positiveCount = 0;
     let negativeCount = 0;
 
-    // Count single-word positive matches
-    for (const word of words) {
-        if (SENTIMENT_POSITIVE.has(word)) positiveCount++;
+    // Single-word matches — position-aware so negation can suppress them.
+    for (let i = 0; i < tokens.length; i++) {
+        if (isNegated(i)) continue;
+        const t = tokens[i];
+        if (SENTIMENT_POSITIVE.has(t)) positiveCount++;
+        else if (SENTIMENT_NEGATIVE.has(t)) negativeCount++;
     }
 
-    // Count single-word negative matches
-    for (const word of words) {
-        if (SENTIMENT_NEGATIVE.has(word)) negativeCount++;
-    }
-
-    // Count multi-word phrase matches
+    // Multi-word phrase matches (e.g. "made up", "fell out", "не доверяет").
+    const positivePhrases = [...SENTIMENT_POSITIVE].filter((k) => k.includes(' '));
+    const negativePhrases = [...SENTIMENT_NEGATIVE].filter((k) => k.includes(' '));
     for (const phrase of positivePhrases) {
-        if (lower.includes(phrase)) positiveCount++;
+        const at = phraseStartIndex(tokens, phrase);
+        if (at >= 0 && !isNegated(at)) positiveCount++;
     }
     for (const phrase of negativePhrases) {
-        if (lower.includes(phrase)) negativeCount++;
+        const at = phraseStartIndex(tokens, phrase);
+        if (at >= 0 && !isNegated(at)) negativeCount++;
     }
 
     // Determine dominant sentiment
@@ -89,6 +95,30 @@ export function classifySentiment(summary) {
     }
     // Both present or neither — treat as NEUTRAL (no clear signal)
     return { sentiment: Sentiment.NEUTRAL, positiveCount, negativeCount };
+}
+
+/**
+ * Find the token index where a multi-word phrase begins, or -1 if absent.
+ * Operates on the same tokenization as the caller so phrase boundaries line up
+ * (and so a negator check can look at the tokens immediately before the phrase).
+ *
+ * @param {string[]} tokens - Lowercased token array of the summary
+ * @param {string} phrase - Lowercased multi-word keyword (space-separated)
+ * @returns {number} Start index of the phrase, or -1
+ */
+function phraseStartIndex(tokens, phrase) {
+    const parts = phrase.split(/\s+/);
+    for (let i = 0; i + parts.length <= tokens.length; i++) {
+        let matched = true;
+        for (let j = 0; j < parts.length; j++) {
+            if (tokens[i + j] !== parts[j]) {
+                matched = false;
+                break;
+            }
+        }
+        if (matched) return i;
+    }
+    return -1;
 }
 
 /**

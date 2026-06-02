@@ -950,63 +950,88 @@ async function checkBatchForContradictions(events, data, settings, abortSignal) 
     const priorMemories = (data[MEMORIES_KEY] || []).filter((m) => !newEventIds.has(m.id));
     if (priorMemories.length === 0) return;
 
-    // Budget: cap actual LLM calls (not events). Each event can cost up to 3 calls,
-    // so we track llmCallsUsed across all events and stop when the budget is exhausted.
+    // Budget: cap total actual LLM calls across the whole batch.
     const maxLLMCalls = settings.llmContradictionMaxCalls || 5;
     let totalLLMCalls = 0;
 
     // RPM spacing callback — reuses the extraction pipeline's rate limiter
     const contradictionRpmDelay = () => rpmDelay(settings, 'Contradiction inter-call RPM');
 
-    for (const event of events) {
-        if (totalLLMCalls >= maxLLMCalls) break;
+    // Round-robin: each new event gets ONE LLM check per pass, then we cycle back for
+    // more only while budget remains. This stops the first event in a multi-event batch
+    // from consuming the whole budget and starving the others. `cursors` tracks how far
+    // into each event's opposing-candidate list we've checked; `done` holds events that
+    // merged, errored, or ran out of candidates.
+    const cursors = new Map(events.map((e) => [e.id, 0]));
+    const done = new Set();
+
+    while (totalLLMCalls < maxLLMCalls && done.size < events.length) {
         if (abortSignal?.aborted) break;
+        let progressed = false;
 
-        // Remaining budget for this event
-        const remainingBudget = maxLLMCalls - totalLLMCalls;
+        for (const event of events) {
+            if (totalLLMCalls >= maxLLMCalls) break;
+            if (abortSignal?.aborted) break;
+            if (done.has(event.id)) continue;
 
-        try {
-            const result = await checkNewMemoryContradictions(event, priorMemories, {
-                rpmDelayFn: contradictionRpmDelay,
-                maxCalls: remainingBudget,
-            });
+            const skip = cursors.get(event.id);
 
-            totalLLMCalls += result.llmCallsUsed || 0;
+            try {
+                const result = await checkNewMemoryContradictions(event, priorMemories, {
+                    rpmDelayFn: contradictionRpmDelay,
+                    priorCalls: totalLLMCalls,
+                    maxCalls: 1, // one candidate per event per pass
+                    skip,
+                });
 
-            if (result.merged && result.stSync) {
-                const { archived, updated, olderPreMergeSummary, newerPreMergeSummary } = result.stSync;
+                const used = result.llmCallsUsed || 0;
+                totalLLMCalls += used;
+                if (used > 0) progressed = true;
+                cursors.set(event.id, skip + used);
 
-                logDebug(
-                    `Contradiction merge: new memory ${event.id} retired an older contradicting memory (${result.reason || 'no reason given'})`
-                );
-
-                // ST Vector re-sync: delete archived memory's stale vector,
-                // re-sync updated memory with its new merged summary.
-                if (isStVectorSource()) {
-                    const contradictionSyncChanges = { toSync: [], toDelete: [] };
-
-                    // Delete archived memory's old vector
-                    const archivedText = `[OV_ID:${archived.id}] ${olderPreMergeSummary}`;
-                    contradictionSyncChanges.toDelete.push({ hash: cyrb53(archivedText) });
-
-                    // Re-sync updated memory with new merged summary
-                    const updatedText = `[OV_ID:${updated.id}] ${updated.summary}`;
-                    contradictionSyncChanges.toSync.push({
-                        hash: cyrb53(updatedText),
-                        text: updatedText,
-                        item: updated,
-                    });
-
-                    // Also delete the older pre-merge vector (stale hash)
-                    const staleUpdatedText = `[OV_ID:${updated.id}] ${newerPreMergeSummary}`;
-                    contradictionSyncChanges.toDelete.push({ hash: cyrb53(staleUpdatedText) });
-
-                    await applySyncChanges(contradictionSyncChanges);
+                // Finished once it merges, or we've checked all of its candidates.
+                if (result.merged || skip + used >= (result.opposingTotal || 0)) {
+                    done.add(event.id);
                 }
+
+                if (result.merged && result.stSync) {
+                    const { archived, updated, olderPreMergeSummary, newerPreMergeSummary } = result.stSync;
+
+                    logDebug(
+                        `Contradiction merge: new memory ${event.id} retired an older contradicting memory (${result.reason || 'no reason given'})`
+                    );
+
+                    // ST Vector re-sync: delete archived memory's stale vector,
+                    // re-sync updated memory with its new merged summary.
+                    if (isStVectorSource()) {
+                        const contradictionSyncChanges = { toSync: [], toDelete: [] };
+
+                        // Delete archived memory's old vector
+                        const archivedText = `[OV_ID:${archived.id}] ${olderPreMergeSummary}`;
+                        contradictionSyncChanges.toDelete.push({ hash: cyrb53(archivedText) });
+
+                        // Re-sync updated memory with new merged summary
+                        const updatedText = `[OV_ID:${updated.id}] ${updated.summary}`;
+                        contradictionSyncChanges.toSync.push({
+                            hash: cyrb53(updatedText),
+                            text: updatedText,
+                            item: updated,
+                        });
+
+                        // Also delete the older pre-merge vector (stale hash)
+                        const staleUpdatedText = `[OV_ID:${updated.id}] ${newerPreMergeSummary}`;
+                        contradictionSyncChanges.toDelete.push({ hash: cyrb53(staleUpdatedText) });
+
+                        await applySyncChanges(contradictionSyncChanges);
+                    }
+                }
+            } catch (err) {
+                logWarn(`Contradiction check failed for new memory ${event.id}: ${err.message}`);
+                done.add(event.id); // don't retry a failing event
             }
-        } catch (err) {
-            logWarn(`Contradiction check failed for new memory ${event.id}: ${err.message}`);
         }
+
+        if (!progressed) break; // safety: nothing advanced this pass — avoid spinning
     }
 }
 

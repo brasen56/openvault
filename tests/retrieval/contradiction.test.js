@@ -66,6 +66,36 @@ describe('classifySentiment', () => {
         expect(result.sentiment).toBe(Sentiment.NEGATIVE);
         expect(result.negativeCount).toBeGreaterThan(0);
     });
+
+    it('neutralizes a negated negative keyword ("no longer hates")', async () => {
+        const { classifySentiment, Sentiment } = await import('../../src/retrieval/contradiction.js');
+        // "hates" is negated, so it should NOT register as negative
+        expect(classifySentiment('Alex no longer hates Ezra').sentiment).not.toBe(Sentiment.NEGATIVE);
+    });
+
+    it('neutralizes a contraction-negated positive keyword ("doesn\'t trust")', async () => {
+        const { classifySentiment, Sentiment } = await import('../../src/retrieval/contradiction.js');
+        expect(classifySentiment("Alex doesn't trust Ezra anymore").sentiment).not.toBe(Sentiment.POSITIVE);
+    });
+
+    it('neutralizes a negated positive keyword ("never became friends")', async () => {
+        const { classifySentiment, Sentiment } = await import('../../src/retrieval/contradiction.js');
+        expect(classifySentiment('Alex and Ezra never became friends').sentiment).not.toBe(Sentiment.POSITIVE);
+    });
+
+    it('still classifies non-negated keywords normally', async () => {
+        const { classifySentiment, Sentiment } = await import('../../src/retrieval/contradiction.js');
+        // Regression guard: a negator elsewhere must not suppress an unrelated keyword
+        expect(classifySentiment('Alex hates Ezra').sentiment).toBe(Sentiment.NEGATIVE);
+        expect(classifySentiment('There was no food, but Alex and Ezra are close friends').sentiment).toBe(Sentiment.POSITIVE);
+    });
+
+    it('handles Russian negation ("не доверяет" → negative, not positive)', async () => {
+        const { classifySentiment, Sentiment } = await import('../../src/retrieval/contradiction.js');
+        // "доверяет" (trusts) is negated by "не"; the negative phrase "не доверяет" carries
+        const result = classifySentiment('Алекс не доверяет Эзре');
+        expect(result.sentiment).toBe(Sentiment.NEGATIVE);
+    });
 });
 
 describe('detectContradictions', () => {
