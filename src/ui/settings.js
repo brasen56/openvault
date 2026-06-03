@@ -248,6 +248,41 @@ function updateWordsDisplay(tokens, wordsElementId) {
 }
 
 /**
+ * Synchronize a setting value to the "other" panel (side ↔ main).
+ *
+ * Given a source element ID (e.g. `openvault_side_enabled` or `openvault_enabled`),
+ * derives the counterpart ID (`openvault_enabled` or `openvault_side_enabled`) and
+ * pushes `value` into it.  Safe to call when no counterpart exists — it simply no-ops.
+ *
+ * jQuery's `.prop()` / `.val()` do NOT fire native change/input events, so there
+ * is no risk of infinite recursion between panels.
+ *
+ * @param {string} sourceId - DOM id of the element that changed
+ * @param {*} value - The new value to push to the counterpart
+ */
+function syncCrossPanel(sourceId, value) {
+    let targetId;
+    if (sourceId.startsWith('openvault_side_')) {
+        targetId = sourceId.replace('openvault_side_', 'openvault_');
+    } else {
+        targetId = sourceId.replace('openvault_', 'openvault_side_');
+    }
+
+    const $target = $(`#${targetId}`);
+    if (!$target.length) return;
+
+    if ($target.is(':checkbox')) {
+        $target.prop('checked', value);
+    } else if ($target.is('input[type="range"]')) {
+        $target.val(value);
+        const $valSpan = $(`#${targetId}_value`);
+        if ($valSpan.length) $valSpan.text(value);
+    } else {
+        $target.val(value);
+    }
+}
+
+/**
  * Update the payload calculator readout.
  * Reads current slider values, adds PAYLOAD_CALC.OVERHEAD, sets emoji + color class.
  */
@@ -866,6 +901,7 @@ function bindUIElements() {
 
             setSetting(key, val);
             if (type !== 'bool') $(`#openvault_${id}_value`).text(val);
+            syncCrossPanel(`openvault_${id}`, val);
             if (callback) callback(val);
         });
     }
@@ -1277,17 +1313,25 @@ export function bindSidePanelGeneralSettings($panel) {
 
     // ── Quick Toggles ──
     $panel.on('change.sideGeneral', '#openvault_side_enabled', function () {
-        setSetting('enabled', $(this).is(':checked'));
+        const val = $(this).is(':checked');
+        setSetting('enabled', val);
+        syncCrossPanel('openvault_side_enabled', val);
         updateEventListeners();
     });
     $panel.on('change.sideGeneral', '#openvault_side_auto_hide', function () {
-        setSetting('autoHideEnabled', $(this).is(':checked'));
+        const val = $(this).is(':checked');
+        setSetting('autoHideEnabled', val);
+        syncCrossPanel('openvault_side_auto_hide', val);
     });
     $panel.on('change.sideGeneral', '#openvault_side_reflection_generation', function () {
-        setSetting('reflectionGenerationEnabled', $(this).is(':checked'));
+        const val = $(this).is(':checked');
+        setSetting('reflectionGenerationEnabled', val);
+        syncCrossPanel('openvault_side_reflection_generation', val);
     });
     $panel.on('change.sideGeneral', '#openvault_side_reflection_injection', function () {
-        setSetting('reflectionInjectionEnabled', $(this).is(':checked'));
+        const val = $(this).is(':checked');
+        setSetting('reflectionInjectionEnabled', val);
+        syncCrossPanel('openvault_side_reflection_injection', val);
     });
 
     // ── Retrieval Settings ──
@@ -1295,31 +1339,38 @@ export function bindSidePanelGeneralSettings($panel) {
         const val = parseInt($(this).val(), 10);
         setSetting('retrievalFinalTokens', val);
         $panel.find('#openvault_side_final_budget_value').text(val);
+        syncCrossPanel('openvault_side_final_budget', val);
     });
     $panel.on('input.sideGeneral', '#openvault_side_alpha', function () {
         const val = parseFloat($(this).val());
         setSetting('alpha', val);
         $panel.find('#openvault_side_alpha_value').text(val);
+        syncCrossPanel('openvault_side_alpha', val);
     });
     $panel.on('input.sideGeneral', '#openvault_side_vector_threshold', function () {
         const val = parseFloat($(this).val());
         setSetting('vectorSimilarityThreshold', val);
         $panel.find('#openvault_side_vector_threshold_value').text(val);
+        syncCrossPanel('openvault_side_vector_threshold', val);
     });
     $panel.on('input.sideGeneral', '#openvault_side_dedup_threshold', function () {
         const val = parseFloat($(this).val());
         setSetting('dedupSimilarityThreshold', val);
         $panel.find('#openvault_side_dedup_threshold_value').text(val);
+        syncCrossPanel('openvault_side_dedup_threshold', val);
     });
     $panel.on('input.sideGeneral', '#openvault_side_forgetfulness_lambda', function () {
         const val = parseFloat($(this).val());
         setSetting('forgetfulnessBaseLambda', val);
         $panel.find('#openvault_side_forgetfulness_lambda_value').text(val);
+        syncCrossPanel('openvault_side_forgetfulness_lambda', val);
     });
 
     // ── Reranker Settings ──
     $panel.on('change.sideGeneral', '#openvault_side_reranker_enabled', function () {
-        setSetting('rerankerEnabled', $(this).is(':checked'));
+        const val = $(this).is(':checked');
+        setSetting('rerankerEnabled', val);
+        syncCrossPanel('openvault_side_reranker_enabled', val);
     });
     $panel.on('change.sideGeneral', '#openvault_side_reranker_url', function () {
         setSetting('rerankerApiUrl', $(this).val().trim());
@@ -1334,11 +1385,13 @@ export function bindSidePanelGeneralSettings($panel) {
         const val = parseInt($(this).val(), 10);
         setSetting('rerankerTopN', val);
         $panel.find('#openvault_side_reranker_top_n_value').text(val);
+        syncCrossPanel('openvault_side_reranker_top_n', val);
     });
     $panel.on('input.sideGeneral', '#openvault_side_reranker_max_docs', function () {
         const val = parseInt($(this).val(), 10);
         setSetting('rerankerMaxDocuments', val);
         $panel.find('#openvault_side_reranker_max_docs_value').text(val);
+        syncCrossPanel('openvault_side_reranker_max_docs', val);
     });
 }
 
@@ -1393,7 +1446,9 @@ export function bindSidePanelContradictionSettings($panel) {
 
     // Master toggle: contradiction filter (Tier 1)
     $panel.on('change.sideContradiction', '#openvault_side_contradiction_filter', function () {
-        setSetting('contradictionFilterEnabled', $(this).is(':checked'));
+        const val = $(this).is(':checked');
+        setSetting('contradictionFilterEnabled', val);
+        syncCrossPanel('openvault_side_contradiction_filter', val);
     });
 
     // Master toggle: LLM contradiction analysis (Tier 2)
@@ -1401,11 +1456,14 @@ export function bindSidePanelContradictionSettings($panel) {
         const checked = $(this).is(':checked');
         setSetting('llmContradictionEnabled', checked);
         $panel.find('#openvault_side_llm_contradiction_options').toggle(checked);
+        syncCrossPanel('openvault_side_llm_contradiction', checked);
     });
 
     // Auto-merge sub-toggle
     $panel.on('change.sideContradiction', '#openvault_side_llm_contradiction_auto_merge', function () {
-        setSetting('llmContradictionAutoMerge', $(this).is(':checked'));
+        const val = $(this).is(':checked');
+        setSetting('llmContradictionAutoMerge', val);
+        syncCrossPanel('openvault_side_llm_contradiction_auto_merge', val);
     });
 
     // Slider: batch interval (messages between batch scans)
@@ -1413,6 +1471,7 @@ export function bindSidePanelContradictionSettings($panel) {
         const val = parseInt($(this).val(), 10);
         setSetting('llmContradictionBatchInterval', val);
         $panel.find('#openvault_side_llm_contradiction_batch_interval_value').text(val);
+        syncCrossPanel('openvault_side_llm_contradiction_batch_interval', val);
     });
 
     // Slider: max LLM calls per scan
@@ -1420,6 +1479,7 @@ export function bindSidePanelContradictionSettings($panel) {
         const val = parseInt($(this).val(), 10);
         setSetting('llmContradictionMaxCalls', val);
         $panel.find('#openvault_side_llm_contradiction_max_calls_value').text(val);
+        syncCrossPanel('openvault_side_llm_contradiction_max_calls', val);
     });
 
     // Manual scan trigger button
