@@ -5,7 +5,7 @@
  * communities, and entities with infinite scroll.
  */
 
-import { CHARACTERS_KEY, extensionFolderPath, MEMORIES_KEY } from '../constants.js';
+import { CHARACTERS_KEY, extensionFolderPath, MEMORIES_KEY, UI_DEFAULT_HINTS } from '../constants.js';
 import {
     archiveMemories,
     deleteCommunity,
@@ -40,7 +40,12 @@ import {
     sortMemories,
 } from './helpers.js';
 import { populateFilter } from './render.js';
-import { bindSidePanelContradictionSettings, updateSidePanelContradictionSettings } from './settings.js';
+import {
+    bindSidePanelContradictionSettings,
+    bindSidePanelGeneralSettings,
+    updateSidePanelContradictionSettings,
+    updateSidePanelGeneralSettings,
+} from './settings.js';
 import { refreshStats } from './status.js';
 import {
     renderCharacterState,
@@ -486,7 +491,18 @@ function bindSidePanelEvents() {
     // current settings values into the sliders/checkboxes so they reflect
     // persisted state immediately.
     bindSidePanelContradictionSettings($panel);
+    bindSidePanelGeneralSettings($panel);
     updateSidePanelContradictionSettings();
+    updateSidePanelGeneralSettings();
+
+    // Populate default hints in side panel (e.g., "(default: 20)")
+    $panel.find('.openvault-default-hint').each(function () {
+        const key = $(this).data('default-key');
+        const value = UI_DEFAULT_HINTS[key];
+        if (value !== undefined) {
+            $(this).text(` (default: ${value})`);
+        }
+    });
 } // end bindSidePanelEvents
 
 function getSideMemoryById(id) {

@@ -194,9 +194,11 @@ export async function testRerankerConnection() {
  * @param {number} [maxDocuments] - Maximum documents to send to reranker (default: 50)
  * @returns {Promise<{results: ScoredMemory[], meta: {documentsSent: number, rerankerUsed: boolean, error?: string}}>}
  */
-export async function rerankScoredMemories(scoredMemories, query, maxDocuments = 50) {
+export async function rerankScoredMemories(scoredMemories, query, maxDocuments) {
     const settings = getSettings();
     const enabled = settings.rerankerEnabled === true;
+    const effectiveMaxDocs = maxDocuments || settings.rerankerMaxDocuments || 50;
+    const topN = settings.rerankerTopN || 20;
 
     const meta = {
         documentsSent: 0,
@@ -210,7 +212,7 @@ export async function rerankScoredMemories(scoredMemories, query, maxDocuments =
     }
 
     // Only rerank the top N to avoid excessive API costs
-    const candidates = scoredMemories.slice(0, maxDocuments);
+    const candidates = scoredMemories.slice(0, effectiveMaxDocs);
     const documents = candidates.map((r) => r.memory.summary || '');
 
     // Skip if no valid documents
@@ -221,7 +223,7 @@ export async function rerankScoredMemories(scoredMemories, query, maxDocuments =
     meta.documentsSent = candidates.length;
 
     try {
-        const ranked = await callRerankerAPI(query, documents, candidates.length);
+        const ranked = await callRerankerAPI(query, documents, topN);
 
         if (ranked.length === 0) {
             logDebug('Reranker returned no results, using original order');
@@ -251,8 +253,8 @@ export async function rerankScoredMemories(scoredMemories, query, maxDocuments =
         }
 
         // Append remaining memories beyond the reranked window
-        if (scoredMemories.length > maxDocuments) {
-            reranked.push(...scoredMemories.slice(maxDocuments));
+        if (scoredMemories.length > effectiveMaxDocs) {
+            reranked.push(...scoredMemories.slice(effectiveMaxDocs));
         }
 
         meta.rerankerUsed = true;

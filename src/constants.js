@@ -121,6 +121,8 @@ export const defaultSettings = {
     rerankerApiUrl: '', // e.g., 'https://api.jina.ai/v1' or 'http://localhost:11434'
     rerankerApiKey: '', // API key (leave empty for local servers)
     rerankerModel: '', // Model name (leave empty for provider default, e.g., 'jina-reranker-v2-base-de')
+    rerankerTopN: 20, // Max results returned by reranker API (top_n parameter)
+    rerankerMaxDocuments: 50, // Max documents to send to reranker for re-ranking
     // Contradiction filter settings
     contradictionFilterEnabled: true, // Suppress older memories that contradict newer ones
     // LLM contradiction verification (Tier 2)
@@ -320,6 +322,9 @@ export const UI_DEFAULT_HINTS = {
     // Contradiction
     llmContradictionBatchInterval: defaultSettings.llmContradictionBatchInterval,
     llmContradictionMaxCalls: defaultSettings.llmContradictionMaxCalls,
+    // Reranker
+    rerankerTopN: defaultSettings.rerankerTopN,
+    rerankerMaxDocuments: defaultSettings.rerankerMaxDocuments,
 };
 
 // Performance monitoring thresholds (ms) — values above threshold show red

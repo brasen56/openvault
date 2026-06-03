@@ -656,6 +656,8 @@ const PRESERVED_KEYS = [
     'rerankerApiUrl',
     'rerankerApiKey',
     'rerankerModel',
+    'rerankerTopN',
+    'rerankerMaxDocuments',
 ];
 
 // Define fine-tune keys that should be reset to defaults
@@ -936,6 +938,8 @@ function bindUIElements() {
 
     // Reranker settings
     bindSetting('reranker_enabled', 'rerankerEnabled', 'bool');
+    bindSetting('reranker_top_n', 'rerankerTopN');
+    bindSetting('reranker_max_docs', 'rerankerMaxDocuments');
 
     $('#openvault_reranker_url').on('change', function () {
         setSetting('rerankerApiUrl', $(this).val().trim());
@@ -1262,6 +1266,121 @@ export function updateInjectionUI(type = 'both') {
 // =============================================================================
 
 /**
+ * Bind general settings controls inside the side panel (Quick Toggles,
+ * Retrieval Settings, and Reranker). Uses jQuery delegation rooted on
+ * `$panel` — same pattern as `bindSidePanelContradictionSettings`.
+ *
+ * @param {JQuery} $panel - The side panel root element.
+ */
+export function bindSidePanelGeneralSettings($panel) {
+    if (!$panel || !$panel.length) return;
+
+    // ── Quick Toggles ──
+    $panel.on('change.sideGeneral', '#openvault_side_enabled', function () {
+        setSetting('enabled', $(this).is(':checked'));
+        updateEventListeners();
+    });
+    $panel.on('change.sideGeneral', '#openvault_side_auto_hide', function () {
+        setSetting('autoHideEnabled', $(this).is(':checked'));
+    });
+    $panel.on('change.sideGeneral', '#openvault_side_reflection_generation', function () {
+        setSetting('reflectionGenerationEnabled', $(this).is(':checked'));
+    });
+    $panel.on('change.sideGeneral', '#openvault_side_reflection_injection', function () {
+        setSetting('reflectionInjectionEnabled', $(this).is(':checked'));
+    });
+
+    // ── Retrieval Settings ──
+    $panel.on('input.sideGeneral', '#openvault_side_final_budget', function () {
+        const val = parseInt($(this).val(), 10);
+        setSetting('retrievalFinalTokens', val);
+        $panel.find('#openvault_side_final_budget_value').text(val);
+    });
+    $panel.on('input.sideGeneral', '#openvault_side_alpha', function () {
+        const val = parseFloat($(this).val());
+        setSetting('alpha', val);
+        $panel.find('#openvault_side_alpha_value').text(val);
+    });
+    $panel.on('input.sideGeneral', '#openvault_side_vector_threshold', function () {
+        const val = parseFloat($(this).val());
+        setSetting('vectorSimilarityThreshold', val);
+        $panel.find('#openvault_side_vector_threshold_value').text(val);
+    });
+    $panel.on('input.sideGeneral', '#openvault_side_dedup_threshold', function () {
+        const val = parseFloat($(this).val());
+        setSetting('dedupSimilarityThreshold', val);
+        $panel.find('#openvault_side_dedup_threshold_value').text(val);
+    });
+    $panel.on('input.sideGeneral', '#openvault_side_forgetfulness_lambda', function () {
+        const val = parseFloat($(this).val());
+        setSetting('forgetfulnessBaseLambda', val);
+        $panel.find('#openvault_side_forgetfulness_lambda_value').text(val);
+    });
+
+    // ── Reranker Settings ──
+    $panel.on('change.sideGeneral', '#openvault_side_reranker_enabled', function () {
+        setSetting('rerankerEnabled', $(this).is(':checked'));
+    });
+    $panel.on('change.sideGeneral', '#openvault_side_reranker_url', function () {
+        setSetting('rerankerApiUrl', $(this).val().trim());
+    });
+    $panel.on('change.sideGeneral', '#openvault_side_reranker_api_key', function () {
+        setSetting('rerankerApiKey', $(this).val().trim());
+    });
+    $panel.on('change.sideGeneral', '#openvault_side_reranker_model', function () {
+        setSetting('rerankerModel', $(this).val().trim());
+    });
+    $panel.on('input.sideGeneral', '#openvault_side_reranker_top_n', function () {
+        const val = parseInt($(this).val(), 10);
+        setSetting('rerankerTopN', val);
+        $panel.find('#openvault_side_reranker_top_n_value').text(val);
+    });
+    $panel.on('input.sideGeneral', '#openvault_side_reranker_max_docs', function () {
+        const val = parseInt($(this).val(), 10);
+        setSetting('rerankerMaxDocuments', val);
+        $panel.find('#openvault_side_reranker_max_docs_value').text(val);
+    });
+}
+
+/**
+ * Push current settings values into the side panel's general controls.
+ * Called from `updateUI()` so the display stays in sync.
+ */
+export function updateSidePanelGeneralSettings() {
+    const settings = getSettings();
+    const $enabled = $('#openvault_side_enabled');
+    if (!$enabled.length) return; // side panel not injected yet
+
+    // Quick Toggles
+    $enabled.prop('checked', settings.enabled);
+    $('#openvault_side_auto_hide').prop('checked', settings.autoHideEnabled);
+    $('#openvault_side_reflection_generation').prop('checked', settings.reflectionGenerationEnabled);
+    $('#openvault_side_reflection_injection').prop('checked', settings.reflectionInjectionEnabled);
+
+    // Retrieval Settings
+    $('#openvault_side_final_budget').val(settings.retrievalFinalTokens);
+    $('#openvault_side_final_budget_value').text(settings.retrievalFinalTokens);
+    $('#openvault_side_alpha').val(settings.alpha);
+    $('#openvault_side_alpha_value').text(settings.alpha);
+    $('#openvault_side_vector_threshold').val(settings.vectorSimilarityThreshold);
+    $('#openvault_side_vector_threshold_value').text(settings.vectorSimilarityThreshold);
+    $('#openvault_side_dedup_threshold').val(settings.dedupSimilarityThreshold);
+    $('#openvault_side_dedup_threshold_value').text(settings.dedupSimilarityThreshold);
+    $('#openvault_side_forgetfulness_lambda').val(settings.forgetfulnessBaseLambda);
+    $('#openvault_side_forgetfulness_lambda_value').text(settings.forgetfulnessBaseLambda);
+
+    // Reranker Settings
+    $('#openvault_side_reranker_enabled').prop('checked', settings.rerankerEnabled);
+    $('#openvault_side_reranker_url').val(settings.rerankerApiUrl || '');
+    $('#openvault_side_reranker_api_key').val(settings.rerankerApiKey || '');
+    $('#openvault_side_reranker_model').val(settings.rerankerModel || '');
+    $('#openvault_side_reranker_top_n').val(settings.rerankerTopN ?? defaultSettings.rerankerTopN);
+    $('#openvault_side_reranker_top_n_value').text(settings.rerankerTopN ?? defaultSettings.rerankerTopN);
+    $('#openvault_side_reranker_max_docs').val(settings.rerankerMaxDocuments ?? defaultSettings.rerankerMaxDocuments);
+    $('#openvault_side_reranker_max_docs_value').text(settings.rerankerMaxDocuments ?? defaultSettings.rerankerMaxDocuments);
+}
+
+/**
  * Bind the contradiction-related settings controls inside the side panel.
  * Uses jQuery delegation rooted on `$panel` so it works regardless of when
  * the side panel HTML was injected relative to the rest of the extension
@@ -1473,6 +1592,10 @@ export function updateUI() {
     $('#openvault_reranker_url').val(settings.rerankerApiUrl || '');
     $('#openvault_reranker_api_key').val(settings.rerankerApiKey || '');
     $('#openvault_reranker_model').val(settings.rerankerModel || '');
+    $('#openvault_reranker_top_n').val(settings.rerankerTopN ?? defaultSettings.rerankerTopN);
+    $('#openvault_reranker_top_n_value').text(settings.rerankerTopN ?? defaultSettings.rerankerTopN);
+    $('#openvault_reranker_max_docs').val(settings.rerankerMaxDocuments ?? defaultSettings.rerankerMaxDocuments);
+    $('#openvault_reranker_max_docs_value').text(settings.rerankerMaxDocuments ?? defaultSettings.rerankerMaxDocuments);
 
     // Embedding settings
     $('#openvault_embedding_source').val(settings.embeddingSource);
@@ -1534,10 +1657,10 @@ export function updateUI() {
     // Post-history prompt
     $('#openvault_post_history_prompt').val(settings.postHistoryPrompt || '');
 
-    // ── Side Panel: Contradiction Settings ──
-    // Delegates to updateSidePanelContradictionSettings() — a no-op until
-    // the side panel HTML has been injected by initSidePanel() and the
-    // handlers have been bound via bindSidePanelContradictionSettings($panel).
+    // ── Side Panel Settings ──
+    // Delegates to updateSidePanel*Settings() — no-ops until the side panel
+    // HTML has been injected by initSidePanel() and the handlers bound.
+    updateSidePanelGeneralSettings();
     updateSidePanelContradictionSettings();
 
     // Payload calculator — must run after sliders are synced

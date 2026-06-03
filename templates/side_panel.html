@@ -132,6 +132,115 @@
 
     <div class="openvault-side-tab-content" data-side-tab-content="settings">
         <div id="openvault_side_settings" class="openvault-side-scroll">
+
+            <!-- Quick Toggles -->
+            <div class="openvault-card">
+                <div class="openvault-card-header">
+                    <span class="openvault-card-title"><i class="fa-solid fa-toggle-on"></i> Quick Toggles</span>
+                </div>
+                <div class="openvault-settings-group">
+                    <label class="checkbox_label">
+                        <input type="checkbox" id="openvault_side_enabled" />
+                        <span>Enable OpenVault</span>
+                    </label>
+                    <label class="checkbox_label">
+                        <input type="checkbox" id="openvault_side_auto_hide" />
+                        <span>Auto-hide Messages</span>
+                    </label>
+                    <label class="checkbox_label">
+                        <input type="checkbox" id="openvault_side_reflection_generation" />
+                        <span>Auto-generate Reflections</span>
+                    </label>
+                    <label class="checkbox_label">
+                        <input type="checkbox" id="openvault_side_reflection_injection" />
+                        <span>Inject Reflections</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Key Retrieval Settings -->
+            <div class="openvault-card">
+                <div class="openvault-card-header">
+                    <span class="openvault-card-title"><i class="fa-solid fa-sliders"></i> Retrieval Settings</span>
+                </div>
+                <div class="openvault-settings-group">
+                    <label for="openvault_side_final_budget">
+                        Context Budget: <span id="openvault_side_final_budget_value">8000</span> tokens
+                        <small class="openvault-default-hint" data-default-key="retrievalFinalTokens"></small>
+                    </label>
+                    <input type="range" id="openvault_side_final_budget" min="1000" max="32000" step="1000" />
+                    <small class="openvault-hint">How many tokens of memories to inject per AI response</small>
+
+                    <label for="openvault_side_alpha" style="margin-top: 10px;">
+                        Alpha (Vector vs Keyword): <span id="openvault_side_alpha_value">0.7</span>
+                        <small class="openvault-default-hint" data-default-key="alpha"></small>
+                    </label>
+                    <input type="range" id="openvault_side_alpha" min="0" max="1" step="0.01" />
+                    <small class="openvault-hint">1.0 = meaning only, 0.0 = exact words only</small>
+
+                    <label for="openvault_side_vector_threshold" style="margin-top: 10px;">
+                        Vector Threshold: <span id="openvault_side_vector_threshold_value">0.5</span>
+                        <small class="openvault-default-hint" data-default-key="vectorSimilarityThreshold"></small>
+                    </label>
+                    <input type="range" id="openvault_side_vector_threshold" min="0" max="1" step="0.01" />
+                    <small class="openvault-hint">Minimum similarity for a memory match</small>
+
+                    <label for="openvault_side_dedup_threshold" style="margin-top: 10px;">
+                        Dedup Threshold: <span id="openvault_side_dedup_threshold_value">0.95</span>
+                        <small class="openvault-default-hint" data-default-key="dedupSimilarityThreshold"></small>
+                    </label>
+                    <input type="range" id="openvault_side_dedup_threshold" min="0.80" max="0.98" step="0.01" />
+                    <small class="openvault-hint">How similar memories must be to count as duplicates</small>
+
+                    <label for="openvault_side_forgetfulness_lambda" style="margin-top: 10px;">
+                        Decay Rate: <span id="openvault_side_forgetfulness_lambda_value">0.05</span>
+                        <small class="openvault-default-hint" data-default-key="forgetfulnessBaseLambda"></small>
+                    </label>
+                    <input type="range" id="openvault_side_forgetfulness_lambda" min="0.01" max="0.20" step="0.01" />
+                    <small class="openvault-hint">How quickly old memories fade. Higher = forgets faster</small>
+                </div>
+            </div>
+
+            <!-- Reranker Settings -->
+            <div class="openvault-card">
+                <div class="openvault-card-header">
+                    <span class="openvault-card-title"><i class="fa-solid fa-arrow-up-wide-short"></i> Reranker</span>
+                </div>
+                <div class="openvault-settings-group">
+                    <label class="checkbox_label">
+                        <input type="checkbox" id="openvault_side_reranker_enabled" />
+                        <span>Enable External Reranker</span>
+                    </label>
+                    <small class="openvault-hint">Re-orders top memories via external API for better relevance</small>
+
+                    <label for="openvault_side_reranker_url" style="margin-top: 10px;">
+                        API URL
+                    </label>
+                    <input type="text" id="openvault_side_reranker_url" class="text_pole" placeholder="https://api.jina.ai/v1" />
+                    <small class="openvault-hint">Reranker API base URL (<code>/rerank</code> appended automatically)</small>
+
+                    <label for="openvault_side_reranker_api_key" style="margin-top: 8px;">API Key</label>
+                    <input type="password" id="openvault_side_reranker_api_key" class="text_pole" placeholder="Leave empty for local servers" />
+
+                    <label for="openvault_side_reranker_model" style="margin-top: 8px;">Model Name</label>
+                    <input type="text" id="openvault_side_reranker_model" class="text_pole" placeholder="jina-reranker-v2-base-de" />
+
+                    <label for="openvault_side_reranker_top_n" style="margin-top: 10px;">
+                        Top N: <span id="openvault_side_reranker_top_n_value">20</span>
+                        <small class="openvault-default-hint" data-default-key="rerankerTopN"></small>
+                    </label>
+                    <input type="range" id="openvault_side_reranker_top_n" min="1" max="100" step="1" />
+                    <small class="openvault-hint">Max results returned by the reranker API</small>
+
+                    <label for="openvault_side_reranker_max_docs" style="margin-top: 8px;">
+                        Max Docs to Rerank: <span id="openvault_side_reranker_max_docs_value">50</span>
+                        <small class="openvault-default-hint" data-default-key="rerankerMaxDocuments"></small>
+                    </label>
+                    <input type="range" id="openvault_side_reranker_max_docs" min="5" max="200" step="5" />
+                    <small class="openvault-hint">Max documents sent to the reranker</small>
+                </div>
+            </div>
+
             <!-- Contradiction Detection -->
             <div class="openvault-card">
                 <div class="openvault-card-header">
@@ -204,6 +313,7 @@
                     </div>
                 </div>
             </div>
+
         </div>
     </div>
 </div>

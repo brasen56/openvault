@@ -9,32 +9,59 @@ import { defaultSettings, extensionName } from './constants.js';
 import { getDeps } from './deps.js';
 
 /**
- * Initialize extension settings with defaults using lodash.merge.
- * Preserves existing user settings while adding any missing defaults.
+ * Whether a value is a plain (non-array) object eligible for deep merge.
+ * @param {*} v
+ * @returns {boolean}
+ */
+function isPlainObject(v) {
+    return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+/**
+ * Deep-merge fallback used when lodash isn't available on the ST context.
+ * Mirrors lodash.merge semantics for our settings: existing user values win,
+ * defaults fill in any missing keys. Recurses into plain objects; arrays and
+ * primitives are taken wholesale from the source. `undefined` source values
+ * are skipped so they never clobber a real default.
+ * @param {Object} target - The default settings clone (mutated in place).
+ * @param {Object} source - Existing persisted user settings.
+ * @returns {Object} target
+ */
+function deepMergeDefaults(target, source) {
+    for (const key of Object.keys(source)) {
+        const srcVal = source[key];
+        if (srcVal === undefined) continue;
+        if (isPlainObject(srcVal) && isPlainObject(target[key])) {
+            deepMergeDefaults(target[key], srcVal);
+        } else {
+            target[key] = srcVal;
+        }
+    }
+    return target;
+}
+
+/**
+ * Initialize extension settings with defaults, adding any missing keys while
+ * preserving existing user customizations.
  *
- * Note: This is called automatically on module import when running in SillyTavern.
- * In tests, the mocks may not provide lodash - this is expected and handled gracefully.
+ * Uses lodash.merge when the ST context exposes it, otherwise falls back to a
+ * manual deep merge. The fallback is the common case: SillyTavern does NOT put
+ * lodash on getContext(), so without it this function would be a silent no-op
+ * and newly added default settings would never reach existing users.
+ *
+ * Called automatically on module import when running in SillyTavern.
  */
 export function loadSettings() {
     const deps = getDeps();
     const context = deps.getContext();
     const extensionSettings = deps.getExtensionSettings();
 
-    // SillyTavern provides lodash.merge via context
-    const { lodash } = context;
+    const lodash = context?.lodash;
+    const existing = extensionSettings[extensionName] || {};
 
-    // If lodash isn't available yet (e.g., in test mocks), skip initialization
-    // The settings will be initialized properly when running in actual ST
-    if (!lodash || !lodash.merge) {
-        return;
-    }
-
-    // Use lodash.merge (bundled in ST) for proper deep merge
-    // This ensures new default settings are added without overwriting user customizations
-    extensionSettings[extensionName] = lodash.merge(
-        structuredClone(defaultSettings),
-        extensionSettings[extensionName] || {}
-    );
+    extensionSettings[extensionName] = lodash?.merge
+        ? lodash.merge(structuredClone(defaultSettings), existing)
+        : deepMergeDefaults(structuredClone(defaultSettings), existing);
 
     // One-time migration: switch CN defaults to EN for Shaderx fork
     const s = extensionSettings[extensionName];
@@ -61,7 +88,24 @@ export function getSettings(path, defaultValue) {
         return settings;
     }
 
-    return lodash?.get(settings, path, defaultValue) ?? defaultValue;
+    if (lodash?.get) {
+        return lodash.get(settings, path, defaultValue) ?? defaultValue;
+    }
+
+    // Fallback: manual path resolution when lodash isn't on the ST context.
+    // Mirrors the setSetting() fallback. Without this, every keyed read silently
+    // returns defaultValue and ignores stored values — e.g. boolean toggles can
+    // never be turned off because getSettings('key', true) always yields true.
+    const keys = String(path)
+        .split(/[.[\]]+/)
+        .filter(Boolean);
+    let current = settings;
+    for (const key of keys) {
+        if (current == null || typeof current !== 'object') return defaultValue;
+        const numKey = /^\d+$/.test(key) ? parseInt(key, 10) : key;
+        current = current[numKey];
+    }
+    return current ?? defaultValue;
 }
 
 /**

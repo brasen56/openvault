@@ -602,6 +602,26 @@
                         <label for="openvault_reranker_model">Model Name</label>
                         <input type="text" id="openvault_reranker_model" class="text_pole" placeholder="jina-reranker-v2-base-de" />
                         <small class="openvault-hint">Model identifier for the reranker API. Leave empty to use the provider's default model.</small>
+
+                        <div style="margin-top: 10px;">
+                            <label for="openvault_reranker_top_n">
+                                Reranker Top N
+                                <span class="openvault-default-hint" data-default-key="rerankerTopN"></span>
+                                <span id="openvault_reranker_top_n_value" class="openvault-value-display"></span>
+                            </label>
+                            <input type="range" id="openvault_reranker_top_n" min="1" max="100" step="1" />
+                            <small class="openvault-hint">Max results returned by the reranker API. Lower values reduce API cost; higher values preserve more candidates.</small>
+                        </div>
+
+                        <div style="margin-top: 10px;">
+                            <label for="openvault_reranker_max_docs">
+                                Max Documents to Rerank
+                                <span class="openvault-default-hint" data-default-key="rerankerMaxDocuments"></span>
+                                <span id="openvault_reranker_max_docs_value" class="openvault-value-display"></span>
+                            </label>
+                            <input type="range" id="openvault_reranker_max_docs" min="5" max="200" step="5" />
+                            <small class="openvault-hint">Max documents sent to the reranker for re-ranking. Only the top-scored memories up to this limit are included.</small>
+                        </div>
                     </div>
                 </details>
 
