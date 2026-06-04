@@ -693,6 +693,9 @@ const PRESERVED_KEYS = [
     'rerankerModel',
     'rerankerTopN',
     'rerankerMaxDocuments',
+    'llmContradictionApiUrl',
+    'llmContradictionApiKey',
+    'llmContradictionApiModel',
 ];
 
 // Define fine-tune keys that should be reset to defaults
@@ -724,6 +727,7 @@ const RESETTABLE_KEYS = [
     'llmContradictionAutoMerge',
     'llmContradictionBatchInterval',
     'llmContradictionMaxCalls',
+    'llmContradictionUseCustomApi',
 ];
 
 export async function handleResetSettings() {
@@ -1466,6 +1470,28 @@ export function bindSidePanelContradictionSettings($panel) {
         syncCrossPanel('openvault_side_llm_contradiction_auto_merge', val);
     });
 
+    // Custom API endpoint toggle
+    $panel.on('change.sideContradiction', '#openvault_side_llm_contradiction_custom_api', function () {
+        const checked = $(this).is(':checked');
+        setSetting('llmContradictionUseCustomApi', checked);
+        $panel.find('#openvault_side_llm_contradiction_custom_api_options').toggle(checked);
+    });
+
+    // Custom API: URL
+    $panel.on('change.sideContradiction', '#openvault_side_llm_contradiction_api_url', function () {
+        setSetting('llmContradictionApiUrl', $(this).val().trim());
+    });
+
+    // Custom API: API key
+    $panel.on('change.sideContradiction', '#openvault_side_llm_contradiction_api_key', function () {
+        setSetting('llmContradictionApiKey', $(this).val().trim());
+    });
+
+    // Custom API: Model name
+    $panel.on('change.sideContradiction', '#openvault_side_llm_contradiction_api_model', function () {
+        setSetting('llmContradictionApiModel', $(this).val().trim());
+    });
+
     // Slider: batch interval (messages between batch scans)
     $panel.on('input.sideContradiction', '#openvault_side_llm_contradiction_batch_interval', function () {
         const val = parseInt($(this).val(), 10);
@@ -1519,6 +1545,18 @@ export function updateSidePanelContradictionSettings() {
     $batchIntervalVal.text(settings.llmContradictionBatchInterval);
     $maxCalls.val(settings.llmContradictionMaxCalls);
     $maxCallsVal.text(settings.llmContradictionMaxCalls);
+
+    // Custom API endpoint fields
+    const $customApiToggle = $('#openvault_side_llm_contradiction_custom_api');
+    const $customApiOptions = $('#openvault_side_llm_contradiction_custom_api_options');
+    if ($customApiToggle.length) {
+        const useCustomApi = settings.llmContradictionUseCustomApi ?? false;
+        $customApiToggle.prop('checked', useCustomApi);
+        $customApiOptions.toggle(useCustomApi);
+        $('#openvault_side_llm_contradiction_api_url').val(settings.llmContradictionApiUrl || '');
+        $('#openvault_side_llm_contradiction_api_key').val(settings.llmContradictionApiKey || '');
+        $('#openvault_side_llm_contradiction_api_model').val(settings.llmContradictionApiModel || '');
+    }
 }
 
 /**

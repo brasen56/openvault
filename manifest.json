@@ -1,5 +1,5 @@
 {
-    "display_name": "TestVault",
+    "display_name": "OpenVault",
     "loading_order": 100,
     "requires": [],
     "optional": [],
@@ -7,6 +7,6 @@
     "css": "style.css",
     "author": "Brasen",
     "version": "23.00",
-    "homePage": "",
+    "homePage": "https://github.com/brasen56/openvault",
     "auto_update": false
 }

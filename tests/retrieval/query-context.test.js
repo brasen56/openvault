@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-// Mock deps for getQueryContextSettings
+// Mock deps for getQueryContextSettings and transitive settings.js loadSettings()
 vi.mock('../../src/deps.js', () => ({
     getDeps: () => ({
+        getContext: () => ({}),
         getExtensionSettings: () => ({
             openvault: {
                 entityWindowSize: 10,

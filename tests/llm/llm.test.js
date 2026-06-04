@@ -38,7 +38,7 @@ describe('LLM_CONFIGS split extraction', () => {
 
     it('has extraction_graph config', () => {
         expect(LLM_CONFIGS.extraction_graph).toBeDefined();
-        expect(LLM_CONFIGS.extraction_graph.maxTokens).toBe(8000);
+        expect(LLM_CONFIGS.extraction_graph.maxTokens).toBe(16000);
     });
 });
 

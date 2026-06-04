@@ -267,6 +267,27 @@
                             </label>
                             <small class="openvault-hint">Automatically merge memories when LLM confirms a contradiction</small>
 
+                            <div style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+                                <label class="checkbox_label">
+                                    <input type="checkbox" id="openvault_side_llm_contradiction_custom_api" />
+                                    <span>Use Custom API Endpoint</span>
+                                </label>
+                                <small class="openvault-hint">Use a separate OpenAI-compatible API (e.g., local LLM) instead of the Extraction Profile connection. Useful for running contradiction analysis on a smaller local model.</small>
+
+                                <div id="openvault_side_llm_contradiction_custom_api_options" style="margin-top: 8px; padding-left: 8px; display: none;">
+                                    <label for="openvault_side_llm_contradiction_api_url" style="margin-top: 8px;">API URL</label>
+                                    <input type="text" id="openvault_side_llm_contradiction_api_url" class="text_pole" placeholder="http://localhost:11434/v1" />
+                                    <small class="openvault-hint">OpenAI-compatible base URL (e.g., Ollama, LM Studio, vLLM)</small>
+
+                                    <label for="openvault_side_llm_contradiction_api_key" style="margin-top: 8px;">API Key</label>
+                                    <input type="password" id="openvault_side_llm_contradiction_api_key" class="text_pole" placeholder="Leave empty for local servers" />
+
+                                    <label for="openvault_side_llm_contradiction_api_model" style="margin-top: 8px;">Model Name</label>
+                                    <input type="text" id="openvault_side_llm_contradiction_api_model" class="text_pole" placeholder="qwen2.5:16b" />
+                                    <small class="openvault-hint">Model identifier as recognized by your API endpoint</small>
+                                </div>
+                            </div>
+
                             <label for="openvault_side_llm_contradiction_batch_interval" style="margin-top: 10px;">
                                 Batch Scan Interval: <span id="openvault_side_llm_contradiction_batch_interval_value">100</span> messages
                                 <small class="openvault-default-hint" data-default-key="llmContradictionBatchInterval"></small>

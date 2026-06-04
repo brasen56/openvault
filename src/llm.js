@@ -7,7 +7,7 @@
 
 // @ts-check
 
-import { extensionName } from './constants.js';
+import { defaultSettings, extensionName } from './constants.js';
 import { getDeps } from './deps.js';
 import {
     getCommunitySummaryJsonSchema,
@@ -17,6 +17,7 @@ import {
     getGraphExtractionJsonSchema,
     getUnifiedReflectionJsonSchema,
 } from './extraction/structured.js';
+import { getSettings } from './settings.js';
 import { getSessionSignal, setLastApiCallTime } from './state.js';
 import { showToast } from './utils/dom.js';
 import { logDebug, logError, logRequest } from './utils/logging.js';
@@ -281,5 +282,97 @@ export async function callLLM(messages, config, options = {}) {
         }
         logRequest(errorContext, { messages, maxTokens, profileId, error: mainError });
         throw mainError;
+    }
+}
+
+/**
+ * Call an OpenAI-compatible chat completions API directly (outside Connection Manager).
+ *
+ * Designed for features that benefit from a separate, user-configurable endpoint —
+ * e.g., running contradiction analysis on a local 16B model while the main extraction
+ * uses a large cloud API.
+ *
+ * @param {LLMMessages} messages - Array of message objects [{role, content}]
+ * @param {Object} options
+ * @param {string} options.apiUrl - Base URL (e.g., "http://localhost:11434/v1")
+ * @param {string} [options.apiKey] - Bearer token (optional for local servers)
+ * @param {string} options.model - Model name (e.g., "qwen2.5:16b")
+ * @param {number} [options.maxTokens=500] - Max completion tokens
+ * @param {number} [options.timeoutMs=60000] - Request timeout
+ * @param {string} [options.errorContext='OpenAI-Compatible API'] - Label for error messages
+ * @returns {Promise<string>} The response content string
+ */
+export async function callOpenAICompat(messages, options) {
+    const {
+        apiUrl,
+        apiKey,
+        model,
+        maxTokens = 500,
+        timeoutMs = 60000,
+        errorContext = 'OpenAI-Compatible API',
+    } = options;
+
+    if (!apiUrl) throw new Error(`${errorContext}: API URL not configured`);
+    if (!model) throw new Error(`${errorContext}: Model name not configured`);
+
+    // Normalize URL: ensure it ends with /chat/completions
+    const baseUrl = apiUrl.replace(/\/+$/, '');
+    const endpoint = baseUrl.endsWith('/chat/completions')
+        ? baseUrl
+        : baseUrl.endsWith('/v1')
+          ? `${baseUrl}/chat/completions`
+          : `${baseUrl}/v1/chat/completions`;
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey) {
+        headers.Authorization = `Bearer ${apiKey}`;
+    }
+
+    const body = JSON.stringify({
+        model,
+        messages,
+        max_completion_tokens: maxTokens,
+        temperature: 0.1,
+        stream: false,
+    });
+
+    logDebug(`${errorContext}: calling ${endpoint} with model ${model}`);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body,
+            signal: controller.signal,
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => '');
+            throw new Error(
+                `${errorContext} HTTP ${response.status}${errorText ? `: ${errorText.slice(0, 300)}` : ''}`
+            );
+        }
+
+        const data = await response.json();
+
+        // Extract content from OpenAI-compatible response format
+        const content = data?.choices?.[0]?.message?.content;
+
+        if (!content) {
+            throw new Error(`${errorContext}: empty response from model`);
+        }
+
+        logDebug(`${errorContext}: response received (${content.length} chars)`);
+        return content;
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            throw new Error(`${errorContext}: request timed out after ${Math.round(timeoutMs / 1000)}s`);
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
     }
 }

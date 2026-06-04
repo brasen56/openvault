@@ -20,7 +20,7 @@ import { defaultSettings, extensionName } from '../constants.js';
 import { getDeps } from '../deps.js';
 import { enrichEventsWithEmbeddings } from '../embeddings.js';
 import { parseContradictionVerificationResponse } from '../extraction/structured.js';
-import { callLLM, LLM_CONFIGS } from '../llm.js';
+import { callLLM, callOpenAICompat, LLM_CONFIGS } from '../llm.js';
 import { record } from '../perf/store.js';
 import { classifySentiment, Sentiment } from './contradiction.js';
 import { tokenize } from './math.js';
@@ -92,7 +92,33 @@ export async function verifyContradiction(memoryA, memoryB, characterNames, opti
         `LLM contradiction check: comparing "${memoryA.summary?.slice(0, 60)}…" vs "${memoryB.summary?.slice(0, 60)}…"`
     );
 
-    const response = await callLLM(messages, LLM_CONFIGS.contradiction, { structured: true });
+    // Determine whether to use custom OpenAI-compatible API or Connection Manager profile
+    const deps = getDeps();
+    const settings = deps.getExtensionSettings()?.[extensionName] || {};
+    const useCustomApi = settings.llmContradictionUseCustomApi ?? defaultSettings.llmContradictionUseCustomApi;
+
+    let response;
+    if (useCustomApi) {
+        const apiUrl = String(settings.llmContradictionApiUrl || '').trim();
+        const apiKey = String(settings.llmContradictionApiKey || '').trim();
+        const model = String(settings.llmContradictionApiModel || '').trim();
+
+        if (!apiUrl || !model) {
+            throw new Error('Contradiction Analysis: custom API enabled but URL or Model is not configured');
+        }
+
+        response = await callOpenAICompat(messages, {
+            apiUrl,
+            apiKey: apiKey || undefined,
+            model,
+            maxTokens: LLM_CONFIGS.contradiction.maxTokens,
+            timeoutMs: LLM_CONFIGS.contradiction.timeoutMs,
+            errorContext: 'Contradiction verification (custom API)',
+        });
+    } else {
+        response = await callLLM(messages, LLM_CONFIGS.contradiction, { structured: true });
+    }
+
     const parsed = parseContradictionVerificationResponse(response);
 
     const contradicts = parsed.contradicts && parsed.confidence >= confidenceThreshold;

@@ -131,12 +131,16 @@ export const defaultSettings = {
     llmContradictionBatchInterval: 100, // Messages between batch contradiction scans
     llmContradictionMaxCalls: 5,        // Max LLM calls per batch scan
     llmContradictionConfidence: 0.7,    // Minimum confidence to act on LLM result
+    llmContradictionUseCustomApi: false, // Use custom OpenAI-compatible API instead of extraction profile
+    llmContradictionApiUrl: '',          // OpenAI-compatible API URL for contradiction analysis
+    llmContradictionApiKey: '',          // API key for custom contradiction API
+    llmContradictionApiModel: '',        // Model name for custom contradiction API (e.g., qwen2.5:16b)
     // Bucket balance settings (score-first budgeting with soft chronological balancing)
     bucketMinRepresentation: 0.2, // 20% minimum per bucket
     bucketSoftBalanceBudget: 0.05, // 5% budget for soft balancing
     // Preamble & prefill settings
-    preambleLanguage: 'cn',
-    extractionPrefill: 'cn_compliance',
+    preambleLanguage: 'auto',
+    extractionPrefill: 'auto',
     outputLanguage: 'auto',
     // Injection settings
     injection: {
