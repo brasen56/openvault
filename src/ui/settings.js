@@ -727,6 +727,7 @@ const RESETTABLE_KEYS = [
     'llmContradictionAutoMerge',
     'llmContradictionBatchInterval',
     'llmContradictionMaxCalls',
+    'llmContradictionConfidence',
     'llmContradictionUseCustomApi',
 ];
 
@@ -1508,6 +1509,14 @@ export function bindSidePanelContradictionSettings($panel) {
         syncCrossPanel('openvault_side_llm_contradiction_max_calls', val);
     });
 
+    // Slider: confidence threshold for LLM contradiction results
+    $panel.on('input.sideContradiction', '#openvault_side_llm_contradiction_confidence', function () {
+        const val = parseFloat($(this).val());
+        setSetting('llmContradictionConfidence', val);
+        $panel.find('#openvault_side_llm_contradiction_confidence_value').text(val.toFixed(2));
+        syncCrossPanel('openvault_side_llm_contradiction_confidence', val);
+    });
+
     // Manual scan trigger button
     $panel.on('click.sideContradiction', '#openvault_side_run_contradiction_scan', async function () {
         const $btn = $(this);
@@ -1546,6 +1555,12 @@ export function updateSidePanelContradictionSettings() {
     $maxCalls.val(settings.llmContradictionMaxCalls);
     $maxCallsVal.text(settings.llmContradictionMaxCalls);
 
+    // Confidence slider
+    const $confidence = $('#openvault_side_llm_contradiction_confidence');
+    const $confidenceVal = $('#openvault_side_llm_contradiction_confidence_value');
+    $confidence.val(settings.llmContradictionConfidence ?? defaultSettings.llmContradictionConfidence);
+    $confidenceVal.text((settings.llmContradictionConfidence ?? defaultSettings.llmContradictionConfidence).toFixed(2));
+
     // Custom API endpoint fields
     const $customApiToggle = $('#openvault_side_llm_contradiction_custom_api');
     const $customApiOptions = $('#openvault_side_llm_contradiction_custom_api_options');
@@ -1582,8 +1597,13 @@ async function handleRunContradictionScanClick($btn) {
     $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Scanning...');
 
     try {
+        const settings = getSettings();
         const { batchContradictionScan } = await import('../retrieval/llm-contradiction.js');
-        const results = await batchContradictionScan(data.memories);
+        const results = await batchContradictionScan(data.memories, {
+            maxCalls: settings.llmContradictionMaxCalls ?? defaultSettings.llmContradictionMaxCalls,
+            confidenceThreshold: settings.llmContradictionConfidence ?? defaultSettings.llmContradictionConfidence,
+            autoMerge: settings.llmContradictionAutoMerge ?? defaultSettings.llmContradictionAutoMerge,
+        });
         const detected = Array.isArray(results) ? results.length : 0;
         const merged = Array.isArray(results) ? results.filter((r) => r.merged).length : 0;
 

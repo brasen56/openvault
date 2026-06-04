@@ -4,28 +4,6 @@ This document tracks planned features and improvements for future releases.
 
 ---
 
-## Priority: High
-
-### Batch Memory Operations
-**Status:** Partially scaffolded (see `ROADMAP_Batch_operations.md` for detailed design)
-
-Users can currently only delete memories one at a time. For long RP sessions with 200+ memories, this is a significant pain point.
-
-- **Bulk Archive** — Select multiple memories → archive (soft delete, reversible). Retrieval already respects `archived: true`, so the domain side is ~10 lines.
-- **Bulk Hard Delete** — Select multiple memories → permanent delete with ST Vector cleanup. Aggregates `stChanges.toDelete` into a single save.
-- **Filter-based actions** — "Archive all matching current filter" using existing search/character filter as the selector.
-- **UI:** Selection mode toggle with checkboxes, action bar (Select All / Archive Selected / Delete Selected / Cancel), confirmation modal.
-
-### LLM Contradiction Confidence Slider
-**Status:** Backend complete, UI missing
-
-The setting `llmContradictionConfidence` (default: 0.7) exists in `defaultSettings` but has no UI control. Users who want to tune the confidence threshold for LLM contradiction analysis must edit settings JSON manually.
-
-- Add a slider/input to the Contradiction settings section in `settings_panel.html`
-- Range: 0.0–1.0, step 0.05, default 0.7
-
----
-
 ## Priority: Medium
 
 ### Additional Slash Commands
@@ -74,3 +52,5 @@ Similar to batch memory operations, but for entity graph nodes:
 - [x] Multi-profile backup failover for LLM calls
 - [x] Abort signal support throughout extraction pipeline
 - [x] Performance monitoring dashboard
+- [x] Batch Memory Operations (bulk archive/unarchive/delete + filter-based "Archive All Matching")
+- [x] LLM Contradiction Confidence Slider (UI control in side panel Settings tab)

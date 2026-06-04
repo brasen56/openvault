@@ -326,6 +326,7 @@ export const UI_DEFAULT_HINTS = {
     // Contradiction
     llmContradictionBatchInterval: defaultSettings.llmContradictionBatchInterval,
     llmContradictionMaxCalls: defaultSettings.llmContradictionMaxCalls,
+    llmContradictionConfidence: defaultSettings.llmContradictionConfidence,
     // Reranker
     rerankerTopN: defaultSettings.rerankerTopN,
     rerankerMaxDocuments: defaultSettings.rerankerMaxDocuments,

@@ -998,6 +998,52 @@ function initManageTabEvents($panel) {
             showToast('success', `Deleted ${result.count} memories`);
         }
     });
+
+    // Archive all memories matching current filters
+    $panel.on('click', '#openvault_side_manage_archive_all_btn', async () => {
+        const data = getOpenVaultData();
+        if (!data) return;
+
+        const allMemories = data[MEMORIES_KEY] || [];
+        const typeFilter = $('#openvault_side_manage_type').val() || '';
+        const showArchived = $('#openvault_side_manage_archived').is(':checked');
+        const searchQuery = ($('#openvault_side_manage_search').val() || '').toLowerCase().trim();
+
+        let filtered = filterMemories(allMemories, typeFilter, '', { showArchived: true });
+        if (!showArchived) {
+            filtered = filtered.filter((m) => !m.archived);
+        }
+        if (searchQuery) {
+            filtered = filtered.filter((m) => {
+                const s = (m.summary || '').toLowerCase();
+                const c = (m.characters_involved || []).join(' ').toLowerCase();
+                return s.includes(searchQuery) || c.includes(searchQuery);
+            });
+        }
+
+        // Only archive non-archived memories
+        const toArchive = filtered.filter((m) => !m.archived);
+        if (toArchive.length === 0) {
+            showToast('info', 'No unarchived memories match the current filters.');
+            return;
+        }
+
+        if (!confirm(`Archive ${toArchive.length} memory(ies) matching current filters?`)) return;
+
+        const ids = toArchive.map((m) => m.id);
+        const result = await archiveMemories(ids);
+        if (result.count > 0) {
+            if (result.stChanges) {
+                const { applySyncChanges } = await import('../extraction/extract.js');
+                await applySyncChanges(result.stChanges);
+            }
+            _manageSelected.clear();
+            renderSideManage();
+            refreshStats();
+            populateFilter();
+            showToast('success', `Archived ${result.count} memories matching filters`);
+        }
+    });
 }
 
 function renderSideEntities() {
