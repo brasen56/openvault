@@ -52,7 +52,7 @@ import {
 } from '../prompts/index.js';
 import { accumulateImportance, generateReflections, shouldReflect } from '../reflection/reflect.js';
 import { calculateIDF, cosineSimilarity, tokenize } from '../retrieval/math.js';
-import { batchContradictionScan, checkNewMemoryContradictions } from '../retrieval/llm-contradiction.js';
+import { batchContradictionScan, checkMemorySimilarContradictions, checkNewMemoryContradictions } from '../retrieval/llm-contradiction.js';
 import { deleteItemsFromST, isStVectorSource, syncItemsToST } from '../services/st-vector.js';
 import { getSettings } from '../settings.js';
 import { clearAllLocks, getLastApiCallTime, isWorkerRunning, operationState, recordFailedCall, setLastApiCallTime } from '../state.js';
@@ -950,6 +950,11 @@ async function checkBatchForContradictions(events, data, settings, abortSignal) 
     const priorMemories = (data[MEMORIES_KEY] || []).filter((m) => !newEventIds.has(m.id));
     if (priorMemories.length === 0) return;
 
+    // Persisted analyzed-pair cache (shared with the periodic batch scan) so verified
+    // pairs aren't re-checked later. Created lazily for chats that predate the field.
+    if (!data['contradiction_analyzed']) data['contradiction_analyzed'] = {};
+    const analyzedCache = data['contradiction_analyzed'];
+
     // Budget: cap total actual LLM calls across the whole batch.
     const maxLLMCalls = settings.llmContradictionMaxCalls || 5;
     let totalLLMCalls = 0;
@@ -982,6 +987,7 @@ async function checkBatchForContradictions(events, data, settings, abortSignal) 
                     priorCalls: totalLLMCalls,
                     maxCalls: 1, // one candidate per event per pass
                     skip,
+                    analyzedCache,
                 });
 
                 const used = result.llmCallsUsed || 0;
@@ -995,35 +1001,10 @@ async function checkBatchForContradictions(events, data, settings, abortSignal) 
                 }
 
                 if (result.merged && result.stSync) {
-                    const { archived, updated, olderPreMergeSummary, newerPreMergeSummary } = result.stSync;
-
                     logDebug(
                         `Contradiction merge: new memory ${event.id} retired an older contradicting memory (${result.reason || 'no reason given'})`
                     );
-
-                    // ST Vector re-sync: delete archived memory's stale vector,
-                    // re-sync updated memory with its new merged summary.
-                    if (isStVectorSource()) {
-                        const contradictionSyncChanges = { toSync: [], toDelete: [] };
-
-                        // Delete archived memory's old vector
-                        const archivedText = `[OV_ID:${archived.id}] ${olderPreMergeSummary}`;
-                        contradictionSyncChanges.toDelete.push({ hash: cyrb53(archivedText) });
-
-                        // Re-sync updated memory with new merged summary
-                        const updatedText = `[OV_ID:${updated.id}] ${updated.summary}`;
-                        contradictionSyncChanges.toSync.push({
-                            hash: cyrb53(updatedText),
-                            text: updatedText,
-                            item: updated,
-                        });
-
-                        // Also delete the older pre-merge vector (stale hash)
-                        const staleUpdatedText = `[OV_ID:${updated.id}] ${newerPreMergeSummary}`;
-                        contradictionSyncChanges.toDelete.push({ hash: cyrb53(staleUpdatedText) });
-
-                        await applySyncChanges(contradictionSyncChanges);
-                    }
+                    await syncContradictionMerge(result.stSync);
                 }
             } catch (err) {
                 logWarn(`Contradiction check failed for new memory ${event.id}: ${err.message}`);
@@ -1033,6 +1014,62 @@ async function checkBatchForContradictions(events, data, settings, abortSignal) 
 
         if (!progressed) break; // safety: nothing advanced this pass — avoid spinning
     }
+
+    logDebug(
+        `Post-extraction contradiction check: ${totalLLMCalls}/${maxLLMCalls} LLM call(s) ` +
+        `across ${events.length} new memor${events.length === 1 ? 'y' : 'ies'} ` +
+        `(${done.size} resolved or exhausted)`
+    );
+
+    // Opt-in similarity-gated pass: catches single-character / state-change contradictions
+    // (e.g. "broke his arm" → "arm healed") the pair+sentiment path can't see. Its own
+    // budget, shares the analyzed-pair cache, one closest-match check per new memory.
+    if (settings.llmContradictionSingleCharEnabled) {
+        const maxSimCalls = settings.llmContradictionSingleCharMaxCalls || 3;
+        let simCalls = 0;
+        for (const event of events) {
+            if (simCalls >= maxSimCalls) break;
+            if (abortSignal?.aborted) break;
+            try {
+                const result = await checkMemorySimilarContradictions(event, priorMemories, {
+                    rpmDelayFn: contradictionRpmDelay,
+                    priorCalls: totalLLMCalls + simCalls,
+                    maxCalls: 1, // closest candidate only — fair across events, cheap
+                    analyzedCache,
+                });
+                simCalls += result.llmCallsUsed || 0;
+                if (result.merged && result.stSync) {
+                    logDebug(
+                        `Similarity contradiction merge: new memory ${event.id} retired a contradicting memory (${result.reason || 'no reason given'})`
+                    );
+                    await syncContradictionMerge(result.stSync);
+                }
+            } catch (err) {
+                logWarn(`Similarity contradiction check failed for new memory ${event.id}: ${err.message}`);
+            }
+        }
+        logDebug(`Single-character contradiction pass: ${simCalls}/${maxSimCalls} LLM call(s) across ${events.length} new memories`);
+    }
+}
+
+/**
+ * Push a contradiction merge's vector changes to ST Vector storage: drop the archived
+ * memory's stale vector and the updated memory's pre-merge vector, then re-sync the
+ * updated memory under its new merged summary. No-op unless the ST vector source is active.
+ * @param {{archived: Memory, updated: Memory, olderPreMergeSummary: string, newerPreMergeSummary: string}} stSync
+ * @returns {Promise<void>}
+ */
+async function syncContradictionMerge(stSync) {
+    if (!isStVectorSource()) return;
+    const { archived, updated, olderPreMergeSummary, newerPreMergeSummary } = stSync;
+    const changes = { toSync: [], toDelete: [] };
+    // Drop the archived memory's vector and the updated memory's stale (pre-merge) vector.
+    changes.toDelete.push({ hash: cyrb53(`[OV_ID:${archived.id}] ${olderPreMergeSummary}`) });
+    changes.toDelete.push({ hash: cyrb53(`[OV_ID:${updated.id}] ${newerPreMergeSummary}`) });
+    // Re-sync the updated memory under its new merged summary.
+    const updatedText = `[OV_ID:${updated.id}] ${updated.summary}`;
+    changes.toSync.push({ hash: cyrb53(updatedText), text: updatedText, item: updated });
+    await applySyncChanges(changes);
 }
 
 /**
@@ -1289,10 +1326,12 @@ export async function extractMemories(messageIds = null, targetChatId = null, op
                     await rpmDelay(settings, 'Phase 2 batch contradiction scan rate limit');
                     try {
                         const allMemories = data[MEMORIES_KEY] || [];
+                        if (!data['contradiction_analyzed']) data['contradiction_analyzed'] = {};
                         const scanResults = await batchContradictionScan(allMemories, {
                             maxCalls: settings.llmContradictionMaxCalls || 5,
                             confidenceThreshold: settings.llmContradictionConfidence || 0.7,
                             autoMerge: true,
+                            analyzedCache: data['contradiction_analyzed'],
                         });
                         if (scanResults.length > 0) {
                             logDebug(`Batch contradiction scan: ${scanResults.length} contradictions resolved`);

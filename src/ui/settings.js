@@ -232,7 +232,7 @@ async function handleOpenAICompatTestClick() {
 }
 
 import { PREFILL_PRESETS } from '../prompts/index.js';
-import { deleteCurrentChatData, getOpenVaultData } from '../store/chat-data.js';
+import { deleteCurrentChatData, getOpenVaultData, saveOpenVaultData } from '../store/chat-data.js';
 import { showToast } from '../utils/dom.js';
 
 // =============================================================================
@@ -1598,12 +1598,16 @@ async function handleRunContradictionScanClick($btn) {
 
     try {
         const settings = getSettings();
+        if (!data.contradiction_analyzed) data.contradiction_analyzed = {};
         const { batchContradictionScan } = await import('../retrieval/llm-contradiction.js');
         const results = await batchContradictionScan(data.memories, {
             maxCalls: settings.llmContradictionMaxCalls ?? defaultSettings.llmContradictionMaxCalls,
             confidenceThreshold: settings.llmContradictionConfidence ?? defaultSettings.llmContradictionConfidence,
             autoMerge: settings.llmContradictionAutoMerge ?? defaultSettings.llmContradictionAutoMerge,
+            analyzedCache: data.contradiction_analyzed,
         });
+        // Persist any merges and the updated analyzed-pair cache.
+        await saveOpenVaultData();
         const detected = Array.isArray(results) ? results.length : 0;
         const merged = Array.isArray(results) ? results.filter((r) => r.merged).length : 0;
 

@@ -47,6 +47,7 @@ export function getOpenVaultData() {
             graph: createEmptyGraph(),
             communities: {},
             graph_message_count: 0,
+            contradiction_analyzed: {},
         };
     }
     const data = context.chatMetadata[METADATA_KEY];

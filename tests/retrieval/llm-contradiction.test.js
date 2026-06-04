@@ -462,6 +462,64 @@ describe('batchContradictionScan', () => {
         expect(results[0].reason).toBeTruthy();
     });
 
+    it('skips pairs already in the analyzed cache on a later scan', async () => {
+        const { callLLM } = await import('../../src/llm.js');
+        callLLM.mockClear();
+        callLLM.mockResolvedValue(JSON.stringify({
+            contradicts: false,
+            confidence: 0.9,
+            reason: 'no conflict',
+            newer_is_authoritative: true,
+            suggested_merge: null,
+        }));
+
+        const { batchContradictionScan } = await import('../../src/retrieval/llm-contradiction.js');
+
+        const memories = [
+            makeMemory({ id: 'hate', summary: 'Alex hates Ezra and they are enemies', characters_involved: ['Alex', 'Ezra'], extraction_count: 5 }),
+            makeMemory({ id: 'love', summary: 'Alex and Ezra became close friends', characters_involved: ['Alex', 'Ezra'], extraction_count: 20 }),
+        ];
+
+        const analyzedCache = {};
+
+        // First scan analyzes the pair and records it in the cache.
+        await batchContradictionScan(memories, { analyzedCache });
+        expect(callLLM.mock.calls.length).toBeGreaterThan(0);
+        expect(Object.keys(analyzedCache).length).toBeGreaterThan(0);
+
+        // Second scan with the same cache makes no new LLM calls.
+        callLLM.mockClear();
+        await batchContradictionScan(memories, { analyzedCache });
+        expect(callLLM).not.toHaveBeenCalled();
+    });
+
+    it('re-analyzes a pair after a memory summary changes (cache invalidation)', async () => {
+        const { callLLM } = await import('../../src/llm.js');
+        callLLM.mockClear();
+        callLLM.mockResolvedValue(JSON.stringify({
+            contradicts: false,
+            confidence: 0.9,
+            reason: 'no conflict',
+            newer_is_authoritative: true,
+            suggested_merge: null,
+        }));
+
+        const { batchContradictionScan } = await import('../../src/retrieval/llm-contradiction.js');
+
+        const mem1 = makeMemory({ id: 'hate', summary: 'Alex hates Ezra and they are enemies', characters_involved: ['Alex', 'Ezra'], extraction_count: 5 });
+        const mem2 = makeMemory({ id: 'love', summary: 'Alex and Ezra became close friends', characters_involved: ['Alex', 'Ezra'], extraction_count: 20 });
+        const analyzedCache = {};
+
+        await batchContradictionScan([mem1, mem2], { analyzedCache });
+
+        // Edit one summary (still negative, so the pair stays suspicious) — the
+        // content-hashed key changes, so the pair must be re-analyzed.
+        callLLM.mockClear();
+        mem1.summary = 'Alex still hates Ezra and remains openly hostile';
+        await batchContradictionScan([mem1, mem2], { analyzedCache });
+        expect(callLLM).toHaveBeenCalled();
+    });
+
     it('respects maxCalls limit', async () => {
         const { callLLM } = await import('../../src/llm.js');
         callLLM.mockClear();
@@ -738,5 +796,104 @@ describe('checkNewMemoryContradictions', () => {
 
         // All existing are filtered out, so no opposing memories found
         expect(result).toEqual({ verified: false, merged: false, llmCallsUsed: 0 });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// checkMemorySimilarContradictions (similarity-gated, single-character)
+// ---------------------------------------------------------------------------
+
+describe('checkMemorySimilarContradictions', () => {
+    it('verifies the most embedding-similar prior (single-character state change)', async () => {
+        await setupDeps({ llmContradictionEnabled: true });
+        const { callLLM } = await import('../../src/llm.js');
+        callLLM.mockClear();
+        callLLM.mockResolvedValue(JSON.stringify({
+            contradicts: true,
+            confidence: 0.9,
+            reason: 'arm state conflict',
+            newer_is_authoritative: true,
+            suggested_merge: null,
+        }));
+
+        const { checkMemorySimilarContradictions } = await import('../../src/retrieval/llm-contradiction.js');
+
+        const newMem = makeMemory({ id: 'healed', summary: "Alex's arm finally healed", characters_involved: ['Alex'], embedding: [1, 0, 0], extraction_count: 50 });
+        const priors = [
+            makeMemory({ id: 'broke', summary: 'Alex broke his arm in a fall', characters_involved: ['Alex'], embedding: [0.95, 0.1, 0], extraction_count: 5 }),
+            makeMemory({ id: 'promo', summary: 'Alex got a big promotion', characters_involved: ['Alex'], embedding: [0, 1, 0], extraction_count: 10 }),
+        ];
+
+        const result = await checkMemorySimilarContradictions(newMem, priors, { similarityThreshold: 0.5, maxCalls: 1 });
+
+        expect(result.verified).toBe(true);
+        expect(result.llmCallsUsed).toBe(1);
+        expect(callLLM).toHaveBeenCalledTimes(1);
+        // It checked the most-similar prior (the arm memory), not the unrelated promotion.
+        const promptContent = callLLM.mock.calls[0][0][0].content;
+        expect(promptContent).toContain('broke his arm');
+        expect(promptContent).not.toContain('promotion');
+    });
+
+    it('skips when no prior is similar enough', async () => {
+        await setupDeps({ llmContradictionEnabled: true });
+        const { callLLM } = await import('../../src/llm.js');
+        callLLM.mockClear();
+
+        const { checkMemorySimilarContradictions } = await import('../../src/retrieval/llm-contradiction.js');
+
+        const newMem = makeMemory({ id: 'a', summary: 'Alex did something', characters_involved: ['Alex'], embedding: [1, 0, 0] });
+        const priors = [makeMemory({ id: 'b', summary: 'Alex did another thing', characters_involved: ['Alex'], embedding: [0, 1, 0] })];
+
+        const result = await checkMemorySimilarContradictions(newMem, priors, { similarityThreshold: 0.5, maxCalls: 1 });
+
+        expect(result.candidateTotal).toBe(0);
+        expect(result.llmCallsUsed).toBe(0);
+        expect(callLLM).not.toHaveBeenCalled();
+    });
+
+    it('skips when the new memory has no local embedding (e.g. st_vector source)', async () => {
+        await setupDeps({ llmContradictionEnabled: true });
+        const { callLLM } = await import('../../src/llm.js');
+        callLLM.mockClear();
+
+        const { checkMemorySimilarContradictions } = await import('../../src/retrieval/llm-contradiction.js');
+
+        const newMem = makeMemory({ id: 'a', summary: 'Alex broke his arm', characters_involved: ['Alex'] }); // no embedding
+        const priors = [makeMemory({ id: 'b', summary: "Alex's arm healed", characters_involved: ['Alex'], embedding: [1, 0, 0] })];
+
+        const result = await checkMemorySimilarContradictions(newMem, priors, { similarityThreshold: 0.1, maxCalls: 1 });
+
+        expect(result).toEqual({ verified: false, merged: false, llmCallsUsed: 0, candidateTotal: 0 });
+        expect(callLLM).not.toHaveBeenCalled();
+    });
+
+    it('records analyzed pairs in the shared cache and skips them next time', async () => {
+        await setupDeps({ llmContradictionEnabled: true });
+        const { callLLM } = await import('../../src/llm.js');
+        callLLM.mockClear();
+        callLLM.mockResolvedValue(JSON.stringify({
+            contradicts: false,
+            confidence: 0.8,
+            reason: 'no conflict',
+            newer_is_authoritative: true,
+            suggested_merge: null,
+        }));
+
+        const { checkMemorySimilarContradictions } = await import('../../src/retrieval/llm-contradiction.js');
+
+        const newMem = makeMemory({ id: 'healed', summary: "Alex's arm healed", characters_involved: ['Alex'], embedding: [1, 0, 0] });
+        const priors = [makeMemory({ id: 'broke', summary: 'Alex broke his arm', characters_involved: ['Alex'], embedding: [0.95, 0.1, 0] })];
+        const analyzedCache = {};
+
+        await checkMemorySimilarContradictions(newMem, priors, { similarityThreshold: 0.5, maxCalls: 1, analyzedCache });
+        expect(callLLM).toHaveBeenCalledTimes(1);
+        expect(Object.keys(analyzedCache).length).toBe(1);
+
+        // Second pass with the same cache makes no new call.
+        callLLM.mockClear();
+        const second = await checkMemorySimilarContradictions(newMem, priors, { similarityThreshold: 0.5, maxCalls: 1, analyzedCache });
+        expect(callLLM).not.toHaveBeenCalled();
+        expect(second.llmCallsUsed).toBe(0);
     });
 });

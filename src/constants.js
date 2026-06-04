@@ -135,6 +135,11 @@ export const defaultSettings = {
     llmContradictionApiUrl: '',          // OpenAI-compatible API URL for contradiction analysis
     llmContradictionApiKey: '',          // API key for custom contradiction API
     llmContradictionApiModel: '',        // Model name for custom contradiction API (e.g., qwen2.5:16b)
+    // Similarity-gated single-character contradiction pass (opt-in). Catches state
+    // changes the pair+sentiment path misses, e.g. "Alex broke his arm" -> "arm healed".
+    llmContradictionSingleCharEnabled: false, // Master toggle for the similarity-gated pass
+    llmContradictionSingleCharMaxCalls: 3,    // Separate per-batch LLM call budget for it
+    llmContradictionSimilarityThreshold: 0.6, // Min embedding cosine to treat two memories as related
     // Bucket balance settings (score-first budgeting with soft chronological balancing)
     bucketMinRepresentation: 0.2, // 20% minimum per bucket
     bucketSoftBalanceBudget: 0.05, // 5% budget for soft balancing

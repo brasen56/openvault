@@ -23,8 +23,50 @@ import { parseContradictionVerificationResponse } from '../extraction/structured
 import { callLLM, callOpenAICompat, LLM_CONFIGS } from '../llm.js';
 import { record } from '../perf/store.js';
 import { classifySentiment, Sentiment } from './contradiction.js';
-import { tokenize } from './math.js';
+import { cosineSimilarity, tokenize } from './math.js';
+import { cyrb53, getEmbedding } from '../utils/embedding-codec.js';
 import { logDebug, logError, logWarn } from '../utils/logging.js';
+
+/** Max entries kept in the persisted analyzed-pair cache (FIFO-trimmed). */
+const MAX_ANALYZED_PAIRS = 5000;
+
+/**
+ * Stable cache key for a memory pair. Embeds a content hash of each summary so
+ * the entry self-invalidates when either memory's text changes (edit/merge).
+ * @param {Memory} memA
+ * @param {Memory} memB
+ * @returns {string}
+ */
+function analyzedPairKey(memA, memB) {
+    const a = `${memA.id}:${cyrb53(memA.summary || '')}`;
+    const b = `${memB.id}:${cyrb53(memB.summary || '')}`;
+    return a <= b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+/**
+ * True if this exact pair (with unchanged summaries) was already analyzed.
+ * @param {Object<string, number>|null|undefined} cache
+ * @param {Memory} memA
+ * @param {Memory} memB
+ */
+function isPairAnalyzed(cache, memA, memB) {
+    return !!cache && cache[analyzedPairKey(memA, memB)] === 1;
+}
+
+/**
+ * Record a pair as analyzed, trimming oldest entries past MAX_ANALYZED_PAIRS.
+ * @param {Object<string, number>|null|undefined} cache
+ * @param {Memory} memA
+ * @param {Memory} memB
+ */
+function recordAnalyzedPair(cache, memA, memB) {
+    if (!cache) return;
+    cache[analyzedPairKey(memA, memB)] = 1;
+    const keys = Object.keys(cache);
+    if (keys.length > MAX_ANALYZED_PAIRS) {
+        for (const k of keys.slice(0, keys.length - MAX_ANALYZED_PAIRS)) delete cache[k];
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Prompt Construction
@@ -328,6 +370,7 @@ export function findSuspiciousPairs(memories, maxPairs = 5) {
  * @param {number} [options.maxCalls=5] - Maximum LLM calls per scan (cost control)
  * @param {number} [options.confidenceThreshold=0.7] - Minimum confidence to act on
  * @param {boolean} [options.autoMerge=false] - Whether to auto-merge confirmed contradictions
+ * @param {Object<string, number>} [options.analyzedCache] - Persisted map of already-analyzed pair keys; checked to skip and updated after each verification
  * @returns {Promise<Array<{older: string, newer: string, merged: boolean, reason: string}>>}
  *   Array of results with memory IDs and merge status
  */
@@ -336,11 +379,14 @@ export async function batchContradictionScan(allMemories, options = {}) {
         maxCalls = 5,
         confidenceThreshold = 0.7,
         autoMerge = false,
+        analyzedCache = null,
     } = options;
 
     const groups = groupMemoriesByCharacterPair(allMemories);
 
     let callsUsed = 0;
+    let candidatesConsidered = 0;
+    let cachedSkips = 0;
     const results = [];
 
     for (const [pairKey, groupMemories] of groups) {
@@ -352,6 +398,15 @@ export async function batchContradictionScan(allMemories, options = {}) {
         for (const [memA, memB] of suspicious) {
             if (callsUsed >= maxCalls) break;
 
+            // Skip pairs already analyzed (and unchanged since) — avoids re-spending
+            // LLM calls on the same pair every scan. The key embeds each summary's
+            // hash, so an edited/merged memory re-qualifies automatically.
+            candidatesConsidered++;
+            if (isPairAnalyzed(analyzedCache, memA, memB)) {
+                cachedSkips++;
+                continue;
+            }
+
             try {
                 const charNames = [...new Set([
                     ...(memA.characters_involved || []),
@@ -360,6 +415,7 @@ export async function batchContradictionScan(allMemories, options = {}) {
 
                 const result = await verifyContradiction(memA, memB, charNames, { confidenceThreshold });
                 callsUsed++;
+                recordAnalyzedPair(analyzedCache, memA, memB);
 
                 if (result.contradicts) {
                     const older = getRecency(memA) < getRecency(memB) ? memA : memB;
@@ -386,9 +442,12 @@ export async function batchContradictionScan(allMemories, options = {}) {
         }
     }
 
-    if (results.length > 0) {
-        logDebug(`Batch contradiction scan complete: ${results.length} contradictions found (${callsUsed} LLM calls used)`);
-    }
+    logDebug(
+        `Batch contradiction scan: ${results.length} contradiction(s) found; ` +
+        `${callsUsed}/${maxCalls} LLM calls used; ` +
+        `${candidatesConsidered} candidate pair(s) considered, ${cachedSkips} skipped via cache; ` +
+        `${groups.size} character group(s)`
+    );
 
     return results;
 }
@@ -396,6 +455,46 @@ export async function batchContradictionScan(allMemories, options = {}) {
 // ---------------------------------------------------------------------------
 // Post-Extraction Verification Queue
 // ---------------------------------------------------------------------------
+
+/**
+ * Verify one memory pair with the LLM and, when confirmed + autoMerge, merge them.
+ * Always records the pair in `analyzedCache`. Budget/RPM are the caller's concern —
+ * this performs exactly one LLM call. Shared by the pair-sentiment and similarity paths.
+ *
+ * @param {Memory} memA
+ * @param {Memory} memB
+ * @param {Object} opts
+ * @param {number} opts.confidenceThreshold
+ * @param {boolean} opts.autoMerge
+ * @param {Object<string, number>|null} [opts.analyzedCache]
+ * @returns {Promise<{contradicts: boolean, merged: boolean, reason?: string, older?: Memory, newer?: Memory, stSync?: {archived: Memory, updated: Memory, olderPreMergeSummary: string, newerPreMergeSummary: string}}>}
+ */
+async function verifyAndResolvePair(memA, memB, { confidenceThreshold, autoMerge, analyzedCache = null }) {
+    const charNames = [...new Set([
+        ...(memA.characters_involved || []),
+        ...(memB.characters_involved || []),
+    ])];
+
+    const result = await verifyContradiction(memA, memB, charNames, { confidenceThreshold });
+    recordAnalyzedPair(analyzedCache, memA, memB);
+
+    if (!result.contradicts) {
+        return { contradicts: false, merged: false, reason: result.reason };
+    }
+
+    const older = getRecency(memA) < getRecency(memB) ? memA : memB;
+    const newer = older === memA ? memB : memA;
+
+    let stSync;
+    let merged = false;
+    if (autoMerge && result.merge) {
+        stSync = mergeContradictingMemories(older, newer, result.merge);
+        await enrichEventsWithEmbeddings([newer]);
+        merged = true;
+    }
+
+    return { contradicts: true, merged, reason: result.reason, older, newer, stSync };
+}
 
 /**
  * Check a newly extracted memory against existing memories for contradictions.
@@ -414,6 +513,7 @@ export async function batchContradictionScan(allMemories, options = {}) {
  * @param {number} [options.maxCalls=3] - Maximum LLM calls to make in this call (cost control)
  * @param {number} [options.skip=0] - Opposing candidates to skip before verifying (lets the batch caller round-robin across events)
  * @param {number} [options.priorCalls=0] - LLM calls already made elsewhere this batch (so the first call here is RPM-spaced when it isn't the batch's first)
+ * @param {Object<string, number>} [options.analyzedCache] - Persisted analyzed-pair map; each verified pair is recorded so later batch scans can skip it
  * @returns {Promise<{verified: boolean, merged: boolean, reason?: string, llmCallsUsed: number, opposingTotal?: number, stSync?: { archived: Memory, updated: Memory, olderPreMergeSummary: string, newerPreMergeSummary: string }}>}
  *   Result of the verification, including LLM call count, total opposing candidates, and ST sync info for merges
  */
@@ -423,7 +523,7 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
     const enabled = settings.llmContradictionEnabled ?? defaultSettings.llmContradictionEnabled;
     const confidenceThreshold = options.confidenceThreshold ?? settings.llmContradictionConfidence ?? defaultSettings.llmContradictionConfidence;
     const autoMerge = options.autoMerge ?? settings.llmContradictionAutoMerge ?? defaultSettings.llmContradictionAutoMerge;
-    const { rpmDelayFn, maxCalls = 3, skip = 0, priorCalls = 0 } = options;
+    const { rpmDelayFn, maxCalls = 3, skip = 0, priorCalls = 0, analyzedCache = null } = options;
 
     if (!enabled) {
         return { verified: false, merged: false, llmCallsUsed: 0 };
@@ -478,34 +578,19 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
         }
 
         try {
-            const charNames = [...new Set([
-                ...(newMemory.characters_involved || []),
-                ...(existing.characters_involved || []),
-            ])];
-
-            const result = await verifyContradiction(newMemory, existing, charNames, { confidenceThreshold });
+            // verifyAndResolvePair records the pair in analyzedCache. (No need to *check*
+            // the cache here — a freshly extracted memory's pairs are always new.)
+            const outcome = await verifyAndResolvePair(newMemory, existing, { confidenceThreshold, autoMerge, analyzedCache });
             llmCallsUsed++;
 
-            if (result.contradicts) {
-                const older = getRecency(newMemory) < getRecency(existing) ? newMemory : existing;
-                const newer = older === newMemory ? existing : newMemory;
-
-                /** @type {undefined|{ archived: Memory, updated: Memory, olderPreMergeSummary: string, newerPreMergeSummary: string }} */
-                let stSync;
-
-                if (autoMerge && result.merge) {
-                    const mergeResult = mergeContradictingMemories(older, newer, result.merge);
-                    await enrichEventsWithEmbeddings([newer]);
-                    stSync = mergeResult;
-                }
-
+            if (outcome.contradicts) {
                 return {
                     verified: true,
-                    merged: autoMerge && !!result.merge,
-                    reason: result.reason,
+                    merged: outcome.merged,
+                    reason: outcome.reason,
                     llmCallsUsed,
                     opposingTotal,
-                    stSync,
+                    stSync: outcome.stSync,
                 };
             }
         } catch (error) {
@@ -516,6 +601,102 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
     }
 
     return { verified: true, merged: false, llmCallsUsed, opposingTotal };
+}
+
+/**
+ * Similarity-gated contradiction check (opt-in). Instead of grouping by character PAIR
+ * + relationship sentiment, this finds the prior memories most semantically similar to
+ * `newMemory` (by embedding cosine) and LLM-verifies the closest ones. It catches
+ * single-character state changes the pair/sentiment path misses — e.g. "Alex broke his
+ * arm" → later "Alex's arm healed" (both are sentiment-neutral and single-character).
+ *
+ * Similarity ranking also sidesteps the "main character is in everything" blow-up: even
+ * if the protagonist appears in hundreds of memories, only the closest matches are checked.
+ *
+ * Requires local embeddings — under the `st_vector` source vectors live in ST's DB, not
+ * on the memory objects, so `getEmbedding` returns null and this skips cleanly.
+ *
+ * @param {Memory} newMemory - Newly extracted memory
+ * @param {Memory[]} priorMemories - Candidate existing memories (the new batch excluded)
+ * @param {Object} [options={}]
+ * @param {number} [options.maxCalls=1] - Max LLM verifications in this call
+ * @param {number} [options.similarityThreshold] - Min cosine similarity to consider a candidate
+ * @param {number} [options.confidenceThreshold]
+ * @param {boolean} [options.autoMerge]
+ * @param {function(): Promise<void>} [options.rpmDelayFn]
+ * @param {number} [options.priorCalls=0] - LLM calls already made this batch (for RPM spacing)
+ * @param {Object<string, number>} [options.analyzedCache] - Shared analyzed-pair cache (checked + recorded)
+ * @returns {Promise<{verified: boolean, merged: boolean, reason?: string, llmCallsUsed: number, candidateTotal: number, stSync?: {archived: Memory, updated: Memory, olderPreMergeSummary: string, newerPreMergeSummary: string}}>}
+ */
+export async function checkMemorySimilarContradictions(newMemory, priorMemories, options = {}) {
+    const deps = getDeps();
+    const settings = deps.getExtensionSettings()?.[extensionName] || {};
+    const confidenceThreshold = options.confidenceThreshold ?? settings.llmContradictionConfidence ?? defaultSettings.llmContradictionConfidence;
+    const autoMerge = options.autoMerge ?? settings.llmContradictionAutoMerge ?? defaultSettings.llmContradictionAutoMerge;
+    const similarityThreshold = options.similarityThreshold ?? settings.llmContradictionSimilarityThreshold ?? defaultSettings.llmContradictionSimilarityThreshold;
+    const { rpmDelayFn, maxCalls = 1, priorCalls = 0, analyzedCache = null } = options;
+
+    const newVec = getEmbedding(newMemory);
+    if (!newVec) {
+        return { verified: false, merged: false, llmCallsUsed: 0, candidateTotal: 0 };
+    }
+
+    const newChars = new Set((newMemory.characters_involved || []).map((c) => c.toLowerCase()));
+
+    // Candidate pool: non-archived, non-reflection priors that share ≥1 character and
+    // have a local embedding. Character overlap is a cheap relevance gate; embedding
+    // similarity does the real selection.
+    const scored = [];
+    for (const m of priorMemories) {
+        if (m.id === newMemory.id) continue;
+        if (m.archived || m.type === 'reflection') continue;
+        const mChars = m.characters_involved || [];
+        if (mChars.length === 0) continue;
+        if (newChars.size > 0 && !mChars.some((c) => newChars.has(c.toLowerCase()))) continue;
+        const vec = getEmbedding(m);
+        if (!vec) continue;
+        const sim = cosineSimilarity(newVec, vec);
+        if (sim >= similarityThreshold) scored.push({ m, sim });
+    }
+
+    if (scored.length === 0) {
+        return { verified: false, merged: false, llmCallsUsed: 0, candidateTotal: 0 };
+    }
+
+    // Most-similar first — the closest prior is the likeliest update/contradiction.
+    scored.sort((a, b) => b.sim - a.sim);
+    const candidateTotal = scored.length;
+
+    let llmCallsUsed = 0;
+    for (const { m: existing } of scored) {
+        if (llmCallsUsed >= maxCalls) break;
+        // Shared cache: skip pairs already verified (and unchanged) by either path.
+        if (isPairAnalyzed(analyzedCache, newMemory, existing)) continue;
+
+        if ((priorCalls + llmCallsUsed) > 0 && rpmDelayFn) {
+            await rpmDelayFn();
+        }
+
+        try {
+            const outcome = await verifyAndResolvePair(newMemory, existing, { confidenceThreshold, autoMerge, analyzedCache });
+            llmCallsUsed++;
+            if (outcome.contradicts) {
+                return {
+                    verified: true,
+                    merged: outcome.merged,
+                    reason: outcome.reason,
+                    llmCallsUsed,
+                    candidateTotal,
+                    stSync: outcome.stSync,
+                };
+            }
+        } catch (error) {
+            llmCallsUsed++;
+            logWarn(`Similarity contradiction check failed: ${error.message}`);
+        }
+    }
+
+    return { verified: true, merged: false, llmCallsUsed, candidateTotal };
 }
 
 // ---------------------------------------------------------------------------

@@ -187,6 +187,9 @@ export const OpenVaultDataSchema = z.object({
     graph_message_count: z.number().optional(),
     global_world_state: GlobalWorldStateSchema.optional(),
     embedding_model_id: z.string().optional(),
+    // Cache of memory-pair keys already checked by LLM contradiction analysis.
+    // Key embeds each summary's content hash so it self-invalidates on edits.
+    contradiction_analyzed: z.record(z.string(), z.number()).optional(),
 });
 
 // --- StVectorItem Schema ---

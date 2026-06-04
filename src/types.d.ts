@@ -319,6 +319,9 @@ export type OpenVaultData = {
         community_count: number;
     } | undefined;
     embedding_model_id?: string | undefined;
+    contradiction_analyzed?: {
+        [key: string]: number;
+    } | undefined;
 };
 
 export type StVectorItem = {
