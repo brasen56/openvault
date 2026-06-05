@@ -11,6 +11,7 @@ import {
     parseEventExtractionResponse,
     parseGlobalSynthesisResponse,
     parseGraphExtractionResponse,
+    parseReclassificationResponse,
     parseStructuredResponse,
     parseUnifiedReflectionResponse,
 } from '../../src/extraction/structured.js';
@@ -414,5 +415,37 @@ describe('parseStructuredResponse - tool call unwrapping', () => {
         // Should trigger array unwrapping, not tool unwrapping
         const result = parseStructuredResponse(json, testSchema);
         expect(result).toEqual({ events: ['array-item'] });
+    });
+});
+
+// --- Reclassification parsing ---
+describe('parseReclassificationResponse', () => {
+    it('parses a bare JSON array into an id→boolean map', () => {
+        const map = parseReclassificationResponse('[{"id":"a","is_transient":true},{"id":"b","is_transient":false}]');
+        expect(map).toBeInstanceOf(Map);
+        expect(map.get('a')).toBe(true);
+        expect(map.get('b')).toBe(false);
+        expect(map.size).toBe(2);
+    });
+
+    it('tolerates an object wrapper ({classifications: [...]})', () => {
+        const map = parseReclassificationResponse('{"classifications":[{"id":"x","is_transient":true}]}');
+        expect(map.get('x')).toBe(true);
+    });
+
+    it('strips thinking tags and markdown fences (robust core)', () => {
+        const map = parseReclassificationResponse('<think>let me reason…</think>\n```json\n[{"id":"a","is_transient":false}]\n```');
+        expect(map.get('a')).toBe(false);
+    });
+
+    it('coerces numeric ids to strings', () => {
+        const map = parseReclassificationResponse('[{"id":1,"is_transient":true}]');
+        expect(map.get('1')).toBe(true);
+    });
+
+    it('returns null for unparseable / schema-invalid content', () => {
+        expect(parseReclassificationResponse('not json at all')).toBeNull();
+        // Wrong shape (missing is_transient) fails schema validation
+        expect(parseReclassificationResponse('[{"id":"a"}]')).toBeNull();
     });
 });

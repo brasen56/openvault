@@ -168,6 +168,51 @@ export function parseStructuredResponse(content, schema, recoverFn = null) {
     return schemaResult.data;
 }
 
+// --- Transient Reclassification Schema ---
+
+/**
+ * Schema for transient-flag reclassification: a flat list of {id, is_transient}.
+ * (A bare array, unlike the other schemas — so it's parsed directly via safeParseJSON
+ * rather than parseStructuredResponse, which unwraps top-level arrays.)
+ */
+export const ReclassificationSchema = z.array(
+    z.object({
+        id: z.union([z.string(), z.number()]),
+        is_transient: z.boolean(),
+    })
+);
+
+/**
+ * Parse an LLM transient-reclassification response into an id→boolean map.
+ * Uses the same robust core as the other structured parsers (`safeParseJSON` strips
+ * thinking tags / markdown fences and repairs minor JSON damage), then validates with
+ * Zod. Tolerates the array being wrapped in an object (`{classifications|results|items: [...]}`).
+ *
+ * @param {string} content - Raw LLM response
+ * @returns {Map<string, boolean> | null} id→is_transient, or null if unparseable
+ */
+export function parseReclassificationResponse(content) {
+    const result = safeParseJSON(content);
+    if (!result.success) return null;
+
+    let data = result.data;
+    if (data && !Array.isArray(data) && typeof data === 'object') {
+        data = data.classifications ?? data.results ?? data.items ?? data;
+    }
+
+    const validated = ReclassificationSchema.safeParse(data);
+    if (!validated.success) {
+        logWarn(`Reclassification schema validation failed: ${validated.error.message}`);
+        return null;
+    }
+
+    const map = new Map();
+    for (const { id, is_transient } of validated.data) {
+        if (id != null) map.set(String(id), is_transient);
+    }
+    return map;
+}
+
 /**
  * Get jsonSchema for Stage 1: Event extraction
  * @returns {Object} ConnectionManager jsonSchema object

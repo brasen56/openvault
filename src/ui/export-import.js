@@ -14,9 +14,14 @@ import {
 } from '../store/chat-data.js';
 import { escapeHtml, showToast } from '../utils/dom.js';
 import { deleteEmbedding } from '../utils/embedding-codec.js';
+import { getSettings, setSetting } from '../settings.js';
+import { parseReclassificationResponse } from '../extraction/structured.js';
 
 /** Current export schema version for forward compatibility */
 const EXPORT_SCHEMA_VERSION = 1;
+
+/** Fallback completion budget for AI Reclassify when no setting is present. */
+const RECLASSIFY_DEFAULT_MAX_TOKENS = 8000;
 
 /**
  * Fields to strip from memory objects during export.
@@ -212,57 +217,38 @@ Return ONLY a JSON array of objects with "id" and "is_transient" (boolean) field
 }
 
 /**
- * Build a classification Map from a parsed JSON array.
- * @param {Array} results - Parsed JSON array
- * @returns {Map<string, boolean> | null}
+ * Heuristic truncation check: a complete JSON array/object has balanced brackets.
+ * If the response (minus any code fence) has more openers than closers, the model's
+ * output was cut off — almost always because it hit its completion-token limit. This
+ * is the common failure mode with heavy "thinking" models on a too-small token budget.
+ * @param {string} content - Raw LLM response (reasoning already stripped by callLLM)
+ * @returns {boolean}
  */
-function buildClassificationMap(results) {
-    if (!Array.isArray(results)) return null;
-    const map = new Map();
-    for (const item of results) {
-        // Use != null to allow falsy but valid IDs (e.g. index 0)
-        if (item.id != null && typeof item.is_transient === 'boolean') {
-            // Always coerce to string for consistent Map key matching
-            map.set(String(item.id), item.is_transient);
-        }
-    }
-    return map;
+function responseLooksTruncated(content) {
+    if (!content) return false;
+    let s = content;
+    const fence = s.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (fence) s = fence[1];
+    const opens = (s.match(/[[{]/g) || []).length;
+    const closes = (s.match(/[\]}]/g) || []).length;
+    return opens > closes;
 }
 
 /**
- * Parse the LLM reclassification response into id→boolean map.
- * Handles various JSON wrapping patterns.
- * @param {string} content - Raw LLM response
- * @returns {Map<string, boolean> | null}
+ * Build a "response truncated" error that tells the user how to fix it.
+ * Flagged with `isTruncation` so the retry loop skips it (a retry at the same budget
+ * would just truncate again).
+ * @param {number} maxTokens - The budget that was used
+ * @returns {Error}
  */
-function parseReclassificationResponse(content) {
-    if (!content) return null;
-
-    let jsonStr = content.trim();
-
-    // Strip markdown code fences
-    const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (fenceMatch) {
-        jsonStr = fenceMatch[1].trim();
-    }
-
-    // Try direct parse first (handles clean responses without regex pitfalls)
-    try {
-        const results = JSON.parse(jsonStr);
-        const map = buildClassificationMap(results);
-        if (map) return map;
-    } catch {}
-
-    // Fallback: extract first JSON array via greedy regex for responses with extra text
-    const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
-    if (!arrayMatch) return null;
-
-    try {
-        const results = JSON.parse(arrayMatch[0]);
-        return buildClassificationMap(results);
-    } catch {
-        return null;
-    }
+function truncationError(maxTokens) {
+    const err = new Error(
+        `Reclassification response was cut off at the ${maxTokens}-token limit. ` +
+        `This model likely uses heavy "thinking". Increase "Reclassify max tokens" and retry.`
+    );
+    /** @type {any} */ (err).isTruncation = true;
+    /** @type {any} */ (err).maxTokens = maxTokens;
+    return err;
 }
 
 /**
@@ -277,6 +263,7 @@ async function processReclassificationBatch(batch, batchNum, totalBatches, deps)
     const { updateMemory, applySyncChanges, callLLM } = deps;
     const batchItems = batch.map((m) => ({ id: m.id, summary: m.summary || '' }));
     const messages = buildReclassificationPrompt(batchItems);
+    const maxTokens = parseInt(getSettings('reclassifyMaxTokens', RECLASSIFY_DEFAULT_MAX_TOKENS), 10) || RECLASSIFY_DEFAULT_MAX_TOKENS;
 
     const MAX_BATCH_RETRIES = 2;
     let lastError = null;
@@ -292,7 +279,7 @@ async function processReclassificationBatch(batch, batchNum, totalBatches, deps)
                 messages,
                 {
                     profileSettingKey: 'extractionProfile',
-                    maxTokens: 4000,
+                    maxTokens,
                     errorContext: `Transient Reclassification (batch ${batchNum}/${totalBatches})`,
                     timeoutMs: 120000,
                     getJsonSchema: null,
@@ -300,10 +287,19 @@ async function processReclassificationBatch(batch, batchNum, totalBatches, deps)
                 {}
             );
 
+            const truncated = responseLooksTruncated(response);
             const classificationMap = parseReclassificationResponse(response);
+
             if (!classificationMap) {
+                if (truncated) throw truncationError(maxTokens);
                 console.error('[OpenVault] Failed to parse reclassification response:', response.substring(0, 200));
                 throw new Error(`Failed to parse reclassification response: ${response.substring(0, 200)}`);
+            }
+
+            // JSON repair can salvage a partial array from a truncated response — if the
+            // result is short AND the raw output was cut off, treat it as truncation too.
+            if (truncated && classificationMap.size < batch.length) {
+                throw truncationError(maxTokens);
             }
 
             let marked = 0;
@@ -342,6 +338,10 @@ async function processReclassificationBatch(batch, batchNum, totalBatches, deps)
             if (err.name === 'AbortError') {
                 showToast('warning', 'Reclassification cancelled');
                 return { marked: 0, unmarked: 0, errors: 0, cancelled: true };
+            }
+            if (err.isTruncation) {
+                // Retrying at the same token budget would just truncate again — bubble up.
+                throw err;
             }
             if (attempt < MAX_BATCH_RETRIES) {
                 console.warn(`[OpenVault] Batch ${batchNum} attempt ${attempt + 1} failed, retrying...`, err);
@@ -388,7 +388,17 @@ async function runLlmReclassification(candidates, confirmMessage) {
         const batch = candidates.slice(i, i + BATCH_SIZE);
         const batchNum = Math.floor(i / BATCH_SIZE) + 1;
 
-        const result = await processReclassificationBatch(batch, batchNum, totalBatches, deps);
+        let result;
+        try {
+            result = await processReclassificationBatch(batch, batchNum, totalBatches, deps);
+        } catch (err) {
+            if (err.isTruncation) {
+                // Every batch would truncate the same way — stop and tell the user how to fix it.
+                showToast('error', err.message, 'OpenVault', { duration: 12000 });
+                break;
+            }
+            throw err;
+        }
         if (result.cancelled) break;
 
         totalMarked += result.marked;
@@ -882,6 +892,12 @@ export function renderExportImportPanel(container) {
                         <i class="fa-solid fa-brain"></i> AI Reclassify Last N
                     </button>
                 </div>
+                <div class="openvault-ei-actions" style="margin-top: 8px;">
+                    <label class="openvault-reclassify-lastn-label" title="Completion budget per AI Reclassify call. Raise this only if reclassify reports truncation — heavy 'thinking' models need more headroom. Keep it modest for small models.">
+                        <span>Max tokens</span>
+                        <input type="number" id="openvault-reclassify-max-tokens" value="${getSettings('reclassifyMaxTokens', RECLASSIFY_DEFAULT_MAX_TOKENS)}" min="512" max="65536" step="512" class="openvault-reclassify-lastn-input">
+                    </label>
+                </div>
             </div>
 
             <div class="openvault-ei-section">
@@ -918,6 +934,17 @@ export function renderExportImportPanel(container) {
             </div>
         </div>
     `;
+
+    // Persist the reclassify token budget when the user changes it.
+    const maxTokensInput = container.querySelector('#openvault-reclassify-max-tokens');
+    if (maxTokensInput) {
+        maxTokensInput.addEventListener('change', () => {
+            const v = parseInt(maxTokensInput.value, 10);
+            if (Number.isFinite(v) && v >= 512) {
+                setSetting('reclassifyMaxTokens', v);
+            }
+        });
+    }
 }
 
 export function openImportPicker(strategy) {

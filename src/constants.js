@@ -60,6 +60,10 @@ export const defaultSettings = {
     extractionTokenBudget: 6000, // Token threshold for extraction batches
     extractionRearviewTokens: 3000, // Token budget for extraction memory context
     extractionMaxTurns: 20, // Max conversation turns per extraction batch
+    // Transient reclassification ("AI Reclassify") completion budget. Thinking models
+    // spend tokens on reasoning before the JSON, so this caps the response size. Raise it
+    // only if reclassify reports truncation (see README); keep it modest for small models.
+    reclassifyMaxTokens: 8000,
     // Retrieval pipeline settings (token-based)
     retrievalFinalTokens: 8000, // Final context budget
     // Auto-hide settings
