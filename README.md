@@ -1,103 +1,90 @@
 # OpenVault
 
-**Agentic Memory Extension for SillyTavern**
+**Agentic, local-first memory for SillyTavern roleplay.**
 
-OpenVault provides POV-aware memory with witness tracking, relationship dynamics, and emotional continuity for roleplay conversations. All data is stored locally in chat metadata - no external services required.
+OpenVault gives long roleplays a durable memory. It watches the conversation, extracts the events that matter, builds a knowledge graph of who's who and how they relate, periodically reflects on what it has learned, and injects the most relevant memories back into context before each reply — so characters remember what happened a thousand messages ago without bloating the prompt.
 
-## Features
+Everything is stored **locally** in the chat's own metadata. Embeddings run on-device by default. No external memory service is required.
 
-- **Automatic Memory Extraction**: Analyzes conversations to extract significant events, emotions, and relationship changes
-- **POV-Aware Retrieval**: Filters memories based on which characters witnessed events (no meta-gaming)
-- **Character Context**: Uses character card and persona descriptions for more accurate memory extraction
-- **Relationship Tracking**: Monitors and records relationship dynamics between characters
-- **Emotional Continuity**: Tracks emotional states and shifts across conversations
-- **Auto-Hide**: Automatically hides old messages from context while preserving their memories
-- **Smart Retrieval**: Optional LLM-powered selection of the most relevant memories
-- **Memory Browser**: View, filter, and manage extracted memories
-- **Backfill**: Extract memories from existing chat history
+> **Status:** actively developed fork. Author: **Brasen** · Version **23.00** · [github.com/brasen56/openvault](https://github.com/brasen56/openvault)
+
+---
+
+## Highlights
+
+- **Automatic extraction** — a background worker turns recent messages into structured memories (summary, importance, participants, witnesses, location, emotional/relationship impact, temporal anchor).
+- **Hybrid retrieval** — an alpha-blend of vector similarity and a 4-tier BM25 keyword match, with a forgetfulness curve so old/rarely-used memories fade and important/often-recalled ones stick.
+- **Local embeddings (RAG)** — on-device `multilingual-e5-small` by default; optional Ollama, OpenAI-compatible, or SillyTavern Vector Storage backends.
+- **Knowledge graph + communities** — entities and relationships are merged into a graph, clustered (Louvain) into communities, and summarized into a rolling global world-state.
+- **Reflections** — once a character accumulates enough significant events, OpenVault synthesizes higher-level insights (and reflections-of-reflections), giving the model "understanding," not just facts.
+- **POV-aware** — memories are filtered by who actually witnessed an event, so characters don't meta-game knowledge they shouldn't have.
+- **Contradiction handling** — a fast keyword filter suppresses stale contradicted memories at retrieval time; an optional LLM tier verifies and merges genuine conflicts, retiring outdated facts.
+- **Auto-hide** — trims old messages from the live context (by token budget) while their extracted memories keep the continuity.
+- **Backfill** — build memory for an existing chat retroactively.
+- **Optional reranker** — second-pass reranking via an external rerank API (e.g. Jina, or a local server).
+
+---
 
 ## Installation
 
-1. Open SillyTavern
-2. Go to **Extensions** > **Install Extension**
-3. Enter the repository URL: `https://github.com/unkarelian/openvault`
-4. Click Install
-5. Reload SillyTavern
+**Via SillyTavern (recommended):**
 
-Or manually clone into your extensions folder:
+1. Open SillyTavern
+2. Go to **Extensions → Install Extension**
+3. Paste the repo URL: `https://github.com/brasen56/openvault`
+4. Click **Install**, then reload SillyTavern
+
+**Manually:**
+
 ```bash
 cd SillyTavern/data/<user>/extensions
-git clone https://github.com/unkarelian/openvault
+git clone https://github.com/brasen56/openvault
 ```
+
+### Requirements
+
+- A configured **LLM connection profile** for extraction/reflection (set it under OpenVault's settings; it can differ from your chat model).
+- Embeddings work out of the box on-device (no API needed). Optional backends (Ollama / OpenAI-compatible / ST Vector Storage) are configurable.
+
+---
 
 ## Usage
 
-### Automatic Mode (Default)
+### Automatic mode (default)
 
-When enabled, OpenVault automatically:
-1. **Before AI response**: Retrieves relevant memories and injects them as context
-2. **After AI response**: Extracts new memories from the conversation (every N messages)
+With OpenVault enabled it just works: it injects relevant memories before each reply and extracts new ones in the background afterward. You don't have to do anything.
 
-### Manual Mode
+### Manual controls
 
-Use the buttons in the settings panel:
-- **Extract Memories**: Analyze recent messages for significant events
-- **Retrieve Context**: Manually inject relevant memories into context
-- **Backfill Chat History**: Extract memories from the entire chat history
+From the OpenVault panel:
 
-## Settings
+- **Backfill chat history** — extract memories from an existing conversation.
+- **Run contradiction scan now** — sweep all memories for conflicts (see [Contradiction handling](#contradiction-handling-in-depth) below).
+- **Memory browser** — view, filter, edit, and delete memories.
+- **Danger zone** — delete the current chat's memories, or wipe all OpenVault data.
 
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Enable OpenVault** | Toggle the extension on/off | On |
-| **Automatic Mode** | Auto-extract and retrieve memories | On |
-| **Extraction Profile** | LLM connection profile for extraction | Current |
-| **Token Budget** | Max tokens for injected memory context | 1000 |
-| **Messages per Extraction** | Messages to analyze per extraction | 5 |
-| **Memory Context** | Memories shown to extraction LLM (-1 = All) | All |
-| **Smart Retrieval** | Use LLM to select relevant memories | Off |
-| **Auto-hide old messages** | Hide messages beyond threshold | On |
-| **Messages to keep visible** | Auto-hide threshold | 50 |
+---
 
-## How It Works
+## How it works
 
-### Memory Extraction
+OpenVault runs two pipelines around each turn.
 
-OpenVault sends recent messages to an LLM with:
-- Character descriptions (from character card)
-- Persona description (your character)
-- Existing memories (for consistency)
+### 1. Extraction (after replies, in the background)
 
-The LLM extracts structured events with:
-- **Event type**: action, revelation, emotion_shift, relationship_change
-- **Importance**: 1-5 scale
-- **Summary**: Brief description
-- **Characters involved**: Who participated
-- **Witnesses**: Who observed (for POV filtering)
-- **Location**: Where it happened
-- **Emotional/Relationship impact**: How characters were affected
+A worker batches unprocessed messages (by token budget / turn count) and runs a multi-stage pipeline:
 
-### Memory Retrieval
+1. **Event extraction** — the LLM pulls structured events from the batch.
+2. **Graph extraction** — entities and relationships are extracted and merged into the knowledge graph.
+3. **Enrich & dedup** — events are embedded and near-duplicates are filtered (cosine + token-overlap).
+4. **Graph updates** — entities/edges are upserted; long edge descriptions are consolidated.
+5. **Reflections** *(deferred during backfill)* — when a character's accumulated importance crosses the threshold, insights are synthesized.
+6. **Communities & world state** *(periodic)* — the graph is clustered and summarized into a global world-state.
 
-Before the AI responds, OpenVault:
-1. Analyzes the current conversation context
-2. Finds relevant memories (filtered by POV/witnesses)
-3. Injects them as context within the token budget
+Phase 1 (events + graph) commits and saves immediately; Phase 2 (reflections + communities) is best-effort and never blocks or corrupts Phase 1 data.
 
-### Auto-Hide
+#### Memory types
 
-When enabled, messages older than the threshold are hidden from context (in user-assistant pairs). The memories extracted from these messages are still retrieved and injected, effectively providing summaries of hidden content.
-
-## Data Storage
-
-All data is stored in `chatMetadata.openvault`:
-- `memories`: Array of extracted memory events
-- `character_states`: Current emotional states per character
-- `relationships`: Relationship dynamics between characters
-
-Data is per-chat and persists with the chat file.
-
-## Memory Types
+The LLM extracts structured events with type, importance (1–5), summary, characters involved, witnesses, location, and emotional/relationship impact:
 
 | Type | Description |
 |------|-------------|
@@ -106,21 +93,178 @@ Data is per-chat and persists with the chat file.
 | **emotion_shift** | Changes in emotional state |
 | **relationship_change** | Changes in how characters relate to each other |
 
-## Danger Zone
+### 2. Retrieval (before replies)
 
-- **Delete Current Chat Memories**: Removes all OpenVault data for the current chat
-- **Delete All Data**: Removes all OpenVault data across all chats
+1. Build a query from the recent context and detected entities.
+2. **Fast pass:** score every memory with `Base + BM25` (cheap).
+3. **Slow pass:** compute vector cosine similarity only on the top candidates.
+4. Blend, budget, and inject the winners — plus relevant world/entity context — within the token budget.
 
-## Debug Mode
+**Scoring (alpha-blend):**
 
-Enable debug mode to see detailed logs in the browser console (F12 > Console).
+```
+Score = (Base + Alpha·VectorBonus + (1−Alpha)·BM25Bonus) × FrequencyFactor
+Base  = Importance × e^(−Lambda × Distance)
+```
+
+- **Forgetfulness curve:** memories decay with distance; importance-5 memories have a floor and never fully fade.
+- **Hit damping:** frequently retrieved memories decay up to 50% slower.
+- **Transient memories:** short-term intentions decay ~5× faster.
+- **4-tier BM25:** exact multi-word entities (10×) → single-word entities (5×) → corpus-grounded query terms (3×) → novel scene terms (2×). POV names are stripped as stopwords to avoid score inflation.
+
+### Auto-hide
+
+Messages beyond the visible-token budget are hidden from the live prompt in user/assistant pairs. Their memories are still retrieved and injected, so the hidden span effectively becomes a set of summaries.
+
+---
+
+## Configuration
+
+All settings live in the OpenVault settings panel / side panel. Defaults below reflect the current build.
+
+### Core
+
+| Setting | Default | What it does |
+|---|---|---|
+| Enable OpenVault | `true` | Master on/off. |
+| Extraction profile | *(current)* | LLM connection profile used for extraction/reflection. |
+| Backup profile | *(none)* | Fallback profile if the primary fails. |
+| Debug mode | `false` | Verbose console logging (F12 → Console). |
+| Request logging | `false` | Log raw LLM requests/responses. |
+
+### Extraction
+
+| Setting | Default | What it does |
+|---|---|---|
+| Extraction token budget | `6000` | Token threshold that triggers an extraction batch. |
+| Extraction rearview tokens | `3000` | Budget for existing-memory context shown to the extractor. |
+| Max turns per batch | `20` | Cap on conversation turns per extraction. |
+| Backfill max RPM | `10` | Rate limit for backfill API calls. |
+| Max concurrency | `1` | Phase-2 parallelism (kept at 1 to protect local/VRAM-bound setups). |
+
+### Retrieval & scoring
+
+| Setting | Default | What it does |
+|---|---|---|
+| Final context budget | `8000` | Max tokens of memory/world context injected per reply. |
+| Alpha (vector ↔ keyword) | `0.7` | `1.0` = vector only, `0.0` = BM25 only. |
+| Vector similarity threshold | `0.5` | Minimum cosine to count as a vector match. |
+| Forgetfulness lambda | `0.05` | Base decay rate of the forgetfulness curve. |
+| Transient decay multiplier | `5.0` | How much faster short-term memories fade. |
+| Bucket min representation | `0.2` | Min share of context reserved per chronological bucket (old/mid/recent). |
+
+### Embeddings
+
+| Setting | Default | What it does |
+|---|---|---|
+| Embedding source | `multilingual-e5-small` | On-device model name, or `ollama`, `st_vector`, or an OpenAI-compatible endpoint. |
+| Ollama URL | *(empty)* | For the `ollama` source. |
+| OpenAI-compat URL / key / model | *(empty)* | For an OpenAI-compatible embedding endpoint. |
+| Query / doc prefixes | *(empty)* | Auto-populated per model (e5-small works best with none). |
+
+If you switch embedding models, OpenVault detects the mismatch, wipes stale vectors, and regenerates them in the background.
+
+### Reflections
+
+| Setting | Default | What it does |
+|---|---|---|
+| Generation enabled | `true` | Synthesize higher-level insights automatically. |
+| Injection enabled | `true` | Inject reflections into context. |
+| Reflection threshold | `40` | Accumulated importance that triggers a reflection. |
+| Max reflections / character | `50` | Cap on stored reflections per character. |
+| Max reflection level | `3` | Depth of reflections-of-reflections. |
+
+### Contradiction detection
+
+| Setting | Default | What it does |
+|---|---|---|
+| Contradiction filter (Tier 1) | `true` | Keyword filter that suppresses older, contradicted memories at retrieval time (free, no LLM). |
+| LLM contradiction analysis (Tier 2) | `false` | Opt-in LLM verification of flagged conflicts. |
+| Auto-merge | `false` | When a conflict is confirmed, archive the older memory and merge its content into the newer one. |
+| Confidence threshold | `0.7` | Minimum LLM confidence to act. |
+| Batch interval | `100` | Messages between periodic full-store scans. |
+| Max LLM calls / scan | `5` | Cost ceiling per scan. |
+| Single-character pass | `false` | Opt-in similarity-gated pass for single-subject state changes (e.g. "broke his arm" → "arm healed"). Requires local embeddings. |
+| Single-character max calls | `3` | Separate budget for the similarity pass. |
+| Similarity threshold | `0.6` | Min embedding cosine to treat two memories as related (tune per model). |
+
+### Auto-hide
+
+| Setting | Default | What it does |
+|---|---|---|
+| Auto-hide enabled | `true` | Trim old messages from the live prompt. |
+| Visible chat budget | `16000` | Max tokens kept visible in chat history. |
+| Max visible messages | `0` | Hard message cap (`0` = use token budget only). |
+| Frozen replies | `0` | Number of opening bot replies kept always-visible. |
+
+### Optional reranker
+
+| Setting | Default | What it does |
+|---|---|---|
+| Reranker enabled | `false` | Second-pass reranking via an external rerank API. |
+| API URL / key / model | *(empty)* | e.g. Jina, or a local reranker server. |
+| Top N / max documents | `20` / `50` | Results returned / candidates sent. |
+
+---
+
+## Contradiction handling (in depth)
+
+Memories drift as stories evolve. OpenVault reconciles them in tiers:
+
+- **Tier 1 — keyword filter (on by default, free).** At retrieval time, memories about the same characters with opposing relationship sentiment are detected; the *older* one is suppressed from injection so the model sees the current state. Sentiment matching is bilingual (English + Russian) and handles negation ("no longer hates" doesn't count as hostility). When recency is ambiguous (e.g. both extracted in the same batch), it abstains rather than guess.
+- **Tier 2 — LLM verification (opt-in).** After extraction and on a periodic schedule, flagged conflicts are sent to the LLM, which decides whether they truly contradict (vs. character development over time). With **auto-merge** on, the older memory is archived and its content folded into the newer one — actually *retiring* the outdated fact. Archived memories are excluded from retrieval.
+- **Similarity pass (opt-in).** Pair/sentiment matching can't catch single-subject state changes ("Alex broke his arm" → later "Alex's arm healed"). This pass ranks prior memories by embedding similarity and verifies the closest match, so updates to the same fact are caught regardless of relationship vocabulary.
+
+An analyzed-pair cache (content-hash keyed, so it self-invalidates when a memory is edited) prevents the scans from re-spending LLM calls on pairs they've already checked.
+
+---
+
+## Data & storage
+
+All state lives in `chatMetadata.openvault` and travels with the chat file — per-chat, local, portable. Key fields:
+
+- `memories[]` — events and reflections (summary, importance, tokens, characters, witnesses, embedding, flags).
+- `graph` — `{ nodes, edges }` knowledge graph.
+- `communities` / `global_world_state` — clustered summaries and rolling world state.
+- `character_states` — per-character emotion and a POV `known_events` boundary.
+- `reflection_state` — per-character accumulated importance.
+- `processed_message_ids` — fingerprints of already-extracted messages.
+- `contradiction_analyzed` — cache of analyzed memory-pair keys.
+
+No data leaves your machine except the LLM/embedding API calls you configure.
+
+---
+
+## Privacy & local-first
+
+- Memories, graph, embeddings, and caches are stored in the chat metadata on your machine.
+- Default embeddings run on-device (transformers.js). External embedding/LLM/rerank endpoints are used **only** if you configure them.
+
+---
+
+## Troubleshooting
+
+- **Nothing is being remembered.** Confirm OpenVault is enabled and an extraction profile is set. Extraction runs in the background after replies — check the console with **Debug mode** on.
+- **Contradiction analysis seems idle.** Tier 2 requires `LLM contradiction analysis` on; *retiring/merging* memories additionally requires `Auto-merge`. The single-character pass also requires local embeddings (it no-ops under the `st_vector` source).
+- **Switched embedding models and search got weird.** OpenVault wipes and regenerates stale vectors automatically on model change; let the background backfill finish.
+
+---
+
+## Development
+
+```bash
+npm install
+npm test            # generate types + run vitest
+npm run test:run    # vitest only
+npm run typecheck   # generate types + tsc --noEmit
+npm run lint        # biome + jsdoc checks
+npm run generate-types   # regenerate src/types.d.ts from Zod schemas
+```
+
+Zod schemas in `src/store/schemas.js` are the source of truth for types; run `generate-types` after changing them. Architecture and data-flow references live in `include/DATA_SCHEMA.md` and the per-directory `CLAUDE.md` files.
+
+---
 
 ## License
 
-GNU Affero General Public License v3.0 (AGPL-3.0)
-
-See [LICENSE](LICENSE) for details.
-
-## Version
-
-v0.2.0
+GNU Affero General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE).
