@@ -23,7 +23,7 @@ import { UNIFIED_REFLECTION_SCHEMA } from './schema.js';
  * @returns {string} Formatted XML section, or empty string if none
  */
 function formatExistingReflections(existingReflections) {
-    if (!existingReflections?.length) return '';
+    if (!Array.isArray(existingReflections) || existingReflections.length === 0) return '';
     const lines = existingReflections
         .map((r) => {
             const stars = '★'.repeat(r.importance || 3);

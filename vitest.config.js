@@ -31,6 +31,8 @@ export default defineConfig({
             '../../../../../script.js': path.resolve(__dirname, 'tests/stubs/extensions.js'),
             '../../../../../../script.js': path.resolve(__dirname, 'tests/stubs/extensions.js'),
             '../../../shared.js': path.resolve(__dirname, 'tests/stubs/shared.js'),
+            // SillyTavern regex engine (dynamically imported by src/utils/message-sanitizer.js)
+            '../../../../regex/engine.js': path.resolve(__dirname, 'tests/stubs/regex-engine.js'),
         },
     },
 });

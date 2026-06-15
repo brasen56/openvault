@@ -367,6 +367,10 @@ export const RetrievalContextSchema = z.object({
     allAvailableMemories: z.array(MemorySchema).optional(),
     idfCache: IDFCacheSchema.optional(),
     chatFingerprintMap: z.map(z.string(), z.number()).nullable().optional(),
+    // Monotonic decay anchor snapshot at retrieval time (data.graph_message_count).
+    // When present alongside a memory's extraction_count, decay uses the
+    // compression-immune axis currentExtractionCount - extraction_count.
+    currentExtractionCount: z.number().nullable().optional(),
 });
 
 // BM25 calculation context

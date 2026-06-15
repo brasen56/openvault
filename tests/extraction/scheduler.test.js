@@ -100,23 +100,26 @@ describe('scheduler with fingerprints', () => {
     });
 
     describe('getUnextractedMessageIds', () => {
+        // These tests verify fingerprint-matching logic, so they pass
+        // { includeLatest: true } to bypass the default swipe protection
+        // (which excludes the most recent message from extraction candidates).
         it('returns all indices when no processed messages', () => {
             const fps = getProcessedFingerprints(data);
-            const result = getUnextractedMessageIds(chat, fps);
+            const result = getUnextractedMessageIds(chat, fps, { includeLatest: true });
             expect(result).toEqual([0, 1, 2, 3]);
         });
 
         it('excludes processed messages by fingerprint', () => {
             data[PROCESSED_MESSAGES_KEY] = [chat[0].send_date, chat[2].send_date];
             const fps = getProcessedFingerprints(data);
-            const result = getUnextractedMessageIds(chat, fps);
+            const result = getUnextractedMessageIds(chat, fps, { includeLatest: true });
             expect(result).toEqual([1, 3]);
         });
 
         it('excludes system messages', () => {
             chat[1].is_system = true;
             const fps = getProcessedFingerprints(data);
-            const result = getUnextractedMessageIds(chat, fps);
+            const result = getUnextractedMessageIds(chat, fps, { includeLatest: true });
             expect(result).toEqual([0, 2, 3]);
         });
 
@@ -125,7 +128,7 @@ describe('scheduler with fingerprints', () => {
             const fp = getFingerprint(chat[0]);
             data[PROCESSED_MESSAGES_KEY] = [fp];
             const fps = getProcessedFingerprints(data);
-            const result = getUnextractedMessageIds(chat, fps);
+            const result = getUnextractedMessageIds(chat, fps, { includeLatest: true });
             expect(result).toEqual([1, 2, 3]);
         });
     });
@@ -236,7 +239,11 @@ describe('isBatchReady (token-based)', () => {
     });
 
     it('excludes already-extracted messages', () => {
+        // 3 turns so that excluding the latest (swipe protection) still
+        // leaves a full turn available after the first turn is processed.
         const chat = makeChat([
+            [LONG_USER_MESSAGE, true],
+            [LONG_BOT_MESSAGE, false],
             [LONG_USER_MESSAGE, true],
             [LONG_BOT_MESSAGE, false],
             [LONG_USER_MESSAGE, true],
@@ -246,7 +253,8 @@ describe('isBatchReady (token-based)', () => {
         // Use fingerprints (send_date strings) instead of indices
         data[PROCESSED_MESSAGES_KEY] = ['1000000', '1000001']; // First turn extracted
 
-        // Remaining 2 messages should have enough tokens for a 100-token budget
+        // Remaining turns (idx 2,3,4; idx 5 excluded by swipe protection)
+        // should have enough tokens for a 100-token budget
         expect(isBatchReady(chat, data, 100)).toBe(true);
         // But not enough for a huge budget
         expect(isBatchReady(chat, data, 10000)).toBe(false);
@@ -454,6 +462,9 @@ describe('trimTailTurns', () => {
 
 describe('getNextBatch swipe protection', () => {
     it('excludes the last turn from extraction', () => {
+        // 4 turns (8 msgs) so that after the latest is excluded by
+        // getUnextractedMessageIds (swipe protection), trimTailTurns still
+        // has a complete tail turn to remove, leaving turns 1+2.
         const chat = makeChat([
             [LONG_USER_MESSAGE, true],
             [LONG_BOT_MESSAGE, false],
@@ -461,9 +472,11 @@ describe('getNextBatch swipe protection', () => {
             [LONG_BOT_MESSAGE, false],
             [LONG_USER_MESSAGE, true],
             [LONG_BOT_MESSAGE, false],
+            [LONG_USER_MESSAGE, true],
+            [LONG_BOT_MESSAGE, false],
         ]);
-        // Budget = exact total tokens (402). Accumulation gathers all 6 msgs,
-        // snaps to 3 complete turns. Trim removes last turn → turns 1+2 only.
+        // Budget = 6 messages (402 tokens). Excludes idx 7 (latest), accumulates
+        // idx 0-5, snaps to 3 complete turns. Trim removes turn 3 → turns 1+2.
         const batch = getNextBatch(chat, {}, 402);
         expect(batch).not.toBeNull();
         expect(batch).toEqual([0, 1, 2, 3]);
@@ -484,13 +497,16 @@ describe('getNextBatch swipe protection', () => {
         expect(batch).toEqual([0, 1, 2, 3, 4, 5]);
     });
 
-    it('returns the single turn when only 1 turn exists (trimTailTurns protects it)', () => {
+    it('returns the single turn when only 1 turn remains after latest exclusion (trimTailTurns protects it)', () => {
+        // 2 turns (4 msgs). getUnextractedMessageIds excludes idx 3 (latest),
+        // leaving idx 0,1,2. Budget for 2 msgs → accumulates [0,1], snaps to
+        // 1 turn. Trim would empty → helper returns original [0,1].
         const chat = makeChat([
             [LONG_USER_MESSAGE, true],
             [LONG_BOT_MESSAGE, false],
+            [LONG_USER_MESSAGE, true],
+            [LONG_BOT_MESSAGE, false],
         ]);
-        // Budget = exact total tokens for 1 turn. Accumulation gets both msgs,
-        // snaps to 1 turn. Trim would empty → helper returns original.
         const batch = getNextBatch(chat, {}, 134);
         expect(batch).not.toBeNull();
         expect(batch).toEqual([0, 1]);
@@ -702,7 +718,8 @@ describe('getExtractionBudgetProgress (turn-limited)', () => {
     });
 
     it('includes turn count and progress data', () => {
-        // 3 turns with short messages
+        // 4 turns with short messages so that after the latest is excluded
+        // by getUnextractedMessageIds (swipe protection), 3 complete turns remain.
         const chat = makeChat([
             ['u1', true],
             ['b1', false],
@@ -710,12 +727,14 @@ describe('getExtractionBudgetProgress (turn-limited)', () => {
             ['b2', false],
             ['u3', true],
             ['b3', false],
+            ['u4', true],
+            ['b4', false],
         ]);
 
         const progress = getExtractionBudgetProgress(chat, {}, 100, 5);
         expect(progress).toHaveProperty('unextractedTurns');
         expect(progress).toHaveProperty('turnPct');
-        expect(progress.unextractedTurns).toBe(3);
+        expect(progress.unextractedTurns).toBe(3); // idx 7 excluded → 3 turns
         expect(progress.turnPct).toBe(60); // 3/5 * 100
     });
 

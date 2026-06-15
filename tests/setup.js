@@ -16,32 +16,65 @@ global.fetch = vi.fn(() =>
     })
 );
 
-// Mock jQuery/toastr if needed
-global.$ = (selector) => ({
-    on: () => {},
-    off: () => {},
-    val: () => '',
-    prop: () => {},
-    text: () => {},
-    html: () => '',
-    append: () => {},
-    remove: () => {},
-    empty: () => {},
-    show: () => {},
-    hide: () => {},
-    toggle: () => {},
-    toggleClass: () => global.$(selector),
-    each: () => {},
-    find: () => global.$(selector),
-    parent: () => global.$(selector),
-    closest: () => global.$(selector),
-    data: () => ({}),
-    attr: () => '',
-    addClass: () => global.$(selector),
-    removeClass: () => global.$(selector),
-    hasClass: () => false,
-    css: () => global.$(selector),
-});
+// Minimal jQuery mock for tests.
+// Returns a chainable stub object for any $(...) call. Getter-style methods
+// (.val(), .text(), .is(), .hasClass(), .attr(), .prop(), .data()) return safe
+// defaults; mutator/traversal methods return the chain so calls compose.
+global.$ = (selector) => {
+    const chain = () => global.$(selector);
+    return {
+        on: chain,
+        one: chain,
+        off: chain,
+        trigger: chain,
+        val: () => '',
+        prop: () => false,
+        text: (v) => (v === undefined ? '' : chain()),
+        html: (v) => (v === undefined ? '' : chain()),
+        is: () => false,
+        hasClass: () => false,
+        attr: () => '',
+        removeAttr: chain,
+        removeProp: chain,
+        data: () => ({}),
+        append: chain,
+        appendTo: chain,
+        prepend: chain,
+        after: chain,
+        before: chain,
+        remove: chain,
+        detach: chain,
+        empty: chain,
+        replaceWith: chain,
+        addClass: chain,
+        removeClass: chain,
+        toggleClass: chain,
+        css: chain,
+        show: chain,
+        hide: chain,
+        toggle: chain,
+        fadeIn: chain,
+        fadeOut: chain,
+        fadeTo: chain,
+        slideDown: chain,
+        slideUp: chain,
+        focus: chain,
+        blur: chain,
+        find: chain,
+        filter: chain,
+        parent: chain,
+        parents: chain,
+        closest: chain,
+        children: chain,
+        siblings: chain,
+        next: chain,
+        prev: chain,
+        each: chain,
+        map: chain,
+        length: 0,
+        0: undefined,
+    };
+};
 
 global.toastr = {
     info: () => ({ remove: () => {} }),

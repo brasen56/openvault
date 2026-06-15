@@ -822,6 +822,7 @@ export type RetrievalContext = {
         avgDL: number;
     } | undefined;
     chatFingerprintMap?: (Map<string, number> | null) | undefined;
+    currentExtractionCount?: (number | null) | undefined;
 };
 
 export type BM25Context = {
