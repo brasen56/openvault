@@ -5,8 +5,8 @@
  */
 
 import { saveChatConditional } from '../../../../../../script.js';
-import { getOpenVaultData, escapeHtml, showToast } from '../utils.js';
-import { MEMORIES_KEY, CHARACTERS_KEY, RELATIONSHIPS_KEY, MEMORIES_PER_PAGE } from '../constants.js';
+import { CHARACTERS_KEY, MEMORIES_KEY, MEMORIES_PER_PAGE, RELATIONSHIPS_KEY } from '../constants.js';
+import { escapeHtml, getOpenVaultData, showToast } from '../utils.js';
 import { refreshStats } from './status.js';
 
 // Pagination state for memory browser
@@ -66,7 +66,7 @@ export function renderMemoryBrowser() {
     const characterFilter = $('#openvault_filter_character').val();
 
     // Filter memories
-    let filteredMemories = memories.filter(m => {
+    const filteredMemories = memories.filter((m) => {
         if (typeFilter && m.event_type !== typeFilter) return false;
         if (characterFilter && !m.characters_involved?.includes(characterFilter)) return false;
         return true;
@@ -90,12 +90,13 @@ export function renderMemoryBrowser() {
         for (const memory of pageMemories) {
             const date = memory.created_at ? new Date(memory.created_at).toLocaleDateString() : 'Unknown';
             const typeClass = memory.event_type || 'action';
-            const characters = (memory.characters_involved || []).map(c =>
-                `<span class="openvault-character-tag">${escapeHtml(c)}</span>`
-            ).join('');
-            const witnesses = memory.witnesses?.length > 0
-                ? `<div class="openvault-memory-witnesses">Witnesses: ${memory.witnesses.join(', ')}</div>`
-                : '';
+            const characters = (memory.characters_involved || [])
+                .map((c) => `<span class="openvault-character-tag">${escapeHtml(c)}</span>`)
+                .join('');
+            const witnesses =
+                memory.witnesses?.length > 0
+                    ? `<div class="openvault-memory-witnesses">Witnesses: ${memory.witnesses.join(', ')}</div>`
+                    : '';
 
             // Importance stars
             const importance = memory.importance || 3;
@@ -121,7 +122,7 @@ export function renderMemoryBrowser() {
         }
 
         // Bind delete buttons
-        $list.find('.openvault-delete-memory').on('click', async function() {
+        $list.find('.openvault-delete-memory').on('click', async function () {
             const id = $(this).data('id');
             await deleteMemory(id);
         });
@@ -146,7 +147,7 @@ async function deleteMemory(id) {
         showToast('warning', 'No chat loaded');
         return;
     }
-    const idx = data[MEMORIES_KEY]?.findIndex(m => m.id === id);
+    const idx = data[MEMORIES_KEY]?.findIndex((m) => m.id === id);
     if (idx !== -1) {
         data[MEMORIES_KEY].splice(idx, 1);
         await saveChatConditional();
@@ -168,7 +169,7 @@ export function populateCharacterFilter() {
     const characters = new Set();
 
     for (const memory of memories) {
-        for (const char of (memory.characters_involved || [])) {
+        for (const char of memory.characters_involved || []) {
             characters.add(char);
         }
     }
@@ -217,9 +218,7 @@ export function renderCharacterStates() {
         let emotionSource = '';
         if (char.emotion_from_messages) {
             const { min, max } = char.emotion_from_messages;
-            emotionSource = min === max
-                ? ` (msg ${min})`
-                : ` (msgs ${min}-${max})`;
+            emotionSource = min === max ? ` (msg ${min})` : ` (msgs ${min}-${max})`;
         }
 
         $container.append(`

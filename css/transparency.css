@@ -22,7 +22,7 @@
     opacity: 0.9;
 }
 .openvault-extraction-notify-list li::before {
-    content: '›';
+    content: "›";
     position: absolute;
     left: 0;
     color: var(--SmartThemeQuoteColor, #8b9cf7);
@@ -30,7 +30,7 @@
 }
 .openvault-extraction-notify-more {
     font-style: italic;
-    opacity: 0.6 !important;
+    opacity: 0.6;
 }
 .openvault-extraction-notify-view {
     display: inline-block;
@@ -44,7 +44,7 @@
     transition: background 0.2s;
 }
 .openvault-extraction-notify-view:hover {
-    background: var(--SmartThemeBlurTintColor, rgba(255,255,255,0.1));
+    background: var(--SmartThemeBlurTintColor, rgba(255, 255, 255, 0.1));
 }
 
 /* ── Injection Status Badge ── */
@@ -94,7 +94,7 @@
 .openvault-injection-preview-item {
     padding: 8px 12px;
     border-radius: 6px;
-    background: var(--SmartThemeBlurTintColor, rgba(0,0,0,0.2));
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2));
     border-left: 3px solid var(--SmartThemeBorderColor, #444);
 }
 .openvault-injection-preview-item-header {

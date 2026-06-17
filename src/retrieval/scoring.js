@@ -23,7 +23,6 @@ import { assignMemoriesToBuckets, getMemoryPosition } from '../utils/text.js';
 import { countTokens } from '../utils/tokens.js';
 import { filterContradictions } from './contradiction.js';
 import { cacheRetrievalDebug, cacheScoringDetails } from './debug-cache.js';
-import { rerankScoredMemories } from './reranker.js';
 import { rankToProxyScore, scoreMemories } from './math.js';
 import {
     buildBM25Tokens,
@@ -32,6 +31,7 @@ import {
     extractQueryContext,
     parseRecentMessages,
 } from './query-context.js';
+import { rerankScoredMemories } from './reranker.js';
 
 /**
  * Score memories (main-thread, async to allow yielding).
@@ -492,7 +492,7 @@ export async function selectRelevantMemories(memories, ctx) {
     // === Contradiction Filter ===
     // Suppress older memories that contradict newer ones about the same character pair.
     // e.g., "Alex hates Ezra" (old) suppressed when "Alex and Ezra became friends" (newer) exists.
-    const beforeContradictionCount = finalResults.length;
+    const _beforeContradictionCount = finalResults.length;
     if (getSettings('contradictionFilterEnabled', true)) {
         finalResults = filterContradictions(finalResults);
     }

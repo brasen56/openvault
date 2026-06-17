@@ -434,7 +434,9 @@ describe('parseReclassificationResponse', () => {
     });
 
     it('strips thinking tags and markdown fences (robust core)', () => {
-        const map = parseReclassificationResponse('<think>let me reason…</think>\n```json\n[{"id":"a","is_transient":false}]\n```');
+        const map = parseReclassificationResponse(
+            '<think>let me reason…</think>\n```json\n[{"id":"a","is_transient":false}]\n```'
+        );
         expect(map.get('a')).toBe(false);
     });
 

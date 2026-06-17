@@ -14,7 +14,14 @@
  * @param {string} personaDescription - User persona description (optional)
  * @returns {string} The extraction prompt
  */
-export function buildExtractionPrompt(messagesText, characterName, userName, existingMemories = [], characterDescription = '', personaDescription = '') {
+export function buildExtractionPrompt(
+    messagesText,
+    characterName,
+    userName,
+    existingMemories = [],
+    characterDescription = '',
+    personaDescription = ''
+) {
     // Build character context section if we have descriptions
     let characterContextSection = '';
     if (characterDescription || personaDescription) {

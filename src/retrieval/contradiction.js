@@ -22,7 +22,7 @@
 
 /** @typedef {import('../types').Memory} Memory */
 
-import { SENTIMENT_POSITIVE, SENTIMENT_NEGATIVE, SENTIMENT_NEGATORS } from '../constants.js';
+import { SENTIMENT_NEGATIVE, SENTIMENT_NEGATORS, SENTIMENT_POSITIVE } from '../constants.js';
 import { logDebug } from '../utils/logging.js';
 
 /**
@@ -128,7 +128,7 @@ function phraseStartIndex(tokens, phrase) {
  */
 function characterGroupKey(names) {
     return [...names]
-        .map(n => n.toLowerCase().trim())
+        .map((n) => n.toLowerCase().trim())
         .sort()
         .join('|');
 }
@@ -211,8 +211,8 @@ export function detectContradictions(memories) {
         if (positive.length === 0 || negative.length === 0) continue;
 
         // Find the most recent memory in each sentiment bucket
-        const mostRecentPositive = positive.reduce((a, b) => getRecency(a) > getRecency(b) ? a : b);
-        const mostRecentNegative = negative.reduce((a, b) => getRecency(a) > getRecency(b) ? a : b);
+        const mostRecentPositive = positive.reduce((a, b) => (getRecency(a) > getRecency(b) ? a : b));
+        const mostRecentNegative = negative.reduce((a, b) => (getRecency(a) > getRecency(b) ? a : b));
 
         const positiveRecency = getRecency(mostRecentPositive);
         const negativeRecency = getRecency(mostRecentNegative);
@@ -263,11 +263,11 @@ export function filterContradictions(memories) {
         for (const c of contradictions) {
             logDebug(
                 `Contradiction: suppressed older "${c.older.summary?.slice(0, 80)}" ` +
-                `in favor of newer "${c.newer.summary?.slice(0, 80)}" ` +
-                `(group: ${c.groupKey})`
+                    `in favor of newer "${c.newer.summary?.slice(0, 80)}" ` +
+                    `(group: ${c.groupKey})`
             );
         }
     }
 
-    return memories.filter(m => !suppressedIds.includes(m.id));
+    return memories.filter((m) => !suppressedIds.includes(m.id));
 }

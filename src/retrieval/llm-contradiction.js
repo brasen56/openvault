@@ -22,10 +22,10 @@ import { enrichEventsWithEmbeddings } from '../embeddings.js';
 import { parseContradictionVerificationResponse } from '../extraction/structured.js';
 import { callLLM, callOpenAICompat, LLM_CONFIGS } from '../llm.js';
 import { record } from '../perf/store.js';
+import { cyrb53, getEmbedding } from '../utils/embedding-codec.js';
+import { logDebug, logWarn } from '../utils/logging.js';
 import { classifySentiment, Sentiment } from './contradiction.js';
 import { cosineSimilarity, tokenize } from './math.js';
-import { cyrb53, getEmbedding } from '../utils/embedding-codec.js';
-import { logDebug, logError, logWarn } from '../utils/logging.js';
 
 /** Max entries kept in the persisted analyzed-pair cache (FIFO-trimmed). */
 const MAX_ANALYZED_PAIRS = 5000;
@@ -167,7 +167,7 @@ export async function verifyContradiction(memoryA, memoryB, characterNames, opti
 
     logDebug(
         `LLM contradiction check result: ${contradicts ? 'CONFLICT' : 'OK'} ` +
-        `(confidence: ${parsed.confidence.toFixed(2)}, reason: ${parsed.reason?.slice(0, 80)})`
+            `(confidence: ${parsed.confidence.toFixed(2)}, reason: ${parsed.reason?.slice(0, 80)})`
     );
 
     record('llm_contradiction', performance.now() - t0);
@@ -219,15 +219,13 @@ export function mergeContradictingMemories(olderMemory, newerMemory, mergedSumma
     newerMemory.importance = Math.max(olderMemory.importance || 3, newerMemory.importance || 3);
 
     // Merge token lists for BM25
-    newerMemory.tokens = [...new Set([
-        ...(olderMemory.tokens || []),
-        ...(newerMemory.tokens || []),
-        ...tokenize(mergedSummary),
-    ])];
+    newerMemory.tokens = [
+        ...new Set([...(olderMemory.tokens || []), ...(newerMemory.tokens || []), ...tokenize(mergedSummary)]),
+    ];
 
     logDebug(
         `Contradiction merge: archived "${olderPreMergeSummary?.slice(0, 60)}…" → ` +
-        `updated to "${mergedSummary?.slice(0, 60)}…"`
+            `updated to "${mergedSummary?.slice(0, 60)}…"`
     );
 
     return { archived: olderMemory, updated: newerMemory, olderPreMergeSummary, newerPreMergeSummary };
@@ -242,7 +240,7 @@ export function mergeContradictingMemories(olderMemory, newerMemory, mergedSumma
  * @param {string[]} names - Character names
  * @returns {string} Sorted, lowercased, pipe-delimited key
  */
-function characterGroupKey(names) {
+function _characterGroupKey(names) {
     return [...names]
         .map((n) => n.toLowerCase().trim())
         .sort()
@@ -375,12 +373,7 @@ export function findSuspiciousPairs(memories, maxPairs = 5) {
  *   Array of results with memory IDs and merge status
  */
 export async function batchContradictionScan(allMemories, options = {}) {
-    const {
-        maxCalls = 5,
-        confidenceThreshold = 0.7,
-        autoMerge = false,
-        analyzedCache = null,
-    } = options;
+    const { maxCalls = 5, confidenceThreshold = 0.7, autoMerge = false, analyzedCache = null } = options;
 
     const groups = groupMemoriesByCharacterPair(allMemories);
 
@@ -389,7 +382,7 @@ export async function batchContradictionScan(allMemories, options = {}) {
     let cachedSkips = 0;
     const results = [];
 
-    for (const [pairKey, groupMemories] of groups) {
+    for (const [_pairKey, groupMemories] of groups) {
         if (callsUsed >= maxCalls) break;
         if (groupMemories.length < 2) continue;
 
@@ -408,10 +401,9 @@ export async function batchContradictionScan(allMemories, options = {}) {
             }
 
             try {
-                const charNames = [...new Set([
-                    ...(memA.characters_involved || []),
-                    ...(memB.characters_involved || []),
-                ])];
+                const charNames = [
+                    ...new Set([...(memA.characters_involved || []), ...(memB.characters_involved || [])]),
+                ];
 
                 const result = await verifyContradiction(memA, memB, charNames, { confidenceThreshold });
                 callsUsed++;
@@ -444,9 +436,9 @@ export async function batchContradictionScan(allMemories, options = {}) {
 
     logDebug(
         `Batch contradiction scan: ${results.length} contradiction(s) found; ` +
-        `${callsUsed}/${maxCalls} LLM calls used; ` +
-        `${candidatesConsidered} candidate pair(s) considered, ${cachedSkips} skipped via cache; ` +
-        `${groups.size} character group(s)`
+            `${callsUsed}/${maxCalls} LLM calls used; ` +
+            `${candidatesConsidered} candidate pair(s) considered, ${cachedSkips} skipped via cache; ` +
+            `${groups.size} character group(s)`
     );
 
     return results;
@@ -470,10 +462,7 @@ export async function batchContradictionScan(allMemories, options = {}) {
  * @returns {Promise<{contradicts: boolean, merged: boolean, reason?: string, older?: Memory, newer?: Memory, stSync?: {archived: Memory, updated: Memory, olderPreMergeSummary: string, newerPreMergeSummary: string}}>}
  */
 async function verifyAndResolvePair(memA, memB, { confidenceThreshold, autoMerge, analyzedCache = null }) {
-    const charNames = [...new Set([
-        ...(memA.characters_involved || []),
-        ...(memB.characters_involved || []),
-    ])];
+    const charNames = [...new Set([...(memA.characters_involved || []), ...(memB.characters_involved || [])])];
 
     const result = await verifyContradiction(memA, memB, charNames, { confidenceThreshold });
     recordAnalyzedPair(analyzedCache, memA, memB);
@@ -521,8 +510,12 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
     const deps = getDeps();
     const settings = deps.getExtensionSettings()?.[extensionName] || {};
     const enabled = settings.llmContradictionEnabled ?? defaultSettings.llmContradictionEnabled;
-    const confidenceThreshold = options.confidenceThreshold ?? settings.llmContradictionConfidence ?? defaultSettings.llmContradictionConfidence;
-    const autoMerge = options.autoMerge ?? settings.llmContradictionAutoMerge ?? defaultSettings.llmContradictionAutoMerge;
+    const confidenceThreshold =
+        options.confidenceThreshold ??
+        settings.llmContradictionConfidence ??
+        defaultSettings.llmContradictionConfidence;
+    const autoMerge =
+        options.autoMerge ?? settings.llmContradictionAutoMerge ?? defaultSettings.llmContradictionAutoMerge;
     const { rpmDelayFn, maxCalls = 3, skip = 0, priorCalls = 0, analyzedCache = null } = options;
 
     if (!enabled) {
@@ -573,14 +566,18 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
         // Per-call RPM spacing — avoids bursting RPM-limited / local users.
         // priorCalls counts calls already made elsewhere in the batch, so the first
         // call of this invocation is also spaced unless it's the batch's very first.
-        if ((priorCalls + llmCallsUsed) > 0 && rpmDelayFn) {
+        if (priorCalls + llmCallsUsed > 0 && rpmDelayFn) {
             await rpmDelayFn();
         }
 
         try {
             // verifyAndResolvePair records the pair in analyzedCache. (No need to *check*
             // the cache here — a freshly extracted memory's pairs are always new.)
-            const outcome = await verifyAndResolvePair(newMemory, existing, { confidenceThreshold, autoMerge, analyzedCache });
+            const outcome = await verifyAndResolvePair(newMemory, existing, {
+                confidenceThreshold,
+                autoMerge,
+                analyzedCache,
+            });
             llmCallsUsed++;
 
             if (outcome.contradicts) {
@@ -631,9 +628,16 @@ export async function checkNewMemoryContradictions(newMemory, existingMemories, 
 export async function checkMemorySimilarContradictions(newMemory, priorMemories, options = {}) {
     const deps = getDeps();
     const settings = deps.getExtensionSettings()?.[extensionName] || {};
-    const confidenceThreshold = options.confidenceThreshold ?? settings.llmContradictionConfidence ?? defaultSettings.llmContradictionConfidence;
-    const autoMerge = options.autoMerge ?? settings.llmContradictionAutoMerge ?? defaultSettings.llmContradictionAutoMerge;
-    const similarityThreshold = options.similarityThreshold ?? settings.llmContradictionSimilarityThreshold ?? defaultSettings.llmContradictionSimilarityThreshold;
+    const confidenceThreshold =
+        options.confidenceThreshold ??
+        settings.llmContradictionConfidence ??
+        defaultSettings.llmContradictionConfidence;
+    const autoMerge =
+        options.autoMerge ?? settings.llmContradictionAutoMerge ?? defaultSettings.llmContradictionAutoMerge;
+    const similarityThreshold =
+        options.similarityThreshold ??
+        settings.llmContradictionSimilarityThreshold ??
+        defaultSettings.llmContradictionSimilarityThreshold;
     const { rpmDelayFn, maxCalls = 1, priorCalls = 0, analyzedCache = null } = options;
 
     const newVec = getEmbedding(newMemory);
@@ -673,12 +677,16 @@ export async function checkMemorySimilarContradictions(newMemory, priorMemories,
         // Shared cache: skip pairs already verified (and unchanged) by either path.
         if (isPairAnalyzed(analyzedCache, newMemory, existing)) continue;
 
-        if ((priorCalls + llmCallsUsed) > 0 && rpmDelayFn) {
+        if (priorCalls + llmCallsUsed > 0 && rpmDelayFn) {
             await rpmDelayFn();
         }
 
         try {
-            const outcome = await verifyAndResolvePair(newMemory, existing, { confidenceThreshold, autoMerge, analyzedCache });
+            const outcome = await verifyAndResolvePair(newMemory, existing, {
+                confidenceThreshold,
+                autoMerge,
+                analyzedCache,
+            });
             llmCallsUsed++;
             if (outcome.contradicts) {
                 return {

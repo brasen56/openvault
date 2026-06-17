@@ -267,10 +267,7 @@ export function calculateScore(
     // supply it — that axis survives chat compression (Inline Summary, message deletes).
     // Fall back to position-based distance for unmigrated memories.
     let distance;
-    if (
-        typeof currentExtractionCount === 'number' &&
-        typeof memory.extraction_count === 'number'
-    ) {
+    if (typeof currentExtractionCount === 'number' && typeof memory.extraction_count === 'number') {
         distance = Math.max(0, currentExtractionCount - memory.extraction_count);
     } else {
         let maxMessagePosition = 0;

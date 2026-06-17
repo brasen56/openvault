@@ -127,7 +127,16 @@ export async function updateMemory(id, updates) {
     const summaryChanged = updates.summary !== undefined && updates.summary !== memory.summary;
 
     // Apply allowed updates
-    const allowedFields = ['summary', 'importance', 'tags', 'is_secret', 'temporal_anchor', 'is_transient', 'witnesses', 'characters_involved'];
+    const allowedFields = [
+        'summary',
+        'importance',
+        'tags',
+        'is_secret',
+        'temporal_anchor',
+        'is_transient',
+        'witnesses',
+        'characters_involved',
+    ];
     for (const field of allowedFields) {
         if (updates[field] !== undefined) {
             memory[field] = updates[field];

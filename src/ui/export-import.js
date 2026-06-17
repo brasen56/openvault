@@ -5,17 +5,12 @@
  * Strips internal fields (embeddings, tokens, sync state) from the export payload.
  */
 
-import { CHARACTERS_KEY, MEMORIES_KEY, METADATA_KEY } from '../constants.js';
-import {
-    getOpenVaultData,
-    saveOpenVaultData,
-    addMemories,
-    generateId,
-} from '../store/chat-data.js';
-import { escapeHtml, showToast } from '../utils/dom.js';
-import { deleteEmbedding } from '../utils/embedding-codec.js';
-import { getSettings, setSetting } from '../settings.js';
+import { CHARACTERS_KEY, MEMORIES_KEY } from '../constants.js';
 import { parseReclassificationResponse } from '../extraction/structured.js';
+import { getSettings, setSetting } from '../settings.js';
+import { getOpenVaultData, saveOpenVaultData } from '../store/chat-data.js';
+import { showToast } from '../utils/dom.js';
+import { deleteEmbedding } from '../utils/embedding-codec.js';
 
 /** Current export schema version for forward compatibility */
 const EXPORT_SCHEMA_VERSION = 1;
@@ -178,9 +173,7 @@ export async function heuristicReclassifyTransient() {
  * @returns {Array<{role: string, content: string}>} LLM messages
  */
 function buildReclassificationPrompt(memories) {
-    const memoryList = memories
-        .map((m) => `id="${m.id}" summary="${m.summary}"`)
-        .join('\n');
+    const memoryList = memories.map((m) => `id="${m.id}" summary="${m.summary}"`).join('\n');
 
     const systemPrompt = `You are a narrative memory classifier. Your task is to evaluate whether each memory below is "transient" (fleeting, mundane, cosmetic, single-moment, or low-stakes) or "lasting" (significant character development, plot events, relationship changes, world-state changes, revelations, or decisions with consequences).
 
@@ -244,7 +237,7 @@ function responseLooksTruncated(content) {
 function truncationError(maxTokens) {
     const err = new Error(
         `Reclassification response was cut off at the ${maxTokens}-token limit. ` +
-        `This model likely uses heavy "thinking". Increase "Reclassify max tokens" and retry.`
+            `This model likely uses heavy "thinking". Increase "Reclassify max tokens" and retry.`
     );
     /** @type {any} */ (err).isTruncation = true;
     /** @type {any} */ (err).maxTokens = maxTokens;
@@ -263,16 +256,19 @@ async function processReclassificationBatch(batch, batchNum, totalBatches, deps)
     const { updateMemory, applySyncChanges, callLLM } = deps;
     const batchItems = batch.map((m) => ({ id: m.id, summary: m.summary || '' }));
     const messages = buildReclassificationPrompt(batchItems);
-    const maxTokens = parseInt(getSettings('reclassifyMaxTokens', RECLASSIFY_DEFAULT_MAX_TOKENS), 10) || RECLASSIFY_DEFAULT_MAX_TOKENS;
+    const maxTokens =
+        parseInt(getSettings('reclassifyMaxTokens', RECLASSIFY_DEFAULT_MAX_TOKENS), 10) ||
+        RECLASSIFY_DEFAULT_MAX_TOKENS;
 
     const MAX_BATCH_RETRIES = 2;
     let lastError = null;
 
     for (let attempt = 0; attempt <= MAX_BATCH_RETRIES; attempt++) {
         try {
-            const toastMsg = attempt > 0
-                ? `Retrying batch ${batchNum}/${totalBatches} (attempt ${attempt + 1}/${MAX_BATCH_RETRIES + 1})...`
-                : `Reclassifying batch ${batchNum}/${totalBatches}...`;
+            const toastMsg =
+                attempt > 0
+                    ? `Retrying batch ${batchNum}/${totalBatches} (attempt ${attempt + 1}/${MAX_BATCH_RETRIES + 1})...`
+                    : `Reclassifying batch ${batchNum}/${totalBatches}...`;
             showToast('info', toastMsg, undefined, { duration: 3000 });
 
             const response = await callLLM(
@@ -350,7 +346,10 @@ async function processReclassificationBatch(batch, batchNum, totalBatches, deps)
         }
     }
 
-    console.error(`[OpenVault] Reclassification batch ${batchNum} failed after ${MAX_BATCH_RETRIES + 1} attempts:`, lastError);
+    console.error(
+        `[OpenVault] Reclassification batch ${batchNum} failed after ${MAX_BATCH_RETRIES + 1} attempts:`,
+        lastError
+    );
     return { marked: 0, unmarked: 0, errors: batch.length, cancelled: false };
 }
 
@@ -436,14 +435,9 @@ export async function llmReclassifyTransient() {
     }
 
     // Filter to non-reflection memories only, skip already-transient to save API calls
-    const candidates = (data[MEMORIES_KEY] || []).filter(
-        (m) => m.type !== 'reflection' && !m.is_transient
-    );
+    const candidates = (data[MEMORIES_KEY] || []).filter((m) => m.type !== 'reflection' && !m.is_transient);
 
-    return runLlmReclassification(
-        candidates,
-        `Send ${candidates.length} memories to the LLM for reclassification?`
-    );
+    return runLlmReclassification(candidates, `Send ${candidates.length} memories to the LLM for reclassification?`);
 }
 
 /**
@@ -471,10 +465,7 @@ export async function llmReclassifyLastN(n = 50) {
     const candidates = sorted.slice(0, n);
     console.log('[OpenVault] Last N candidates:', candidates.length, 'from', allMemories.length, 'total memories');
 
-    return runLlmReclassification(
-        candidates,
-        `Reclassify the ${candidates.length} most recent memories?`
-    );
+    return runLlmReclassification(candidates, `Reclassify the ${candidates.length} most recent memories?`);
 }
 
 // =============================================================================
@@ -747,21 +738,21 @@ export async function importMemoriesFromFile(file, strategy) {
         // Merge/import graph nodes
         if (payload.graph?.nodes) {
             data.graph = data.graph || { nodes: {}, edges: {} };
-            let importedNodes = 0;
+            let _importedNodes = 0;
             for (const [key, node] of Object.entries(payload.graph.nodes)) {
                 if (!data.graph.nodes[key]) {
                     data.graph.nodes[key] = node;
-                    importedNodes++;
+                    _importedNodes++;
                 }
             }
 
             // Merge/import graph edges
-            let importedEdges = 0;
+            let _importedEdges = 0;
             if (payload.graph.edges) {
                 for (const [key, edge] of Object.entries(payload.graph.edges)) {
                     if (!data.graph.edges[key]) {
                         data.graph.edges[key] = edge;
-                        importedEdges++;
+                        _importedEdges++;
                     }
                 }
             }
@@ -769,11 +760,11 @@ export async function importMemoriesFromFile(file, strategy) {
             // Import communities if merging
             if (payload.communities) {
                 data.communities = data.communities || {};
-                let importedCommunities = 0;
+                let _importedCommunities = 0;
                 for (const [key, community] of Object.entries(payload.communities)) {
                     if (!data.communities[key]) {
                         data.communities[key] = community;
-                        importedCommunities++;
+                        _importedCommunities++;
                     }
                 }
             }

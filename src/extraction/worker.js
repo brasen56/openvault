@@ -19,11 +19,11 @@ import {
 import { getCurrentChatId, getOpenVaultData } from '../store/chat-data.js';
 import { refreshAllUI } from '../ui/render.js';
 import { setStatus } from '../ui/status.js';
+import { recordExtraction } from '../ui/transparency.js';
 import { logDebug, logError } from '../utils/logging.js';
 import { isExtensionEnabled } from '../utils/st-helpers.js';
 import { extractMemories } from './extract.js';
 import { getNextBatch } from './scheduler.js';
-import { recordExtraction } from '../ui/transparency.js';
 
 const BACKOFF_SCHEDULE_SECONDS = [1, 2, 3, 10, 20, 30, 30, 60, 60];
 const MAX_BACKOFF_TOTAL_MS = 15 * 60 * 1000;

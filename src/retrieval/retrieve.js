@@ -163,7 +163,9 @@ export function buildRetrievalContext(opts = {}) {
     const entityBudget = Math.floor(totalPool * BUDGET_RATIO_ENTITY);
     const worldBudget = Math.floor(totalPool * BUDGET_RATIO_WORLD);
 
-    logDebug(`Budget split: total=${totalPool} → scene=${sceneBudget} (${BUDGET_RATIO_SCENE * 100}%) entity=${entityBudget} (${BUDGET_RATIO_ENTITY * 100}%) world=${worldBudget} (${BUDGET_RATIO_WORLD * 100}%)`);
+    logDebug(
+        `Budget split: total=${totalPool} → scene=${sceneBudget} (${BUDGET_RATIO_SCENE * 100}%) entity=${entityBudget} (${BUDGET_RATIO_ENTITY * 100}%) world=${worldBudget} (${BUDGET_RATIO_WORLD * 100}%)`
+    );
 
     return {
         recentContext,
@@ -250,10 +252,7 @@ function countHiddenMessages(chat) {
  */
 function prependGapNotice(contextText, hiddenCount, hiddenTurns) {
     const notice = `[The following summarizes ${hiddenCount} messages (~${hiddenTurns} exchanges) not shown in chat. Use these memories to maintain narrative continuity across the gap.]`;
-    return contextText.replace(
-        '<scene_memory>',
-        `<scene_memory>\n${notice}`,
-    );
+    return contextText.replace('<scene_memory>', `<scene_memory>\n${notice}`);
 }
 
 /**

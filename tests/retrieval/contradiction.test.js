@@ -87,7 +87,9 @@ describe('classifySentiment', () => {
         const { classifySentiment, Sentiment } = await import('../../src/retrieval/contradiction.js');
         // Regression guard: a negator elsewhere must not suppress an unrelated keyword
         expect(classifySentiment('Alex hates Ezra').sentiment).toBe(Sentiment.NEGATIVE);
-        expect(classifySentiment('There was no food, but Alex and Ezra are close friends').sentiment).toBe(Sentiment.POSITIVE);
+        expect(classifySentiment('There was no food, but Alex and Ezra are close friends').sentiment).toBe(
+            Sentiment.POSITIVE
+        );
     });
 
     it('handles Russian negation ("не доверяет" → negative, not positive)', async () => {

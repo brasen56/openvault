@@ -4,10 +4,17 @@
  * Core utility functions used throughout the extension.
  */
 
-import { getContext } from '../../../../extensions.js';
-import { saveChatConditional, setExtensionPrompt, extension_prompt_types } from '../../../../../script.js';
-import { extension_settings } from '../../../../extensions.js';
-import { extensionName, METADATA_KEY, MEMORIES_KEY, CHARACTERS_KEY, RELATIONSHIPS_KEY, LAST_PROCESSED_KEY, EXTRACTED_BATCHES_KEY } from './constants.js';
+import { extension_prompt_types, saveChatConditional, setExtensionPrompt } from '../../../../../script.js';
+import { extension_settings, getContext } from '../../../../extensions.js';
+import {
+    CHARACTERS_KEY,
+    EXTRACTED_BATCHES_KEY,
+    extensionName,
+    LAST_PROCESSED_KEY,
+    MEMORIES_KEY,
+    METADATA_KEY,
+    RELATIONSHIPS_KEY,
+} from './constants.js';
 
 /**
  * Wrap a promise with a timeout
@@ -18,9 +25,7 @@ import { extensionName, METADATA_KEY, MEMORIES_KEY, CHARACTERS_KEY, RELATIONSHIP
 export function withTimeout(promise, ms, operation = 'Operation') {
     return Promise.race([
         promise,
-        new Promise((_, reject) =>
-            setTimeout(() => reject(new Error(`${operation} timed out after ${ms}ms`)), ms)
-        )
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`${operation} timed out after ${ms}ms`)), ms)),
     ]);
 }
 
@@ -96,12 +101,7 @@ export function showToast(type, message, title = 'OpenVault', options = {}) {
  */
 export function safeSetExtensionPrompt(content) {
     try {
-        setExtensionPrompt(
-            extensionName,
-            content,
-            extension_prompt_types.IN_CHAT,
-            0
-        );
+        setExtensionPrompt(extensionName, content, extension_prompt_types.IN_CHAT, 0);
         return true;
     } catch (error) {
         console.error('[OpenVault] Failed to set extension prompt:', error);

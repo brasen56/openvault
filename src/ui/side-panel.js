@@ -638,7 +638,7 @@ function renderSideMemoryItem(memory) {
     const stars = formatMemoryImportance(memory.importance || 3);
     const isReflection = memory.type === 'reflection';
     const isArchived = !!memory.archived;
-    const isMerged = !!(memory.merge_sources && memory.merge_sources.length);
+    const isMerged = !!memory.merge_sources?.length;
 
     // Reflections don't have time anchors — show a reflection badge in that slot instead
     let leadBadge = '';
@@ -652,10 +652,14 @@ function renderSideMemoryItem(memory) {
     // Status badges (archived / merged)
     const statusBadges = [];
     if (isArchived) {
-        statusBadges.push('<span class="openvault-archived-badge"><i class="fa-solid fa-box-archive"></i> Archived</span>');
+        statusBadges.push(
+            '<span class="openvault-archived-badge"><i class="fa-solid fa-box-archive"></i> Archived</span>'
+        );
     }
     if (isMerged) {
-        statusBadges.push('<span class="openvault-merged-badge" style="color: #6bb5ff;"><i class="fa-solid fa-link"></i> Merged</span>');
+        statusBadges.push(
+            '<span class="openvault-merged-badge" style="color: #6bb5ff;"><i class="fa-solid fa-link"></i> Merged</span>'
+        );
     }
 
     const charTags = buildSideCharacterTags(memory.characters_involved);

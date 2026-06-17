@@ -1535,7 +1535,12 @@ describe('isCompressedRangeMessage heuristic', () => {
         const { isCompressedRangeMessage } = await import('../../src/extraction/scheduler.js');
         const summaryMsg = {
             mes: 'summary text',
-            extra: { ils_originals: [{ mes: 'orig 1', name: 'Alice' }, { mes: 'orig 2', name: 'Bob' }] },
+            extra: {
+                ils_originals: [
+                    { mes: 'orig 1', name: 'Alice' },
+                    { mes: 'orig 2', name: 'Bob' },
+                ],
+            },
         };
         expect(isCompressedRangeMessage(summaryMsg)).toBe(true);
     });

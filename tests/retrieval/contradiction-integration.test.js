@@ -12,10 +12,10 @@
  * 3. The scoring pipeline respects the toggle
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { setDeps } from '../../src/deps.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { extensionName } from '../../src/constants.js';
-import { getSettings, setSetting, loadSettings } from '../../src/settings.js';
+import { setDeps } from '../../src/deps.js';
+import { getSettings, loadSettings, setSetting } from '../../src/settings.js';
 
 // ─── Test helpers ────────────────────────────────────────────────────────────
 
@@ -49,10 +49,10 @@ function initStore(existing = {}) {
 // ─── Settings toggle integration ─────────────────────────────────────────────
 
 describe('Contradiction filter toggle (getSettings / setSetting)', () => {
-    let store;
+    let _store;
 
     beforeEach(() => {
-        store = initStore();
+        _store = initStore();
         loadSettings();
     });
 
@@ -230,10 +230,10 @@ describe('filterContradictions works correctly when called via settings', () => 
 // ─── Regression: settings round-trip with contradiction keys ─────────────────
 
 describe('Contradiction settings round-trip (all keys)', () => {
-    let store;
+    let _store;
 
     beforeEach(() => {
-        store = initStore();
+        _store = initStore();
         loadSettings();
     });
 

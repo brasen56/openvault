@@ -73,7 +73,29 @@
     </div>
 
     <div class="openvault-side-tab-content" data-side-tab-content="graph">
-        <div id="openvault_side_graph" class="openvault-side-scroll"></div>
+        <div class="openvault-graph-toolbar">
+            <input type="text" id="openvault_graph_search" class="openvault-side-search" placeholder="Search entities..." title="Highlight matching entities" />
+            <select id="openvault_graph_type_filter" class="openvault-side-select" title="Filter by entity type">
+                <option value="">All Types</option>
+                <option value="PERSON">Person</option>
+                <option value="PLACE">Place</option>
+                <option value="ORGANIZATION">Org</option>
+                <option value="OBJECT">Object</option>
+                <option value="CONCEPT">Concept</option>
+            </select>
+            <button id="openvault_graph_zoom_in" class="openvault-graph-zoom-btn" title="Zoom in">
+                <i class="fa-solid fa-magnifying-glass-plus"></i>
+            </button>
+            <button id="openvault_graph_zoom_out" class="openvault-graph-zoom-btn" title="Zoom out">
+                <i class="fa-solid fa-magnifying-glass-minus"></i>
+            </button>
+            <button id="openvault_graph_zoom_reset" class="openvault-graph-zoom-btn" title="Reset view">
+                <i class="fa-solid fa-arrows-to-circle"></i>
+            </button>
+        </div>
+        <div class="openvault-graph-legend" id="openvault_graph_legend"></div>
+        <div id="openvault_side_graph" class="openvault-graph-canvas"></div>
+        <div id="openvault_graph_details" class="openvault-graph-details"></div>
     </div>
 
     <div class="openvault-side-tab-content" data-side-tab-content="timeline">

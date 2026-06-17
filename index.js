@@ -9,6 +9,7 @@
 
 // Import from modular structure
 console.log('[OpenVault:boot] Stage 0 — module evaluation start (static imports resolving)');
+
 import { extensionName, MEMORIES_KEY } from './src/constants.js';
 import { getDeps } from './src/deps.js';
 import { updateEventListeners } from './src/events.js';
@@ -19,6 +20,7 @@ import { loadSettings } from './src/ui/settings.js';
 import { setStatus } from './src/ui/status.js';
 import { showToast } from './src/utils/dom.js';
 import { logDebug, logError, logInfo } from './src/utils/logging.js';
+
 console.log('[OpenVault:boot] Stage 1 — static imports resolved, module body executing');
 
 // Re-export extensionName for external use
@@ -181,12 +183,14 @@ async function initExtension(source) {
         const { initSidePanel, openSidePanel, toggleSidePanel } = await import('./src/ui/side-panel.js');
         await initSidePanel();
         // Bind the side panel toggle button (appears in Quick Toggles header)
-        $(document).off('click', '#openvault_side_panel_toggle').on('click', '#openvault_side_panel_toggle', (e) => {
-            e.stopPropagation();
-            toggleSidePanel();
-            // Sync active state on the button
-            $('#openvault_side_panel_toggle').toggleClass('active', $('#openvault_side_panel').hasClass('open'));
-        });
+        $(document)
+            .off('click', '#openvault_side_panel_toggle')
+            .on('click', '#openvault_side_panel_toggle', (e) => {
+                e.stopPropagation();
+                toggleSidePanel();
+                // Sync active state on the button
+                $('#openvault_side_panel_toggle').toggleClass('active', $('#openvault_side_panel').hasClass('open'));
+            });
         openSidePanel();
         console.log('[OpenVault:boot] Stage 8 — side panel initialized');
     } catch (error) {

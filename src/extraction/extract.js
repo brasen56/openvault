@@ -51,11 +51,22 @@ import {
     resolveOutputLanguage,
 } from '../prompts/index.js';
 import { accumulateImportance, generateReflections, shouldReflect } from '../reflection/reflect.js';
+import {
+    batchContradictionScan,
+    checkMemorySimilarContradictions,
+    checkNewMemoryContradictions,
+} from '../retrieval/llm-contradiction.js';
 import { calculateIDF, cosineSimilarity, tokenize } from '../retrieval/math.js';
-import { batchContradictionScan, checkMemorySimilarContradictions, checkNewMemoryContradictions } from '../retrieval/llm-contradiction.js';
 import { deleteItemsFromST, isStVectorSource, syncItemsToST } from '../services/st-vector.js';
 import { getSettings } from '../settings.js';
-import { clearAllLocks, getLastApiCallTime, isWorkerRunning, operationState, recordFailedCall, setLastApiCallTime } from '../state.js';
+import {
+    clearAllLocks,
+    getLastApiCallTime,
+    isWorkerRunning,
+    operationState,
+    recordFailedCall,
+    setLastApiCallTime,
+} from '../state.js';
 import {
     addMemories,
     getCurrentChatId,
@@ -64,13 +75,13 @@ import {
     markMessagesProcessed,
     saveOpenVaultData,
 } from '../store/chat-data.js';
-import { showToast } from '../utils/dom.js';
 import { recordExtraction } from '../ui/transparency.js';
+import { showToast } from '../utils/dom.js';
 import { cyrb53, getEmbedding, hasEmbedding, isStSynced, markStSynced } from '../utils/embedding-codec.js';
 import { logDebug, logError, logInfo, logWarn } from '../utils/logging.js';
+import { sanitizeMessageContent } from '../utils/message-sanitizer.js';
 import { createLadderQueue } from '../utils/queue.js';
 import { isExtensionEnabled, safeSetExtensionPrompt, yieldToMain } from '../utils/st-helpers.js';
-import { sanitizeMessageContent } from '../utils/message-sanitizer.js';
 import { jaccardSimilarity, sliceToTokenBudget, sortMemoriesBySequence } from '../utils/text.js';
 import { countTokens } from '../utils/tokens.js';
 import { resolveCharacterName, transliterateCyrToLat } from '../utils/transliterate.js';
@@ -110,7 +121,10 @@ const MAX_EMPTY_RETRIES = 2;
  * @returns {string}
  */
 function _getBatchKey(messages) {
-    const fps = messages.map((m) => getFingerprint(m)).sort().join('|');
+    const fps = messages
+        .map((m) => getFingerprint(m))
+        .sort()
+        .join('|');
     return String(cyrb53(fps));
 }
 
@@ -677,11 +691,11 @@ export async function synthesizeReflections(data, characterNames, settings, opti
                         }
                         await applySyncChanges(stChanges);
                     })
-                .catch((error) => {
-                    if (error.name === 'AbortError') throw error;
-                    logError(`Reflection error for ${characterName}`, error);
-                    recordFailedCall('reflection', `Character: ${characterName}`, error.message || 'Unknown error');
-                })
+                    .catch((error) => {
+                        if (error.name === 'AbortError') throw error;
+                        logError(`Reflection error for ${characterName}`, error);
+                        recordFailedCall('reflection', `Character: ${characterName}`, error.message || 'Unknown error');
+                    })
             );
         }
     }
@@ -952,8 +966,8 @@ async function checkBatchForContradictions(events, data, settings, abortSignal) 
 
     // Persisted analyzed-pair cache (shared with the periodic batch scan) so verified
     // pairs aren't re-checked later. Created lazily for chats that predate the field.
-    if (!data['contradiction_analyzed']) data['contradiction_analyzed'] = {};
-    const analyzedCache = data['contradiction_analyzed'];
+    if (!data.contradiction_analyzed) data.contradiction_analyzed = {};
+    const analyzedCache = data.contradiction_analyzed;
 
     // Budget: cap total actual LLM calls across the whole batch.
     const maxLLMCalls = settings.llmContradictionMaxCalls || 5;
@@ -1017,8 +1031,8 @@ async function checkBatchForContradictions(events, data, settings, abortSignal) 
 
     logDebug(
         `Post-extraction contradiction check: ${totalLLMCalls}/${maxLLMCalls} LLM call(s) ` +
-        `across ${events.length} new memor${events.length === 1 ? 'y' : 'ies'} ` +
-        `(${done.size} resolved or exhausted)`
+            `across ${events.length} new memor${events.length === 1 ? 'y' : 'ies'} ` +
+            `(${done.size} resolved or exhausted)`
     );
 
     // Opt-in similarity-gated pass: catches single-character / state-change contradictions
@@ -1048,7 +1062,9 @@ async function checkBatchForContradictions(events, data, settings, abortSignal) 
                 logWarn(`Similarity contradiction check failed for new memory ${event.id}: ${err.message}`);
             }
         }
-        logDebug(`Single-character contradiction pass: ${simCalls}/${maxSimCalls} LLM call(s) across ${events.length} new memories`);
+        logDebug(
+            `Single-character contradiction pass: ${simCalls}/${maxSimCalls} LLM call(s) across ${events.length} new memories`
+        );
     }
 }
 
@@ -1166,7 +1182,11 @@ export async function extractMemories(messageIds = null, targetChatId = null, op
             rawEvents = result.events;
         } catch (eventError) {
             if (eventError.name === 'AbortError') throw eventError;
-            recordFailedCall('events', `Events extraction (${messages.length} messages)`, eventError.message || 'Unknown error');
+            recordFailedCall(
+                'events',
+                `Events extraction (${messages.length} messages)`,
+                eventError.message || 'Unknown error'
+            );
             logError('Event extraction failed', eventError);
             rawEvents = [];
         }
@@ -1205,9 +1225,7 @@ export async function extractMemories(messageIds = null, targetChatId = null, op
             _emptyExtractionAttempts.set(batchKey, attempts);
 
             if (attempts <= MAX_EMPTY_RETRIES) {
-                logDebug(
-                    `LLM returned 0 events (attempt ${attempts}/${MAX_EMPTY_RETRIES + 1}), will retry batch`
-                );
+                logDebug(`LLM returned 0 events (attempt ${attempts}/${MAX_EMPTY_RETRIES + 1}), will retry batch`);
                 return {
                     status: 'no_events_retry',
                     attempt: attempts,
@@ -1284,7 +1302,12 @@ export async function extractMemories(messageIds = null, targetChatId = null, op
                 // ===== Backfill guard: skip Phase 2 LLM synthesis =====
                 if (options.isBackfill) {
                     logDebug('Backfill mode: skipping Phase 2 LLM synthesis for this batch');
-                    return { status: 'success', events_created: events.length, messages_processed: messages.length, event_summaries: events.map(e => e.summary || '').filter(Boolean) };
+                    return {
+                        status: 'success',
+                        events_created: events.length,
+                        messages_processed: messages.length,
+                        event_summaries: events.map((e) => e.summary || '').filter(Boolean),
+                    };
                 }
                 // ===== END BACKFILL GUARD =====
 
@@ -1326,12 +1349,12 @@ export async function extractMemories(messageIds = null, targetChatId = null, op
                     await rpmDelay(settings, 'Phase 2 batch contradiction scan rate limit');
                     try {
                         const allMemories = data[MEMORIES_KEY] || [];
-                        if (!data['contradiction_analyzed']) data['contradiction_analyzed'] = {};
+                        if (!data.contradiction_analyzed) data.contradiction_analyzed = {};
                         const scanResults = await batchContradictionScan(allMemories, {
                             maxCalls: settings.llmContradictionMaxCalls || 5,
                             confidenceThreshold: settings.llmContradictionConfidence || 0.7,
                             autoMerge: true,
-                            analyzedCache: data['contradiction_analyzed'],
+                            analyzedCache: data.contradiction_analyzed,
                         });
                         if (scanResults.length > 0) {
                             logDebug(`Batch contradiction scan: ${scanResults.length} contradictions resolved`);
@@ -1371,7 +1394,7 @@ export async function extractMemories(messageIds = null, targetChatId = null, op
             status: 'success',
             events_created: events.length,
             messages_processed: messages.length,
-            event_summaries: events.map(e => e.summary || '').filter(Boolean),
+            event_summaries: events.map((e) => e.summary || '').filter(Boolean),
         };
     } catch (error) {
         if (error.name === 'AbortError') throw error; // Don't log cancellation

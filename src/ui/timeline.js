@@ -10,10 +10,10 @@
  * and marked with a visual indicator.
  */
 
-import { MEMORIES_KEY, extensionName } from '../constants.js';
+import { extensionName, MEMORIES_KEY } from '../constants.js';
 import { getDeps } from '../deps.js';
 import { getFingerprint } from '../extraction/scheduler.js';
-import { getOpenVaultData, deleteMemory, updateMemory } from '../store/chat-data.js';
+import { deleteMemory, getOpenVaultData, updateMemory } from '../store/chat-data.js';
 import { escapeHtml, showToast } from '../utils/dom.js';
 import { formatMemoryDate, formatMemoryImportance, getTransientDecayInfo } from './helpers.js';
 import { renderMemoryEdit } from './templates.js';
@@ -72,8 +72,7 @@ function buildTimelineEntries() {
     const settings = getDeps().getExtensionSettings()?.[extensionName] || {};
     const baseLambda = settings.forgetfulnessBaseLambda ?? 0.05;
     const transientMultiplier = settings.transientDecayMultiplier ?? 5.0;
-    const currentExtractionCount =
-        typeof data?.graph_message_count === 'number' ? data.graph_message_count : null;
+    const currentExtractionCount = typeof data?.graph_message_count === 'number' ? data.graph_message_count : null;
 
     const entries = memories
         .filter((m) => !m.archived)
@@ -189,9 +188,7 @@ function groupByPhase(entries) {
     // Use temporal anchors for group labels if available
     for (const group of groups) {
         if (group.isSummarized) continue; // Keep "Summarized" label
-        const anchors = group.entries
-            .filter((e) => e.temporalAnchor)
-            .map((e) => e.temporalAnchor);
+        const anchors = group.entries.filter((e) => e.temporalAnchor).map((e) => e.temporalAnchor);
         if (anchors.length > 0) {
             // Use the first temporal anchor as the phase label
             group.label = anchors[0];
@@ -229,9 +226,10 @@ function renderTimelineEntry(entry, index, total) {
     const anchorLabel = entry.temporalAnchor
         ? `<span class="openvault-timeline-anchor"><i class="fa-solid fa-clock"></i> ${escapeHtml(entry.temporalAnchor)}</span>`
         : '';
-    const charTags = entry.characters.length > 0
-        ? `<div class="openvault-timeline-chars">${entry.characters.map((c) => `<span class="openvault-character-tag">${escapeHtml(c)}</span>`).join('')}</div>`
-        : '';
+    const charTags =
+        entry.characters.length > 0
+            ? `<div class="openvault-timeline-chars">${entry.characters.map((c) => `<span class="openvault-character-tag">${escapeHtml(c)}</span>`).join('')}</div>`
+            : '';
 
     return `
         <div class="openvault-timeline-entry ${entry.isReflection ? 'reflection' : ''} ${entry.isTransient ? 'transient' : ''} ${entry.isOrphaned ? 'orphaned' : ''}">
@@ -292,12 +290,13 @@ function renderPhaseHeader(group) {
  * @param {number} orphanedCount - Number of orphaned entries
  * @returns {string} HTML string
  */
-function renderTimelineToolbar(entryCount, orphanedCount) {
-    const orphanedWarning = orphanedCount > 0
-        ? `<span class="openvault-timeline-orphaned-warning" title="${orphanedCount} memories reference messages that were summarized by Inline Summary">
+function renderTimelineToolbar(_entryCount, orphanedCount) {
+    const orphanedWarning =
+        orphanedCount > 0
+            ? `<span class="openvault-timeline-orphaned-warning" title="${orphanedCount} memories reference messages that were summarized by Inline Summary">
             <i class="fa-solid fa-triangle-exclamation"></i> ${orphanedCount} Summarized
            </span>`
-        : '';
+            : '';
 
     return `
         <div class="openvault-timeline-toolbar">
@@ -333,7 +332,7 @@ export function renderTimeline(container) {
     }
 
     const groups = groupByPhase(entries);
-    const orphanedCount = entries.filter(e => e.isOrphaned).length;
+    const orphanedCount = entries.filter((e) => e.isOrphaned).length;
 
     let html = renderTimelineToolbar(entries.length, orphanedCount);
 
@@ -352,9 +351,7 @@ export function renderTimeline(container) {
 
     for (const group of groups) {
         html += renderPhaseHeader(group);
-        html += group.entries
-            .map((entry, idx) => renderTimelineEntry(entry, idx, group.entries.length))
-            .join('');
+        html += group.entries.map((entry, idx) => renderTimelineEntry(entry, idx, group.entries.length)).join('');
     }
 
     html += '</div>';
@@ -428,7 +425,7 @@ export function bindTimelineEvents($container) {
     // Cancel edit on timeline entries
     $container.on('click', '.openvault-cancel-edit', function (e) {
         e.stopPropagation();
-        const id = $(this).data('id');
+        const _id = $(this).data('id');
         refreshTimelineTab();
     });
 
@@ -444,7 +441,12 @@ export function bindTimelineEvents($container) {
         const temporal_anchor = $card.find('[data-field="temporal_anchor"]').val().trim() || null;
         const is_transient = $card.find('[data-field="is_transient"]').is(':checked');
         const witnessesRaw = $card.find('[data-field="witnesses"]').val()?.toString()?.trim() || '';
-        const witnesses = witnessesRaw ? witnessesRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+        const witnesses = witnessesRaw
+            ? witnessesRaw
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+            : [];
 
         if (!summary) {
             showToast('warning', 'Summary cannot be empty');
@@ -453,7 +455,14 @@ export function bindTimelineEvents($container) {
 
         $btn.prop('disabled', true);
         try {
-            const result = await updateMemory(id, { summary, importance, temporal_anchor, is_transient, witnesses, characters_involved: witnesses });
+            const result = await updateMemory(id, {
+                summary,
+                importance,
+                temporal_anchor,
+                is_transient,
+                witnesses,
+                characters_involved: witnesses,
+            });
             if (result?.success) {
                 if (result.stChanges) {
                     const { applySyncChanges } = await import('../extraction/extract.js');
@@ -482,7 +491,11 @@ export function bindTimelineEvents($container) {
         try {
             const result = await deleteMemory(id);
             if (result?.success) {
-                $(this).closest('.openvault-timeline-entry').fadeOut(200, function () { $(this).remove(); });
+                $(this)
+                    .closest('.openvault-timeline-entry')
+                    .fadeOut(200, function () {
+                        $(this).remove();
+                    });
                 showToast('success', 'Memory deleted from timeline');
             } else {
                 showToast('error', 'Failed to delete memory');

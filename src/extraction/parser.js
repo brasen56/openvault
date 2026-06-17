@@ -4,8 +4,8 @@
  * Parses LLM extraction results and updates character states and relationships.
  */
 
-import { generateId, log } from '../utils.js';
 import { CHARACTERS_KEY, RELATIONSHIPS_KEY } from '../constants.js';
+import { generateId, log } from '../utils.js';
 
 /**
  * Parse extraction result from LLM
@@ -16,7 +16,7 @@ import { CHARACTERS_KEY, RELATIONSHIPS_KEY } from '../constants.js';
  * @param {string} batchId - Unique batch ID for this extraction run
  * @returns {Array} Array of parsed event objects
  */
-export function parseExtractionResult(jsonString, messages, characterName, userName, batchId = null) {
+export function parseExtractionResult(jsonString, messages, _characterName, _userName, batchId = null) {
     try {
         // Extract JSON from response (handle markdown code blocks)
         let cleaned = jsonString;
@@ -29,7 +29,7 @@ export function parseExtractionResult(jsonString, messages, characterName, userN
         const events = Array.isArray(parsed) ? parsed : [parsed];
 
         // Get message IDs for sequence ordering
-        const messageIds = messages.map(m => m.id);
+        const messageIds = messages.map((m) => m.id);
         const minMessageId = Math.min(...messageIds);
 
         // Enrich events with metadata
@@ -66,9 +66,8 @@ export function updateCharacterStatesFromEvents(events, data) {
     for (const event of events) {
         // Get message range for this event
         const messageIds = event.message_ids || [];
-        const messageRange = messageIds.length > 0
-            ? { min: Math.min(...messageIds), max: Math.max(...messageIds) }
-            : null;
+        const messageRange =
+            messageIds.length > 0 ? { min: Math.min(...messageIds), max: Math.max(...messageIds) } : null;
 
         // Update emotional impact
         if (event.emotional_impact) {
@@ -92,7 +91,7 @@ export function updateCharacterStatesFromEvents(events, data) {
         }
 
         // Add event to witnesses' knowledge
-        for (const witness of (event.witnesses || [])) {
+        for (const witness of event.witnesses || []) {
             if (!data[CHARACTERS_KEY][witness]) {
                 data[CHARACTERS_KEY][witness] = {
                     name: witness,
@@ -140,15 +139,27 @@ export function updateRelationshipsFromEvents(events, data) {
                 // Update based on impact description
                 const impactLower = impact.toLowerCase();
                 if (impactLower.includes('trust') && impactLower.includes('increas')) {
-                    data[RELATIONSHIPS_KEY][key].trust_level = Math.min(10, data[RELATIONSHIPS_KEY][key].trust_level + 1);
+                    data[RELATIONSHIPS_KEY][key].trust_level = Math.min(
+                        10,
+                        data[RELATIONSHIPS_KEY][key].trust_level + 1
+                    );
                 } else if (impactLower.includes('trust') && impactLower.includes('decreas')) {
-                    data[RELATIONSHIPS_KEY][key].trust_level = Math.max(0, data[RELATIONSHIPS_KEY][key].trust_level - 1);
+                    data[RELATIONSHIPS_KEY][key].trust_level = Math.max(
+                        0,
+                        data[RELATIONSHIPS_KEY][key].trust_level - 1
+                    );
                 }
 
                 if (impactLower.includes('tension') && impactLower.includes('increas')) {
-                    data[RELATIONSHIPS_KEY][key].tension_level = Math.min(10, data[RELATIONSHIPS_KEY][key].tension_level + 1);
+                    data[RELATIONSHIPS_KEY][key].tension_level = Math.min(
+                        10,
+                        data[RELATIONSHIPS_KEY][key].tension_level + 1
+                    );
                 } else if (impactLower.includes('tension') && impactLower.includes('decreas')) {
-                    data[RELATIONSHIPS_KEY][key].tension_level = Math.max(0, data[RELATIONSHIPS_KEY][key].tension_level - 1);
+                    data[RELATIONSHIPS_KEY][key].tension_level = Math.max(
+                        0,
+                        data[RELATIONSHIPS_KEY][key].tension_level - 1
+                    );
                 }
 
                 // Add to history

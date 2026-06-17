@@ -13,10 +13,10 @@
  * this. Do not mock getSettings/setSetting/loadSettings here.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getSettings, setSetting, loadSettings } from '../../src/settings.js';
-import { setDeps } from '../../src/deps.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { extensionName } from '../../src/constants.js';
+import { setDeps } from '../../src/deps.js';
+import { getSettings, loadSettings, setSetting } from '../../src/settings.js';
 
 describe('settings.js with no lodash on the ST context', () => {
     /** @type {Record<string, any>} */

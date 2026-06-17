@@ -7,7 +7,7 @@
 
 // @ts-check
 
-import { defaultSettings, extensionName } from './constants.js';
+import { extensionName } from './constants.js';
 import { getDeps } from './deps.js';
 import {
     getCommunitySummaryJsonSchema,
@@ -17,7 +17,6 @@ import {
     getGraphExtractionJsonSchema,
     getUnifiedReflectionJsonSchema,
 } from './extraction/structured.js';
-import { getSettings } from './settings.js';
 import { getSessionSignal, setLastApiCallTime } from './state.js';
 import { showToast } from './utils/dom.js';
 import { logDebug, logError, logRequest } from './utils/logging.js';
@@ -115,7 +114,13 @@ function isTransientError(error) {
     // 5xx server errors
     if (msg.includes('500') || msg.includes('502') || msg.includes('503') || msg.includes('504')) return true;
     // Network errors
-    if (msg.includes('network') || msg.includes('fetch failed') || msg.includes('econnrefused') || msg.includes('enotfound')) return true;
+    if (
+        msg.includes('network') ||
+        msg.includes('fetch failed') ||
+        msg.includes('econnrefused') ||
+        msg.includes('enotfound')
+    )
+        return true;
     // Rate limit (429) — retryable after backoff
     if (msg.includes('429') || msg.includes('rate limit')) return true;
     return false;
@@ -142,8 +147,10 @@ async function withRetry(fn, maxRetries = 2, baseDelayMs = 1500, errorContext = 
             // Don't retry if not transient or if this was the last attempt
             if (!isTransientError(error) || attempt >= maxRetries) throw error;
 
-            const delay = baseDelayMs * Math.pow(2, attempt);
-            logDebug(`${errorContext}: transient error (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms: ${error.message}`);
+            const delay = baseDelayMs * 2 ** attempt;
+            logDebug(
+                `${errorContext}: transient error (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms: ${error.message}`
+            );
             await new Promise((r) => setTimeout(r, delay));
         }
     }
@@ -244,7 +251,7 @@ export async function callLLM(messages, config, options = {}) {
         logDebug(`Using ConnectionManagerRequestService with profile: ${profileId}`);
         return await withRetry(
             () => executeRequest(profileId),
-            2,    // maxRetries
+            2, // maxRetries
             1500, // baseDelayMs
             errorContext
         );
@@ -261,7 +268,7 @@ export async function callLLM(messages, config, options = {}) {
             try {
                 const backupResult = await withRetry(
                     () => executeRequest(backupProfileId),
-                    1,    // maxRetries (fewer for backup)
+                    1, // maxRetries (fewer for backup)
                     2000, // baseDelayMs
                     `${errorContext} backup`
                 );

@@ -294,7 +294,9 @@ class TransformersStrategy extends EmbeddingStrategy {
                     if (webgpu && 'powerPreference' in webgpu) {
                         delete webgpu.powerPreference;
                     }
-                } catch { /* ignore */ }
+                } catch {
+                    /* ignore */
+                }
 
                 let lastReportedPct = 0;
                 const pipe = await pipeline('feature-extraction', modelConfig.name, {
@@ -518,15 +520,16 @@ class OpenAICompatStrategy extends EmbeddingStrategy {
         try {
             const cleanUrl = url.replace(/\/+$/, '');
             // Support both /v1/embeddings and bare base URL
-            const endpoint = cleanUrl.endsWith('/embeddings') || cleanUrl.endsWith('/embeddings/')
-                ? cleanUrl
-                : `${cleanUrl}/v1/embeddings`;
+            const endpoint =
+                cleanUrl.endsWith('/embeddings') || cleanUrl.endsWith('/embeddings/')
+                    ? cleanUrl
+                    : `${cleanUrl}/v1/embeddings`;
 
             const headers = {
                 'Content-Type': 'application/json',
             };
             if (apiKey) {
-                headers['Authorization'] = `Bearer ${apiKey}`;
+                headers.Authorization = `Bearer ${apiKey}`;
             }
 
             const response = await getDeps().fetch(endpoint, {
@@ -581,15 +584,14 @@ export async function testOpenAICompatConnection(url, apiKey, model) {
     }
 
     const cleanUrl = url.replace(/\/+$/, '');
-    const endpoint = cleanUrl.endsWith('/embeddings') || cleanUrl.endsWith('/embeddings/')
-        ? cleanUrl
-        : `${cleanUrl}/v1/embeddings`;
+    const endpoint =
+        cleanUrl.endsWith('/embeddings') || cleanUrl.endsWith('/embeddings/') ? cleanUrl : `${cleanUrl}/v1/embeddings`;
 
     const headers = {
         'Content-Type': 'application/json',
     };
     if (apiKey) {
-        headers['Authorization'] = `Bearer ${apiKey}`;
+        headers.Authorization = `Bearer ${apiKey}`;
     }
 
     const response = await getDeps().fetch(endpoint, {

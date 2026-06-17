@@ -125,9 +125,7 @@ export function buildEmbeddingQuery(messages, extractedEntities, queryConfig, ac
     // Append top entities (adds semantic anchors), but exclude active character names
     // — they bias the vector toward "anything about the protagonist" rather than the current scene
     const charNameSet = new Set(activeCharacters.map((n) => n.toLowerCase()));
-    const filteredEntities = (extractedEntities?.entities || []).filter(
-        (e) => !charNameSet.has(e.toLowerCase())
-    );
+    const filteredEntities = (extractedEntities?.entities || []).filter((e) => !charNameSet.has(e.toLowerCase()));
     const topEntities = filteredEntities.slice(0, 5).join(' ');
 
     // Cap at strategy's optimal chunk size — entities are prepended so they survive truncation

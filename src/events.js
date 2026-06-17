@@ -23,7 +23,7 @@ import { getOpenVaultData } from './store/chat-data.js';
 import { runSchemaMigrations } from './store/migrations/index.js';
 import { refreshAllUI, resetMemoryBrowserPage } from './ui/render.js';
 import { setStatus } from './ui/status.js';
-import { resetSessionStartTime, recordInjection } from './ui/transparency.js';
+import { recordInjection, resetSessionStartTime } from './ui/transparency.js';
 import { showToast } from './utils/dom.js';
 import { logDebug, logError } from './utils/logging.js';
 import { isExtensionEnabled, safeSetExtensionPrompt, withTimeout } from './utils/st-helpers.js';
@@ -83,9 +83,8 @@ export async function autoHideOldMessages() {
             }
         }
 
-        const hideableIndices = frozenReplies > 0
-            ? visibleIndices.filter(idx => idx >= frozenBoundary)
-            : visibleIndices;
+        const hideableIndices =
+            frozenReplies > 0 ? visibleIndices.filter((idx) => idx >= frozenBoundary) : visibleIndices;
 
         // ── Constraint 1: Token budget ──
         const totalVisibleTokens = getTokenSum(chat, visibleIndices);
@@ -133,9 +132,7 @@ export async function autoHideOldMessages() {
         const reasons = [];
         if (needsTokenHide) reasons.push(`token budget: ${visibleChatBudget}, was: ${totalVisibleTokens}`);
         if (needsMessageHide) reasons.push(`message cap: ${maxVisibleMessages}, was: ${visibleIndices.length}`);
-        logDebug(
-            `Auto-hid ${snapped.length} messages (${reasons.join('; ')})`
-        );
+        logDebug(`Auto-hid ${snapped.length} messages (${reasons.join('; ')})`);
         showToast('info', `Auto-hid ${snapped.length} old messages`);
     } finally {
         record('auto_hide', performance.now() - t0);
@@ -225,7 +222,11 @@ export async function onBeforeGeneration(type, _options, dryRun = false) {
             `>>> Pre-generation retrieval starting (type: ${type}, message: "${pendingUserMessage.substring(0, 50)}...")`
         );
         const t0Retrieval = performance.now();
-        const retrievalResult = await withTimeout(updateInjection(pendingUserMessage), RETRIEVAL_TIMEOUT_MS, 'Memory retrieval');
+        const retrievalResult = await withTimeout(
+            updateInjection(pendingUserMessage),
+            RETRIEVAL_TIMEOUT_MS,
+            'Memory retrieval'
+        );
         record('retrieval_injection', performance.now() - t0Retrieval);
         logDebug('>>> Pre-generation retrieval complete');
 

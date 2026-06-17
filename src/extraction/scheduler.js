@@ -8,7 +8,10 @@
 import { PROCESSED_MESSAGES_KEY, SWIPE_PROTECTION_TAIL_MESSAGES } from '../constants.js';
 import { cyrb53 } from '../utils/embedding-codec.js';
 import { logDebug } from '../utils/logging.js';
-import { getSanitizedTokenCount as getMessageTokenCount, getSanitizedTokenSum as getTokenSum } from '../utils/message-sanitizer.js';
+import {
+    getSanitizedTokenCount as getMessageTokenCount,
+    getSanitizedTokenSum as getTokenSum,
+} from '../utils/message-sanitizer.js';
 import { countTurns, snapToTurnBoundary } from '../utils/tokens.js';
 
 /**
@@ -46,8 +49,12 @@ export function isCompressedRangeMessage(msg) {
     for (const val of Object.values(msg.extra)) {
         if (!Array.isArray(val) || val.length === 0) continue;
         const first = val[0];
-        if (first && typeof first === 'object' && typeof first.mes === 'string' &&
-            ('name' in first || 'is_user' in first)) {
+        if (
+            first &&
+            typeof first === 'object' &&
+            typeof first.mes === 'string' &&
+            ('name' in first || 'is_user' in first)
+        ) {
             return true;
         }
     }

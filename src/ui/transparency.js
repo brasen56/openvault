@@ -6,10 +6,8 @@
  * and an injection preview.
  */
 
-import { extensionName } from '../constants.js';
 import { getDeps } from '../deps.js';
 import { escapeHtml, showToast } from '../utils/dom.js';
-import { logDebug } from '../utils/logging.js';
 
 // ── State ────────────────────────────────────────────────────────────────────
 
@@ -121,7 +119,8 @@ function showExtractionNotification(extraction) {
         bodyHtml += `<li class="openvault-extraction-notify-more">…and ${remaining} more</li>`;
     }
     bodyHtml += '</ul>';
-    bodyHtml += '<button class="openvault-extraction-notify-view" onclick="document.dispatchEvent(new CustomEvent(\'openvault:view-recent\'))">View in Panel</button>';
+    bodyHtml +=
+        '<button class="openvault-extraction-notify-view" onclick="document.dispatchEvent(new CustomEvent(\'openvault:view-recent\'))">View in Panel</button>';
     bodyHtml += '</div>';
 
     // Try to show via toastr with extended time and HTML

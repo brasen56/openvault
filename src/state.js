@@ -126,7 +126,11 @@ export function recordFailedCall(operationType, contextLabel, errorMessage, retr
 
     // Notify listeners
     for (const listener of _failedCallListeners) {
-        try { listener(_failedCalls); } catch { /* ignore listener errors */ }
+        try {
+            listener(_failedCalls);
+        } catch {
+            /* ignore listener errors */
+        }
     }
 }
 
@@ -153,7 +157,11 @@ export function dismissFailedCall(id) {
     if (idx !== -1) {
         _failedCalls.splice(idx, 1);
         for (const listener of _failedCallListeners) {
-            try { listener(_failedCalls); } catch { /* ignore listener errors */ }
+            try {
+                listener(_failedCalls);
+            } catch {
+                /* ignore listener errors */
+            }
         }
     }
 }
@@ -164,7 +172,11 @@ export function dismissFailedCall(id) {
 export function clearFailedCalls() {
     _failedCalls.length = 0;
     for (const listener of _failedCallListeners) {
-        try { listener(_failedCalls); } catch { /* ignore listener errors */ }
+        try {
+            listener(_failedCalls);
+        } catch {
+            /* ignore listener errors */
+        }
     }
 }
 

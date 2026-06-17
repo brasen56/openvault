@@ -54,10 +54,7 @@ export function getTransientDecayInfo(
     // for unstamped (pre-v4) memories or when the caller doesn't pass the count.
     let elapsed = null;
     let remaining = null;
-    if (
-        typeof currentExtractionCount === 'number' &&
-        typeof memory?.extraction_count === 'number'
-    ) {
+    if (typeof currentExtractionCount === 'number' && typeof memory?.extraction_count === 'number') {
         elapsed = Math.max(0, currentExtractionCount - memory.extraction_count);
         const effectiveLifespan = halfLife * 3;
         remaining = Math.max(0, effectiveLifespan - elapsed);
@@ -152,9 +149,12 @@ export function filterEntities(graph, query, typeFilter, searchScope = 'all') {
                     return name.includes(normalizedQuery);
                 case 'name_aliases':
                     return name.includes(normalizedQuery) || aliases.includes(normalizedQuery);
-                case 'all':
                 default:
-                    return name.includes(normalizedQuery) || desc.includes(normalizedQuery) || aliases.includes(normalizedQuery);
+                    return (
+                        name.includes(normalizedQuery) ||
+                        desc.includes(normalizedQuery) ||
+                        aliases.includes(normalizedQuery)
+                    );
             }
         })
         .sort((a, b) => (b[1].mentions || 0) - (a[1].mentions || 0));

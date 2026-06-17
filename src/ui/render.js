@@ -824,11 +824,13 @@ const selectedMemoryIds = new Set();
  * Get selected memory IDs from checkboxes on the current page
  * @returns {string[]} Array of selected memory IDs
  */
-function getSelectedIds() {
+function _getSelectedIds() {
     const ids = [];
-    $(SELECTORS.MEMORY_LIST).find('.openvault-memory-select:checked').each(function () {
-        ids.push(String($(this).data('id')));
-    });
+    $(SELECTORS.MEMORY_LIST)
+        .find('.openvault-memory-select:checked')
+        .each(function () {
+            ids.push(String($(this).data('id')));
+        });
     return ids;
 }
 

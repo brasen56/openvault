@@ -6,7 +6,7 @@
  */
 
 import { MEMORIES_KEY } from '../constants.js';
-import { getOpenVaultData, deleteMemory as deleteMemoryAction, saveOpenVaultData } from '../store/chat-data.js';
+import { deleteMemory as deleteMemoryAction, getOpenVaultData, saveOpenVaultData } from '../store/chat-data.js';
 import { escapeHtml, showToast } from '../utils/dom.js';
 
 // =============================================================================
@@ -19,8 +19,7 @@ import { escapeHtml, showToast } from '../utils/dom.js';
  */
 function getAllMemories() {
     const data = getOpenVaultData();
-    return (data?.[MEMORIES_KEY] || [])
-        .filter((m) => !m.archived);
+    return (data?.[MEMORIES_KEY] || []).filter((m) => !m.archived);
 }
 
 /**
@@ -75,8 +74,11 @@ export function findNearDuplicates() {
             const a = sorted[i];
             const b = sorted[j];
 
-            // Skip if already reviewed (both archived)
-            if (a.archived && b.archived) continue;
+            // Skip if this pair was already reviewed via skip/merge.
+            // Both memories get _dup_reviewed = true when the user resolves
+            // a pair, so checking both avoids hiding unrelated pairs that
+            // happen to share one reviewed memory.
+            if (a._dup_reviewed && b._dup_reviewed) continue;
 
             // Skip different types (event vs reflection)
             if ((a.type || 'event') !== (b.type || 'event')) continue;
@@ -280,7 +282,7 @@ export async function handleDuplicateAction(action, index) {
                 memA._dup_reviewed = true;
                 memB._dup_reviewed = true;
                 await saveOpenVaultData();
-                showToast('success', 'Memories merged (both kept, B enriched with A\'s context)');
+                showToast('success', "Memories merged (both kept, B enriched with A's context)");
             }
         }
 
@@ -311,7 +313,7 @@ export function bindDuplicateEvents($container) {
     $container.on('click', '.openvault-dup-action-btn', function () {
         const action = $(this).data('action');
         const index = parseInt($(this).data('index'), 10);
-        if (!action || isNaN(index)) return;
+        if (!action || Number.isNaN(index)) return;
         handleDuplicateAction(action, index);
     });
 }

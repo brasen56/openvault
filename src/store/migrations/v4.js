@@ -41,9 +41,8 @@ function backfillExtractionCount(data) {
         // Clamp to [0, graphCount] — never future-stamp.
         // When graphCount is 0 (unseeded data), fall through with the candidate value
         // so memories still get *some* anchor; once the counter starts moving they decay.
-        memory.extraction_count = graphCount > 0
-            ? Math.min(Math.max(0, candidate), graphCount)
-            : Math.max(0, candidate);
+        memory.extraction_count =
+            graphCount > 0 ? Math.min(Math.max(0, candidate), graphCount) : Math.max(0, candidate);
         changed = true;
     }
 

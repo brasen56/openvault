@@ -225,7 +225,9 @@
     font-size: 0.85em;
     border-radius: 3px;
     opacity: 0.5;
-    transition: opacity 0.15s, color 0.15s;
+    transition:
+        opacity 0.15s,
+        color 0.15s;
     flex-shrink: 0;
 }
 
@@ -282,7 +284,7 @@
     flex-wrap: wrap;
     gap: 6px;
     padding: 8px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 .openvault-manage-filters .openvault-side-search {
     flex: 1;
@@ -346,7 +348,10 @@
     padding: 4px 8px;
     font-size: 0.85em;
     opacity: 0.6;
-    transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+    transition:
+        opacity 0.15s,
+        color 0.15s,
+        border-color 0.15s;
     flex-shrink: 0;
 }
 
@@ -388,12 +393,195 @@
     user-select: none;
 }
 
+/* Graph toolbar (search + type filter + zoom) */
+.openvault-graph-toolbar {
+    display: flex;
+    gap: 6px;
+    padding: 8px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #333);
+    flex-shrink: 0;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.openvault-graph-toolbar .openvault-side-search {
+    flex: 1;
+    min-width: 100px;
+}
+
+.openvault-graph-zoom-btn {
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2));
+    border: 1px solid var(--SmartThemeBorderColor, #333);
+    border-radius: 4px;
+    color: var(--SmartThemeBodyColor, #ccc);
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 0.85em;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.openvault-graph-zoom-btn:hover {
+    background: var(--SmartThemeEmColor, #48c);
+    color: #fff;
+    border-color: var(--SmartThemeEmColor, #48c);
+}
+
+/* Legend showing entity type colors */
+.openvault-graph-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor, #333);
+    font-size: 0.72em;
+    flex-shrink: 0;
+}
+
+.openvault-graph-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--SmartThemeBodyColor, #ccc);
+    opacity: 0.85;
+}
+
+.openvault-graph-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* Graph canvas (SVG container) */
+.openvault-graph-canvas {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+    cursor: grab;
+}
+
+.openvault-graph-canvas:active {
+    cursor: grabbing;
+}
+
 /* Graph visualization SVG */
 .openvault-graph-svg {
     display: block;
     width: 100%;
     height: 100%;
     flex-shrink: 0;
+}
+
+/* Details panel that appears when a node is selected */
+.openvault-graph-details {
+    flex-shrink: 0;
+    max-height: 35%;
+    overflow-y: auto;
+    padding: 10px 12px;
+    border-top: 1px solid var(--SmartThemeBorderColor, #333);
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.15));
+    font-size: 0.85em;
+    line-height: 1.4;
+    display: none;
+}
+
+.openvault-graph-details.open {
+    display: block;
+}
+
+.openvault-graph-details-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.openvault-graph-details-name {
+    font-weight: 600;
+    color: var(--SmartThemeEmColor, #48c);
+    font-size: 1em;
+}
+
+.openvault-graph-details-type {
+    font-size: 0.78em;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: rgba(72, 136, 204, 0.15);
+    color: var(--SmartThemeEmColor, #48c);
+}
+
+.openvault-graph-details-desc {
+    color: var(--SmartThemeBodyColor, #ccc);
+    margin-bottom: 6px;
+}
+
+.openvault-graph-details-aliases {
+    font-size: 0.82em;
+    color: var(--SmartThemeEmColor, #888);
+    margin-bottom: 6px;
+}
+
+.openvault-graph-details-meta {
+    font-size: 0.78em;
+    color: var(--SmartThemeEmColor, #666);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.openvault-graph-details-edges {
+    margin-top: 8px;
+    font-size: 0.8em;
+}
+
+.openvault-graph-details-edges-title {
+    color: var(--SmartThemeEmColor, #888);
+    margin-bottom: 4px;
+    font-size: 0.9em;
+}
+
+.openvault-graph-details-edge {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    color: var(--SmartThemeBodyColor, #ccc);
+}
+
+.openvault-graph-details-edge:last-child {
+    border-bottom: none;
+}
+
+.openvault-graph-details-edge-target {
+    color: var(--SmartThemeEmColor, #48c);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.openvault-graph-details-edge-desc {
+    color: var(--SmartThemeBodyColor, #ccc);
+    opacity: 0.85;
+    font-size: 0.92em;
+}
+
+.openvault-graph-details-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--SmartThemeEmColor, #888);
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 1em;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+
+.openvault-graph-details-close:hover {
+    opacity: 1;
+    color: #e74c3c;
 }
 
 /* Graph tooltip */
@@ -883,8 +1071,13 @@
 }
 
 @keyframes openvault-pulse-dot {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.4;
+    }
 }
 
 .openvault-timeline-line {

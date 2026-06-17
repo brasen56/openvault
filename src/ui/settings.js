@@ -1435,7 +1435,9 @@ export function updateSidePanelGeneralSettings() {
     $('#openvault_side_reranker_top_n').val(settings.rerankerTopN ?? defaultSettings.rerankerTopN);
     $('#openvault_side_reranker_top_n_value').text(settings.rerankerTopN ?? defaultSettings.rerankerTopN);
     $('#openvault_side_reranker_max_docs').val(settings.rerankerMaxDocuments ?? defaultSettings.rerankerMaxDocuments);
-    $('#openvault_side_reranker_max_docs_value').text(settings.rerankerMaxDocuments ?? defaultSettings.rerankerMaxDocuments);
+    $('#openvault_side_reranker_max_docs_value').text(
+        settings.rerankerMaxDocuments ?? defaultSettings.rerankerMaxDocuments
+    );
 }
 
 /**
