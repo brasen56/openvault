@@ -67,10 +67,10 @@ export function buildUnifiedReflectionPrompt(
     const rules = hasOldReflections
         ? UNIFIED_REFLECTION_RULES +
           '\n\nLEVEL-AWARE SYNTHESIS:\n' +
-          '5. Some candidate memories are existing reflections (marked [Ref L1], [Ref L2], etc.).\n' +
-          '6. You may synthesize multiple existing reflections into higher-level insights (Level 2+).\n' +
-          '7. Level 2 reflections should distill common patterns across multiple Level 1 reflections.\n' +
-          '8. When synthesizing reflections, cite the reflection IDs as evidence_ids.'
+          '7. Some candidate memories are existing reflections (marked [Ref L1], [Ref L2], etc.).\n' +
+          '8. You may synthesize multiple existing reflections into higher-level insights (Level 2+).\n' +
+          '9. Level 2 reflections should distill common patterns across multiple Level 1 reflections.\n' +
+          '10. When synthesizing reflections, cite the reflection IDs as evidence_ids.'
         : UNIFIED_REFLECTION_RULES;
 
     const systemPrompt = assembleSystemPrompt({

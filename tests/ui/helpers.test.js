@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+    buildCharacterDossier,
     buildCharacterStateData,
     buildProfileOptions,
     calculateExtractionStats,
@@ -335,6 +336,173 @@ describe('ui/helpers', () => {
         });
     });
 
+    describe('buildCharacterDossier', () => {
+        // A compact but representative vault: Alice has level-1 and level-2
+        // reflections (one archived, one belonging to Bob), an event that backs
+        // a reflection, a graph relationship, and reflection progress.
+        const buildData = () => ({
+            character_states: {
+                Alice: { current_emotion: 'wary', emotion_intensity: 7, known_events: ['e1'] },
+            },
+            memories: [
+                { id: 'e1', type: 'event', summary: 'Alice signed instead of speaking', importance: 3 },
+                {
+                    id: 'ref_1',
+                    type: 'reflection',
+                    character: 'Alice',
+                    summary: 'Alice communicates in sign language',
+                    importance: 4,
+                    level: 1,
+                    source_ids: ['e1'],
+                    parent_ids: [],
+                },
+                {
+                    id: 'ref_2',
+                    type: 'reflection',
+                    character: 'Alice',
+                    summary: 'Alice is guarded but adaptive',
+                    importance: 5,
+                    level: 2,
+                    source_ids: [],
+                    parent_ids: ['ref_1'],
+                },
+                // Archived -> excluded
+                {
+                    id: 'ref_old',
+                    type: 'reflection',
+                    character: 'Alice',
+                    summary: 'stale insight',
+                    importance: 2,
+                    level: 1,
+                    archived: true,
+                },
+                // Different character -> excluded
+                { id: 'ref_b', type: 'reflection', character: 'Bob', summary: 'Bob insight', importance: 3, level: 1 },
+            ],
+            graph: {
+                nodes: {
+                    alice: { name: 'Alice', type: 'PERSON', aliases: [] },
+                    bob: { name: 'Bob', type: 'PERSON' },
+                },
+                edges: {
+                    alice__bob: { source: 'alice', target: 'bob', description: 'trusts cautiously', weight: 3 },
+                },
+            },
+            reflection_state: { Alice: { importance_sum: 30 } },
+        });
+
+        it('groups reflections by level descending and excludes archived/other-character ones', () => {
+            const d = buildCharacterDossier('Alice', buildData(), 40);
+            expect(d.reflectionCount).toBe(2);
+            expect(d.reflectionsByLevel.map((g) => g.level)).toEqual([2, 1]);
+            expect(d.reflectionsByLevel[0].reflections[0].id).toBe('ref_2');
+            expect(d.reflectionsByLevel[1].reflections[0].id).toBe('ref_1');
+        });
+
+        it('resolves the evidence chain from source_ids and parent_ids', () => {
+            const d = buildCharacterDossier('Alice', buildData(), 40);
+            const level1 = d.reflectionsByLevel.find((g) => g.level === 1).reflections[0];
+            expect(level1.evidence).toEqual([
+                { id: 'e1', type: 'event', summary: 'Alice signed instead of speaking', importance: 3, level: undefined },
+            ]);
+            const level2 = d.reflectionsByLevel.find((g) => g.level === 2).reflections[0];
+            expect(level2.evidence[0].id).toBe('ref_1');
+            expect(level2.evidence[0].type).toBe('reflection');
+        });
+
+        it('flags evidence ids that no longer exist', () => {
+            const data = buildData();
+            data.memories = data.memories.filter((m) => m.id !== 'e1'); // delete the backing event
+            const d = buildCharacterDossier('Alice', data, 40);
+            const level1 = d.reflectionsByLevel.find((g) => g.level === 1).reflections[0];
+            expect(level1.evidence).toEqual([{ id: 'e1', missing: true }]);
+        });
+
+        it('builds relationships from graph edges, resolving the other end name', () => {
+            const d = buildCharacterDossier('Alice', buildData(), 40);
+            expect(d.relationships).toEqual([
+                { name: 'Bob', key: 'bob', description: 'trusts cautiously', weight: 3 },
+            ]);
+        });
+
+        it('matches edges in either direction', () => {
+            const data = buildData();
+            data.graph.edges = { bob__alice: { source: 'bob', target: 'alice', description: 'wary of', weight: 2 } };
+            const d = buildCharacterDossier('Alice', data, 40);
+            expect(d.relationships[0].name).toBe('Bob');
+            expect(d.relationships[0].description).toBe('wary of');
+        });
+
+        it('picks up edges stored under the character’s alias key', () => {
+            const data = buildData();
+            data.graph.nodes.alice.aliases = ['The Masked One'];
+            data.graph.edges = {
+                'the masked one__bob': {
+                    source: 'the masked one',
+                    target: 'bob',
+                    description: 'allies with',
+                    weight: 4,
+                },
+            };
+            const d = buildCharacterDossier('Alice', data, 40);
+            expect(d.relationships).toHaveLength(1);
+            expect(d.relationships[0].name).toBe('Bob');
+        });
+
+        it('sorts relationships by weight descending', () => {
+            const data = buildData();
+            data.graph.nodes.carol = { name: 'Carol', type: 'PERSON' };
+            data.graph.edges.alice__carol = {
+                source: 'alice',
+                target: 'carol',
+                description: 'close to',
+                weight: 9,
+            };
+            const d = buildCharacterDossier('Alice', data, 40);
+            expect(d.relationships.map((r) => r.name)).toEqual(['Carol', 'Bob']);
+        });
+
+        it('computes reflection progress from reflection_state and threshold', () => {
+            const d = buildCharacterDossier('Alice', buildData(), 40);
+            expect(d.progress.importanceSum).toBe(30);
+            expect(d.progress.threshold).toBe(40);
+            expect(d.progress.percent).toBe(75);
+            expect(d.progress.ready).toBe(false);
+        });
+
+        it('marks progress ready and caps percent at 100 when over threshold', () => {
+            const data = buildData();
+            data.reflection_state.Alice.importance_sum = 60;
+            const d = buildCharacterDossier('Alice', data, 40);
+            expect(d.progress.ready).toBe(true);
+            expect(d.progress.percent).toBe(100);
+        });
+
+        it('matches character names ignoring case and possessives', () => {
+            const data = buildData();
+            data.memories.push({
+                id: 'ref_poss',
+                type: 'reflection',
+                character: "alice's",
+                summary: 'possessive-cased name',
+                importance: 3,
+                level: 1,
+            });
+            const d = buildCharacterDossier('Alice', data, 40);
+            expect(d.reflectionCount).toBe(3);
+        });
+
+        it('returns a well-formed empty dossier when data is missing', () => {
+            const d = buildCharacterDossier('Ghost', null, 40);
+            expect(d.name).toBe('Ghost');
+            expect(d.reflectionCount).toBe(0);
+            expect(d.reflectionsByLevel).toEqual([]);
+            expect(d.relationships).toEqual([]);
+            expect(d.progress.importanceSum).toBe(0);
+            expect(d.state.emotion).toBe('neutral');
+        });
+    });
+
     describe('calculateExtractionStats', () => {
         it('calculates stats correctly', () => {
             const chat = [
@@ -522,7 +690,7 @@ describe('ui/helpers', () => {
 
     describe('validateRPM', () => {
         it('returns valid value unchanged', () => {
-            expect(validateRPM(50)).toBe(50);
+            expect(validateRPM(20)).toBe(20);
         });
 
         it('clamps value below 1 to 1', () => {
@@ -530,18 +698,20 @@ describe('ui/helpers', () => {
             expect(validateRPM(-10)).toBe(1);
         });
 
-        it('clamps value above 600 to 600', () => {
-            expect(validateRPM(1000)).toBe(600);
+        it('clamps value above 30 to 30', () => {
+            expect(validateRPM(1000)).toBe(30);
+            expect(validateRPM(50)).toBe(30);
         });
 
         it('uses default for invalid input', () => {
-            expect(validateRPM('invalid', 30)).toBe(30);
-            expect(validateRPM(null, 30)).toBe(30);
-            expect(validateRPM(undefined, 30)).toBe(30);
+            expect(validateRPM('invalid')).toBe(10);
+            expect(validateRPM(null)).toBe(10);
+            expect(validateRPM(undefined)).toBe(10);
+            expect(validateRPM('invalid', 5)).toBe(5);
         });
 
         it('parses string numbers', () => {
-            expect(validateRPM('100')).toBe(100);
+            expect(validateRPM('20')).toBe(20);
         });
     });
 

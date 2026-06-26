@@ -6,7 +6,8 @@ export const UNIFIED_REFLECTION_RULES = `1. Generate 1-3 salient high-level ques
 2. For each question, provide a deep insight that synthesizes patterns across multiple memories.
 3. Cite specific memory IDs as evidence for each insight. You MUST use IDs exactly as shown in the input.
 4. Quality over quantity — generate only as many reflections as you can support with strong evidence.
-5. NEVER include memory or event IDs (e.g. event_123, ref_456) inside "question" or "insight" text. Reference memories by their content, not by ID. IDs belong ONLY in the "evidence_ids" array.
+5. Ground every insight in what the cited memories actually show. Describe what the character does, feels, or has lived through — do NOT escalate it into demands, rules, ultimatums, or preferences they impose on others. A coping mechanism, habit, disability, or accommodation is not evidence of an attitude about it. (Example: a character who communicates in sign language is not thereby someone who "requires" or "demands" that others use it — absent memories that explicitly show them demanding it.)
+6. NEVER include memory or event IDs (e.g. event_123, ref_456) inside "question" or "insight" text. Reference memories by their content, not by ID. IDs belong ONLY in the "evidence_ids" array.
 
 <draft_process>
 Think step by step, but only keep a minimal draft for each step, with 8 words at most per step. Use symbols: -> for causation/actions, + for conjunction, != for contrast. Write your work inside <think/> tags BEFORE outputting the JSON:
@@ -14,7 +15,8 @@ Think step by step, but only keep a minimal draft for each step, with 8 words at
 Step 1: Pattern scan -> themes + emotions + behaviors; <=5 IDs.
 Step 2: Causal chains -> cause-effect links between memories.
 Step 3: Synthesis -> question + insight connecting memories by CONTENT.
-Step 4: Evidence -> assign IDs per insight; != IDs in question/insight text.
+Step 4: Grounding check -> drop any inferred demand/intent != shown in evidence.
+Step 5: Evidence -> assign IDs per insight; != IDs in question/insight text.
 </draft_process>`;
 
 export const QUESTIONS_RULES = `1. Questions should be answerable from the provided memory stream.
