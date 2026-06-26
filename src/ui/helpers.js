@@ -257,6 +257,152 @@ export function buildCharacterStateData(name, charData) {
 }
 
 /**
+ * Normalize a character/entity name to the same key form the graph uses, so a
+ * display name (the key for `character_states` and `reflection.character`) can be
+ * matched against `graph.edges`/`graph.nodes`, which are keyed by normalized name.
+ *
+ * Mirrors `normalizeKey` in src/graph/graph.js. Kept inline to avoid pulling that
+ * module's heavy import graph (LLM/embeddings/deps) into this pure leaf helper. If
+ * the two ever diverge, the graph version is canonical.
+ *
+ * @param {string} name
+ * @returns {string}
+ */
+function normalizeName(name) {
+    return String(name || '')
+        .toLowerCase()
+        .replace(/['‘’]s\b/g, '') // Strip possessives: 's, ‘s, ’s
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+/**
+ * Build a read-only per-character "dossier": the character's current state, their
+ * reflections grouped by synthesis level (3 = headline insights, 1 = specifics),
+ * the evidence each reflection was built from, their relationships from the graph,
+ * and progress toward the next reflection.
+ *
+ * Pure join over `chatMetadata.openvault` — no DOM, no LLM, no mutation. Intended
+ * to back a Characters-tab detail view (see ROADMAP / dossier scope).
+ *
+ * @param {string} name - Character display name (matches character_states key and reflection.character)
+ * @param {Object} data - The openvault data object ({ memories, character_states, graph, reflection_state })
+ * @param {number} [reflectionThreshold=40] - Importance sum that triggers a reflection
+ *   (caller should pass settings.reflectionThreshold; default mirrors REFLECTION_MIN_MEMORIES)
+ * @returns {{
+ *   name: string,
+ *   state: ReturnType<typeof buildCharacterStateData>,
+ *   reflectionsByLevel: Array<{ level: number, reflections: Array<Object> }>,
+ *   reflectionCount: number,
+ *   relationships: Array<{ name: string, key: string, description: string, weight: number }>,
+ *   progress: { importanceSum: number, threshold: number, percent: number, ready: boolean }
+ * }}
+ */
+export function buildCharacterDossier(name, data, reflectionThreshold = 40) {
+    const characters = data?.character_states || {};
+    const memories = data?.memories || [];
+    const graph = data?.graph || {};
+    const nodes = graph.nodes || {};
+    const edges = graph.edges || {};
+
+    const state = buildCharacterStateData(name, characters[name] || {});
+
+    // Index every memory by id so reflections can resolve their evidence chain.
+    const byId = new Map(memories.map((m) => [m.id, m]));
+
+    const selfNorm = normalizeName(name);
+
+    // Reflections authored about this character (exclude archived/replaced ones).
+    const reflections = memories.filter(
+        (m) => m.type === 'reflection' && !m.archived && normalizeName(m.character) === selfNorm
+    );
+
+    // Resolve a reflection's source_ids (events) + parent_ids (child reflections)
+    // into displayable evidence, flagging any that no longer exist in the store.
+    const resolveEvidence = (reflection) => {
+        const ids = [...(reflection.source_ids || []), ...(reflection.parent_ids || [])];
+        return ids.map((id) => {
+            const found = byId.get(id);
+            if (!found) return { id, missing: true };
+            return {
+                id,
+                type: found.type,
+                summary: found.summary || '',
+                importance: found.importance || 3,
+                level: found.level,
+            };
+        });
+    };
+
+    const enriched = reflections.map((r) => ({
+        id: r.id,
+        summary: r.summary || '',
+        importance: r.importance || 3,
+        level: r.level || 1,
+        source_ids: r.source_ids || [],
+        parent_ids: r.parent_ids || [],
+        evidence: resolveEvidence(r),
+    }));
+
+    // Group by level (descending), sorting within each level by importance then recency.
+    const levelMap = new Map();
+    for (const r of enriched) {
+        if (!levelMap.has(r.level)) levelMap.set(r.level, []);
+        levelMap.get(r.level).push(r);
+    }
+    const reflectionsByLevel = [...levelMap.keys()]
+        .sort((a, b) => b - a)
+        .map((level) => ({
+            level,
+            reflections: levelMap.get(level).sort((a, b) => b.importance - a.importance),
+        }));
+
+    // Relationships: graph edges touching this character. Expand to the character's
+    // own aliases so edges stored under an alter-ego key are still picked up.
+    const selfKeys = new Set([selfNorm]);
+    const selfNode = nodes[selfNorm];
+    for (const alias of selfNode?.aliases || []) {
+        selfKeys.add(normalizeName(alias));
+    }
+
+    const relationships = [];
+    for (const edge of Object.values(edges)) {
+        const sourceMatch = selfKeys.has(edge.source);
+        const targetMatch = selfKeys.has(edge.target);
+        if (!sourceMatch && !targetMatch) continue;
+        // Self-loops (source === target === self) aren't relationships.
+        if (sourceMatch && targetMatch) continue;
+        const otherKey = sourceMatch ? edge.target : edge.source;
+        relationships.push({
+            name: nodes[otherKey]?.name || otherKey,
+            key: otherKey,
+            description: edge.description || '',
+            weight: edge.weight || 0,
+        });
+    }
+    relationships.sort((a, b) => b.weight - a.weight || a.name.localeCompare(b.name));
+
+    // Progress toward the next reflection.
+    const importanceSum = data?.reflection_state?.[name]?.importance_sum || 0;
+    const threshold = reflectionThreshold > 0 ? reflectionThreshold : 40;
+    const percent = Math.max(0, Math.min(100, Math.round((importanceSum / threshold) * 100)));
+
+    return {
+        name,
+        state,
+        reflectionsByLevel,
+        reflectionCount: enriched.length,
+        relationships,
+        progress: {
+            importanceSum,
+            threshold,
+            percent,
+            ready: importanceSum >= threshold,
+        },
+    };
+}
+
+/**
  * Calculate extraction statistics
  * @param {Array} chat - Chat messages array
  * @param {Set} processedFps - Set of processed fingerprints
@@ -268,8 +414,10 @@ export function calculateExtractionStats(chat, processedFps, messageCount, buffe
     const totalMessages = chat.length;
     const hiddenMessages = chat.filter((m) => m.is_system).length;
 
-    // Fix: Derive extracted count from unextracted pool instead of dead-fingerprint-inflated Set size
-    const unextractedIds = getUnextractedMessageIds(chat, processedFps);
+    // Fix: Derive extracted count from unextracted pool instead of dead-fingerprint-inflated Set size.
+    // includeLatest: the scheduler defers extracting the newest message, but for display accounting it
+    // is still unextracted — excluding it here would miscount it as extracted (off-by-one).
+    const unextractedIds = getUnextractedMessageIds(chat, processedFps, { includeLatest: true });
     const nonSystemCount = totalMessages - hiddenMessages;
     const extractedCount = Math.max(0, nonSystemCount - unextractedIds.length);
 
