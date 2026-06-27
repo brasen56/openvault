@@ -35,8 +35,10 @@ import { renderGraphViz, stopSimulation } from './graph-viz.js';
 import {
     buildCharacterDossier,
     buildCharacterStateData,
+    buildLorebookEntry,
     filterEntities,
     filterMemories,
+    formatDossierAsText,
     formatMemoryDate,
     formatMemoryImportance,
     sortMemories,
@@ -508,6 +510,10 @@ function bindSidePanelEvents() {
             const countInput = document.getElementById('openvault-reclassify-lastn-count');
             const n = countInput ? parseInt(countInput.value, 10) || 50 : 50;
             await llmReclassifyLastN(n);
+        } else if (action === 'dossier-copy-text') {
+            await handleCopyDossierText(this);
+        } else if (action === 'dossier-export-lorebook') {
+            handleExportDossierLorebook(this);
         }
     });
 
@@ -570,6 +576,66 @@ async function handleCopyMemoryDatabase() {
     } catch (err) {
         console.error('[OpenVault] Copy error:', err);
         showToast('error', `Copy failed: ${err.message}`);
+    }
+}
+
+/**
+ * Build a fresh dossier for the character referenced by a dossier action
+ * button (walks up to the enclosing `.openvault-character-row`).
+ * @param {HTMLElement} btn
+ * @returns {Object|null}
+ */
+function buildDossierFromButton(btn) {
+    const name = $(btn).closest('.openvault-character-row').data('character');
+    if (!name) return null;
+    const data = getOpenVaultData();
+    const settings = getDeps().getExtensionSettings().openvault || {};
+    return buildCharacterDossier(name, data, settings.reflectionThreshold);
+}
+
+/** Copy a character dossier to the clipboard as plain text (read-only export). */
+async function handleCopyDossierText(btn) {
+    try {
+        const dossier = buildDossierFromButton(btn);
+        if (!dossier) return;
+        await navigator.clipboard.writeText(formatDossierAsText(dossier));
+        showToast('success', `Dossier for "${dossier.name}" copied to clipboard`);
+    } catch (err) {
+        console.error('[OpenVault] Dossier copy error:', err);
+        showToast('error', `Copy failed: ${err.message}`);
+    }
+}
+
+/** Download a character dossier as a standalone SillyTavern lorebook entry. */
+function handleExportDossierLorebook(btn) {
+    try {
+        const dossier = buildDossierFromButton(btn);
+        if (!dossier) return;
+
+        const json = JSON.stringify(buildLorebookEntry(dossier), null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const safeName =
+            String(dossier.name)
+                .replace(/[^a-z0-9]+/gi, '_')
+                .replace(/^_+|_+$/g, '')
+                .toLowerCase() || 'character';
+        const filename = `openvault-lorebook-${safeName}.json`;
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showToast('success', `Lorebook entry for "${dossier.name}" downloaded`);
+    } catch (err) {
+        console.error('[OpenVault] Dossier lorebook export error:', err);
+        showToast('error', `Export failed: ${err.message}`);
     }
 }
 

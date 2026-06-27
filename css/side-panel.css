@@ -293,6 +293,19 @@
     font-size: 0.9em;
 }
 
+/* Export actions (copy text / download lorebook) — read-only export only */
+.openvault-dossier-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.openvault-dossier-action-btn {
+    padding: 5px 10px;
+    font-size: 0.78em;
+}
+
 /* "Next insight" progress meter (distinct from the hidden emotion bar) */
 .openvault-dossier-progress {
     margin-bottom: 6px;

@@ -285,6 +285,7 @@ export function renderCharacterDossier(dossier) {
 
     return `
         <div class="openvault-character-dossier">
+            ${renderDossierActions()}
             ${renderDossierProgress(progress)}
             <div class="openvault-dossier-section">
                 <div class="openvault-dossier-section-title"><i class="fa-solid fa-lightbulb"></i> Insights</div>
@@ -294,6 +295,20 @@ export function renderCharacterDossier(dossier) {
                 <div class="openvault-dossier-section-title"><i class="fa-solid fa-diagram-project"></i> Relationships</div>
                 ${renderDossierRelationships(relationships)}
             </div>
+        </div>
+    `;
+}
+
+/** Render the export actions (copy text / download lorebook). Read-only export only. */
+function renderDossierActions() {
+    return `
+        <div class="openvault-dossier-actions">
+            <button class="openvault-btn openvault-export-import-btn openvault-dossier-action-btn" data-action="dossier-copy-text" title="Copy this dossier as text">
+                <i class="fa-solid fa-copy"></i> Copy as text
+            </button>
+            <button class="openvault-btn openvault-export-import-btn openvault-dossier-action-btn" data-action="dossier-export-lorebook" title="Download as a SillyTavern lorebook entry">
+                <i class="fa-solid fa-book-bookmark"></i> Download lorebook
+            </button>
         </div>
     `;
 }

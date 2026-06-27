@@ -295,6 +295,7 @@ function normalizeName(name) {
  *   reflectionsByLevel: Array<{ level: number, reflections: Array<Object> }>,
  *   reflectionCount: number,
  *   relationships: Array<{ name: string, key: string, description: string, weight: number }>,
+ *   aliases: string[],
  *   progress: { importanceSum: number, threshold: number, percent: number, ready: boolean }
  * }}
  */
@@ -399,6 +400,145 @@ export function buildCharacterDossier(name, data, reflectionThreshold = 40) {
             percent,
             ready: importanceSum >= threshold,
         },
+        aliases: selfNode?.aliases || [],
+    };
+}
+
+/**
+ * Render a dossier as a portable plain-text / markdown "personality sheet":
+ * current state, headline traits (level >= 2), supporting specifics
+ * (level 1), and graph relationships. Pure — no DOM, no mutation.
+ *
+ * This is the text that backs the "Copy as text" action and the `content`
+ * of a SillyTavern lorebook entry.
+ *
+ * @param {ReturnType<typeof buildCharacterDossier>} dossier
+ * @returns {string}
+ */
+export function formatDossierAsText(dossier) {
+    const name = dossier?.name || 'Unknown';
+    const state = dossier?.state || {};
+    const byLevel = dossier?.reflectionsByLevel || [];
+    const relationships = dossier?.relationships || [];
+
+    // Split reflections by synthesis level, mirroring the UI's grouping:
+    // level >= 2 reads as headline traits, level 1 as supporting specifics.
+    const headline = [];
+    const specifics = [];
+    for (const group of byLevel) {
+        const bucket = group.level >= 2 ? headline : specifics;
+        for (const r of group.reflections || []) {
+            const stars = '\u2605'.repeat(r.importance || 3);
+            bucket.push(`${stars} ${r.summary || ''}`.trim());
+        }
+    }
+
+    const lines = [];
+    lines.push(`# Character Dossier: ${name}`);
+    lines.push('');
+
+    lines.push('## Current State');
+    const emotionSuffix = state.emotionSource ? ` ${state.emotionSource}` : '';
+    lines.push(`- Mood: ${state.emotion || 'neutral'}${emotionSuffix} (intensity ${state.intensity ?? 5}/10)`);
+    lines.push(`- Known events: ${state.knownCount ?? 0}`);
+    lines.push('');
+
+    if (headline.length > 0) {
+        lines.push('## Headline Traits');
+        for (const item of headline) lines.push(`- ${item}`);
+        lines.push('');
+    }
+
+    if (specifics.length > 0) {
+        lines.push('## Supporting Specifics');
+        for (const item of specifics) lines.push(`- ${item}`);
+        lines.push('');
+    }
+
+    if (relationships.length > 0) {
+        lines.push('## Relationships');
+        for (const rel of relationships) {
+            const weight = rel.weight ? ` (w${rel.weight})` : '';
+            lines.push(`- ${rel.name} \u2014 ${rel.description || 'related'}${weight}`);
+        }
+        lines.push('');
+    }
+
+    lines.push('---');
+    lines.push('Exported from OpenVault');
+    return lines.join('\n');
+}
+
+/**
+ * Build a standalone SillyTavern World Info (lorebook) JSON object from a
+ * dossier, so it can be imported directly via ST's World Info import without
+ * hand-editing.
+ *
+ * One entry per character: the activation `key` is the character's display
+ * name plus their graph aliases (so the entry triggers however they're
+ * referred to), and `content` is the readable sheet from
+ * `formatDossierAsText`. Only ST's documented World Info fields are emitted —
+ * no OpenVault-internal ids leak into the entry.
+ *
+ * Pure — no DOM, no mutation.
+ *
+ * @param {ReturnType<typeof buildCharacterDossier>} dossier
+ * @returns {{ entries: Record<string, Object>, originalData: Object, embeds: Array }}
+ */
+export function buildLorebookEntry(dossier) {
+    const name = dossier?.name || 'Unknown';
+
+    // Activation keys: the character's name + any aliases (deduped, non-empty).
+    const keySet = [name, ...(dossier?.aliases || [])]
+        .filter((k) => typeof k === 'string' && k.trim().length > 0)
+        .map((k) => k.trim());
+    const keys = [...new Set(keySet)];
+
+    const entry = {
+        uid: 0,
+        key: keys.length > 0 ? keys : [name],
+        keysecondary: [],
+        comment: `OpenVault Dossier: ${name}`,
+        content: formatDossierAsText(dossier),
+        constant: false,
+        vectorized: false,
+        selective: true,
+        selectiveLogic: 0,
+        addMemo: true,
+        order: 100,
+        position: 0,
+        disable: false,
+        excludeRecursion: false,
+        preventRecursion: false,
+        delayUntilRecursion: false,
+        probability: 100,
+        useProbability: true,
+        depth: 4,
+        group: '',
+        groupOverride: false,
+        groupWeight: 100,
+        scanDepth: null,
+        caseSensitive: null,
+        matchWholeWords: null,
+        useGroupScoring: null,
+        automationId: '',
+        role: null,
+        sticky: null,
+        cooldown: null,
+        delay: null,
+    };
+
+    return {
+        entries: { 0: entry },
+        originalData: {
+            name: `OpenVault Dossier - ${name}`,
+            description: 'Auto-generated character dossier exported from OpenVault.',
+            scan_depth: null,
+            token_budget: 2048,
+            recursive_scanning: false,
+            extensions: {},
+        },
+        embeds: [],
     };
 }
 

@@ -5,11 +5,13 @@ import { describe, expect, it } from 'vitest';
 import {
     buildCharacterDossier,
     buildCharacterStateData,
+    buildLorebookEntry,
     buildProfileOptions,
     calculateExtractionStats,
     extractCharactersSet,
     filterEntities,
     filterMemories,
+    formatDossierAsText,
     formatEmotionSource,
     formatHiddenMessagesText,
     formatMemoryContextCount,
@@ -504,6 +506,157 @@ describe('ui/helpers', () => {
             expect(d.relationships).toEqual([]);
             expect(d.progress.importanceSum).toBe(0);
             expect(d.state.emotion).toBe('neutral');
+        });
+    });
+
+    describe('formatDossierAsText', () => {
+        const buildDossier = () =>
+            buildCharacterDossier(
+                'Alice',
+                {
+                    character_states: {
+                        Alice: { current_emotion: 'wary', emotion_intensity: 7, known_events: ['e1'] },
+                    },
+                    memories: [
+                        { id: 'e1', type: 'event', summary: 'Alice signed instead of speaking', importance: 3 },
+                        {
+                            id: 'ref_1',
+                            type: 'reflection',
+                            character: 'Alice',
+                            summary: 'Alice communicates in sign language',
+                            importance: 4,
+                            level: 1,
+                            source_ids: ['e1'],
+                            parent_ids: [],
+                        },
+                        {
+                            id: 'ref_2',
+                            type: 'reflection',
+                            character: 'Alice',
+                            summary: 'Alice is guarded but adaptive',
+                            importance: 5,
+                            level: 2,
+                            source_ids: [],
+                            parent_ids: ['ref_1'],
+                        },
+                    ],
+                    graph: {
+                        nodes: {
+                            alice: { name: 'Alice', type: 'PERSON', aliases: [] },
+                            bob: { name: 'Bob', type: 'PERSON' },
+                        },
+                        edges: {
+                            alice__bob: { source: 'alice', target: 'bob', description: 'trusts cautiously', weight: 3 },
+                        },
+                    },
+                    reflection_state: { Alice: { importance_sum: 30 } },
+                },
+                40
+            );
+
+        it('renders a markdown sheet with current state, traits, specifics, and relationships', () => {
+            const text = formatDossierAsText(buildDossier());
+            expect(text).toContain('# Character Dossier: Alice');
+            expect(text).toContain('## Current State');
+            expect(text).toContain('Mood: wary');
+            expect(text).toContain('Known events: 1');
+            expect(text).toContain('## Headline Traits');
+            expect(text).toContain('Alice is guarded but adaptive');
+            expect(text).toContain('## Supporting Specifics');
+            expect(text).toContain('Alice communicates in sign language');
+            expect(text).toContain('## Relationships');
+            expect(text).toContain('trusts cautiously');
+        });
+
+        it('prefixes reflections with importance stars', () => {
+            const text = formatDossierAsText(buildDossier());
+            expect(text).toContain('\u2605\u2605\u2605\u2605\u2605 Alice is guarded but adaptive');
+        });
+
+        it('omits empty sections for a bare dossier', () => {
+            const text = formatDossierAsText({ name: 'Ghost' });
+            expect(text).toContain('## Current State');
+            expect(text).not.toContain('## Headline Traits');
+            expect(text).not.toContain('## Supporting Specifics');
+            expect(text).not.toContain('## Relationships');
+        });
+    });
+
+    describe('buildLorebookEntry', () => {
+        const buildDossier = (aliases = []) =>
+            buildCharacterDossier(
+                'Alice',
+                {
+                    character_states: { Alice: { current_emotion: 'wary', emotion_intensity: 7 } },
+                    memories: [
+                        {
+                            id: 'ref_2',
+                            type: 'reflection',
+                            character: 'Alice',
+                            summary: 'Alice is guarded but adaptive',
+                            importance: 5,
+                            level: 2,
+                        },
+                    ],
+                    graph: {
+                        nodes: { alice: { name: 'Alice', aliases } },
+                        edges: {},
+                    },
+                    reflection_state: { Alice: { importance_sum: 30 } },
+                },
+                40
+            );
+
+        it('produces an ST World Info book with one entry under uid "0"', () => {
+            const book = buildLorebookEntry(buildDossier());
+            expect(Object.keys(book.entries)).toEqual(['0']);
+            expect(book.entries['0'].uid).toBe(0);
+        });
+
+        it('sets the activation key to the character name plus graph aliases', () => {
+            const book = buildLorebookEntry(buildDossier(['The Masked One']));
+            expect(book.entries['0'].key).toEqual(['Alice', 'The Masked One']);
+        });
+
+        it('falls back to the name when there are no aliases', () => {
+            expect(buildLorebookEntry(buildDossier()).entries['0'].key).toEqual(['Alice']);
+        });
+
+        it('uses the formatted sheet as the entry content', () => {
+            const content = buildLorebookEntry(buildDossier()).entries['0'].content;
+            expect(content).toContain('# Character Dossier: Alice');
+            expect(content).toContain('Alice is guarded but adaptive');
+        });
+
+        it('does not leak OpenVault-internal ids into the content', () => {
+            const content = buildLorebookEntry(buildDossier()).entries['0'].content;
+            expect(content).not.toContain('ref_2');
+            expect(content).not.toContain('source_ids');
+        });
+
+        it('emits standard ST World Info entry fields', () => {
+            const entry = buildLorebookEntry(buildDossier()).entries['0'];
+            for (const field of [
+                'uid',
+                'key',
+                'keysecondary',
+                'comment',
+                'content',
+                'constant',
+                'selective',
+                'selectiveLogic',
+                'order',
+                'position',
+                'disable',
+                'probability',
+                'useProbability',
+                'depth',
+            ]) {
+                expect(entry).toHaveProperty(field);
+            }
+            expect(entry.keysecondary).toEqual([]);
+            expect(entry.disable).toBe(false);
+            expect(entry.position).toBe(0);
         });
     });
 
