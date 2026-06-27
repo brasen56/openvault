@@ -13,6 +13,7 @@ import {
     mergeEntities,
     reconcileCharacterIdentity,
     saveOpenVaultData,
+    updateEntity,
 } from '../store/chat-data.js';
 import { escapeHtml, showToast } from '../utils/dom.js';
 import { tokenizeName } from '../utils/transliterate.js';
@@ -483,11 +484,13 @@ export async function handleDuplicateAction(action, index) {
 /**
  * Merge one suggested duplicate character into another, by display name.
  *
- * When both names are graph entities, delegates to mergeEntities (which merges the
- * graph and reconciles the name-keyed stores). When a name has no graph node — an
- * orphaned character_states/reflection_state entry, e.g. "Alex" surviving only in
- * the Characters tab — it reconciles the name-keyed stores directly, since there is
- * no graph node to merge. This is the path the entity-view merge can't reach.
+ * Handles every combination of which side has a graph node:
+ *  - both are graph entities  -> mergeEntities (merges graph + reconciles stores)
+ *  - only the absorbed side has a node (survivor is state-only) -> reconcile the
+ *    name-keyed stores, then RENAME the absorbed node onto the survivor's name so
+ *    its description/edges aren't orphaned under a now-dead name
+ *  - only the survivor has a node, or neither does -> reconcile the name-keyed
+ *    stores directly (no graph node to move)
  *
  * @param {string} sourceName - Display name of the character to absorb
  * @param {string} targetName - Display name of the surviving character
@@ -503,23 +506,35 @@ export async function handleCharacterMerge(sourceName, targetName) {
         const nodes = data.graph?.nodes || {};
         const sourceKey = normalizeKey(sourceName);
         const targetKey = normalizeKey(targetName);
+        const sourceHasNode = !!nodes[sourceKey];
+        const targetHasNode = !!nodes[targetKey];
 
-        if (nodes[sourceKey] && nodes[targetKey] && sourceKey !== targetKey) {
+        let stChanges = null;
+
+        if (sourceHasNode && targetHasNode && sourceKey !== targetKey) {
             // Both are graph entities — full graph + state merge.
             const result = await mergeEntities(sourceKey, targetKey);
             if (!result?.success) {
                 showToast('error', 'Failed to merge characters');
                 return;
             }
-            if (result.stChanges) {
-                const { applySyncChanges } = await import('../extraction/extract.js');
-                await applySyncChanges(result.stChanges);
-            }
+            stChanges = result.stChanges;
         } else {
-            // At least one name has no graph node — reconcile the name-keyed stores
-            // directly (the graph has nothing to merge for it).
+            // At most one side is a graph entity — reconcile the name-keyed stores.
             reconcileCharacterIdentity(data, sourceName, targetName);
+            // If the absorbed name owns the only graph node (survivor is state-only),
+            // rename that node onto the survivor so its description/edges survive and
+            // the absorbed name stops being re-detected as a duplicate.
+            if (sourceHasNode && !targetHasNode && sourceKey !== targetKey) {
+                const result = await updateEntity(sourceKey, { name: targetName });
+                stChanges = result?.stChanges ?? null;
+            }
             await saveOpenVaultData();
+        }
+
+        if (stChanges) {
+            const { applySyncChanges } = await import('../extraction/extract.js');
+            await applySyncChanges(stChanges);
         }
 
         showToast('success', `Merged "${sourceName}" → "${targetName}"`);
