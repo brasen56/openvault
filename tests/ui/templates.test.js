@@ -3,6 +3,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { describe, expect, it } from 'vitest';
 import {
+    renderCharacterDossier,
     renderCommunityAccordion,
     renderEntityCard,
     renderMemoryItem,
@@ -188,6 +189,137 @@ describe('ui/templates', () => {
             const entity = { name: 'Castle', type: 'PLACE', description: '' };
             const html = renderEntityCard(entity, 'castle');
             expect(html).toContain('0 mentions');
+        });
+    });
+
+    describe('renderCharacterDossier', () => {
+        const buildDossier = () => ({
+            name: 'Alice',
+            state: {
+                name: 'Alice',
+                emotion: 'wary',
+                emotionSource: ' (msg 3)',
+                intensity: 7,
+                intensityPercent: 70,
+                knownCount: 2,
+            },
+            reflectionsByLevel: [
+                {
+                    level: 2,
+                    reflections: [
+                        {
+                            id: 'ref_2',
+                            summary: 'Alice is guarded but adaptive',
+                            importance: 5,
+                            level: 2,
+                            source_ids: [],
+                            parent_ids: ['ref_1'],
+                            evidence: [
+                                {
+                                    id: 'ref_1',
+                                    type: 'reflection',
+                                    summary: 'Alice communicates in sign language',
+                                    importance: 4,
+                                    level: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    level: 1,
+                    reflections: [
+                        {
+                            id: 'ref_1',
+                            summary: 'Alice relies on sign language',
+                            importance: 4,
+                            level: 1,
+                            source_ids: ['e1'],
+                            parent_ids: [],
+                            evidence: [
+                                { id: 'e1', type: 'event', summary: 'Alice signed instead of speaking', importance: 3 },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            reflectionCount: 2,
+            relationships: [{ name: 'Bob', key: 'bob', description: 'trusts cautiously', weight: 3 }],
+            progress: { importanceSum: 30, threshold: 40, percent: 75, ready: false },
+        });
+
+        it('renders reflection progress with sum, threshold, and percent bar', () => {
+            const html = renderCharacterDossier(buildDossier());
+            expect(html).toContain('30/40');
+            expect(html).toContain('width: 75%');
+        });
+
+        it('shows a Ready badge when progress is ready', () => {
+            const dossier = buildDossier();
+            dossier.progress = { importanceSum: 50, threshold: 40, percent: 100, ready: true };
+            const html = renderCharacterDossier(dossier);
+            expect(html).toContain('Ready');
+        });
+
+        it('groups reflections by level descending with level badges', () => {
+            const html = renderCharacterDossier(buildDossier());
+            expect(html).toContain('L2');
+            expect(html).toContain('L1');
+            // The headline (level-2) reflection renders before the level-1 specific
+            const headlineIdx = html.indexOf('guarded but adaptive');
+            const specificIdx = html.indexOf('relies on sign language');
+            expect(headlineIdx).toBeGreaterThan(-1);
+            expect(specificIdx).toBeGreaterThan(-1);
+            expect(headlineIdx).toBeLessThan(specificIdx);
+        });
+
+        it('renders importance stars on reflections', () => {
+            const html = renderCharacterDossier(buildDossier());
+            expect(html).toContain('★★★★★'); // importance 5 on the headline reflection
+        });
+
+        it('renders an evidence drill-down with the backing summaries', () => {
+            const html = renderCharacterDossier(buildDossier());
+            expect(html).toContain('<details');
+            expect(html).toContain('Evidence');
+            expect(html).toContain('Alice signed instead of speaking');
+        });
+
+        it('flags deleted (missing) evidence', () => {
+            const dossier = buildDossier();
+            dossier.reflectionsByLevel[1].reflections[0].evidence = [{ id: 'e1', missing: true }];
+            const html = renderCharacterDossier(dossier);
+            expect(html).toContain('Deleted memory');
+            expect(html).toContain('e1');
+        });
+
+        it('renders relationships with name and description', () => {
+            const html = renderCharacterDossier(buildDossier());
+            expect(html).toContain('Bob');
+            expect(html).toContain('trusts cautiously');
+        });
+
+        it('shows placeholders for empty reflections and relationships', () => {
+            const html = renderCharacterDossier({
+                reflectionsByLevel: [],
+                relationships: [],
+                progress: { importanceSum: 0, threshold: 40, percent: 0, ready: false },
+            });
+            expect(html).toContain('No insights yet');
+            expect(html).toContain('No relationships recorded');
+        });
+
+        it('HTML-escapes reflection summaries and relationship descriptions', () => {
+            const dossier = buildDossier();
+            dossier.reflectionsByLevel[0].reflections[0].summary = '<script>alert(1)</script>';
+            dossier.relationships = [{ name: 'Bob', key: 'bob', description: 'a & b', weight: 1 }];
+            const html = renderCharacterDossier(dossier);
+            expect(html).not.toContain('<script>alert(1)</script>');
+            expect(html).toContain('&amp;');
+        });
+
+        it('does not throw for a null dossier', () => {
+            expect(() => renderCharacterDossier(null)).not.toThrow();
         });
     });
 });

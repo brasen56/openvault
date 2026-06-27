@@ -259,6 +259,133 @@ export function renderCharacterState(charData) {
     `;
 }
 
+// =============================================================================
+// Character Dossier Template
+// =============================================================================
+
+/**
+ * Render a read-only per-character dossier body: progress toward the next
+ * reflection, the character's insights grouped by synthesis level (each with an
+ * evidence drill-down), and their relationships from the knowledge graph.
+ *
+ * Intended to nest below a compact character card (`renderCharacterState`) in a
+ * click-to-expand accordion. The card already renders identity + current emotion,
+ * so this renders only the dossier's distinct sections and intentionally does not
+ * repeat the name/state header.
+ *
+ * Pure string template; all interpolated content is HTML-escaped.
+ *
+ * @param {Object} dossier - Output of `buildCharacterDossier()`
+ * @returns {string} HTML
+ */
+export function renderCharacterDossier(dossier) {
+    const reflectionsByLevel = dossier?.reflectionsByLevel || [];
+    const relationships = dossier?.relationships || [];
+    const progress = dossier?.progress || { importanceSum: 0, threshold: 40, percent: 0, ready: false };
+
+    return `
+        <div class="openvault-character-dossier">
+            ${renderDossierProgress(progress)}
+            <div class="openvault-dossier-section">
+                <div class="openvault-dossier-section-title"><i class="fa-solid fa-lightbulb"></i> Insights</div>
+                ${renderDossierReflections(reflectionsByLevel)}
+            </div>
+            <div class="openvault-dossier-section">
+                <div class="openvault-dossier-section-title"><i class="fa-solid fa-diagram-project"></i> Relationships</div>
+                ${renderDossierRelationships(relationships)}
+            </div>
+        </div>
+    `;
+}
+
+/** Render the "next insight" progress meter (importance sum vs threshold). */
+function renderDossierProgress(progress) {
+    const readyBadge = progress.ready
+        ? '<span class="openvault-dossier-progress-ready" title="Enough accumulated importance to synthesize a new insight"><i class="fa-solid fa-lightbulb"></i> Ready</span>'
+        : '';
+    return `
+        <div class="openvault-dossier-progress">
+            <div class="openvault-dossier-progress-label">Next insight: ${progress.importanceSum || 0}/${progress.threshold} ${readyBadge}</div>
+            <div class="openvault-dossier-progress-bar">
+                <div class="openvault-dossier-progress-fill" style="width: ${progress.percent || 0}%"></div>
+            </div>
+        </div>
+    `;
+}
+
+/** Render reflections grouped by synthesis level (descending). */
+function renderDossierReflections(reflectionsByLevel) {
+    if (!reflectionsByLevel || reflectionsByLevel.length === 0) {
+        return '<p class="openvault-placeholder">No insights yet</p>';
+    }
+    const groups = reflectionsByLevel
+        .map((group) => {
+            const label = group.level >= 2 ? 'Headline traits' : 'Supporting specifics';
+            const cards = group.reflections.map(renderDossierReflectionCard).join('');
+            return `
+                <div class="openvault-dossier-level-group" data-level="${group.level}">
+                    <div class="openvault-dossier-level-label"><span class="openvault-dossier-level-badge">L${group.level}</span> ${escapeHtml(label)}</div>
+                    ${cards}
+                </div>
+            `;
+        })
+        .join('');
+    return `<div class="openvault-dossier-reflections">${groups}</div>`;
+}
+
+/** Render one reflection card with its collapsible evidence chain. */
+function renderDossierReflectionCard(reflection) {
+    const stars = '★'.repeat(reflection.importance || 3);
+    const summary = escapeHtml(reflection.summary || 'No summary');
+    return `
+        <div class="openvault-dossier-reflection">
+            <div class="openvault-dossier-reflection-meta">
+                <span class="openvault-memory-card-badge importance">${stars}</span>
+                <span class="openvault-dossier-level-badge">L${reflection.level || 1}</span>
+            </div>
+            <div class="openvault-dossier-reflection-summary">${summary}</div>
+            ${renderDossierEvidence(reflection.evidence)}
+        </div>
+    `;
+}
+
+/** Render the evidence drill-down for a reflection, flagging deleted sources. */
+function renderDossierEvidence(evidence) {
+    if (!Array.isArray(evidence) || evidence.length === 0) return '';
+    const items = evidence
+        .map((e) => {
+            if (e.missing) {
+                return `<li class="openvault-dossier-evidence-item missing"><i class="fa-solid fa-circle-xmark"></i> <em>Deleted memory (${escapeHtml(e.id)})</em></li>`;
+            }
+            const evStars = '★'.repeat(e.importance || 3);
+            const levelTag = e.level ? ` <small>[L${e.level}]</small>` : '';
+            const typeTag = e.type === 'reflection' ? ' <small>(reflection)</small>' : '';
+            return `<li class="openvault-dossier-evidence-item"><span class="openvault-memory-card-badge importance">${evStars}</span>${levelTag}${typeTag} ${escapeHtml(e.summary || '')}</li>`;
+        })
+        .join('');
+    return `
+        <details class="openvault-dossier-evidence">
+            <summary><i class="fa-solid fa-link"></i> Evidence (${evidence.length})</summary>
+            <ul class="openvault-dossier-evidence-list">${items}</ul>
+        </details>
+    `;
+}
+
+/** Render the relationships list. Order (weight desc) is determined by the dossier. */
+function renderDossierRelationships(relationships) {
+    if (!relationships || relationships.length === 0) {
+        return '<p class="openvault-placeholder">No relationships recorded</p>';
+    }
+    const items = relationships
+        .map((rel) => {
+            const weight =
+                rel.weight > 0 ? ` <small class="openvault-dossier-relationship-weight">(w${rel.weight})</small>` : '';
+            return `<li class="openvault-dossier-relationship"><span class="openvault-dossier-relationship-name">${escapeHtml(rel.name)}</span> — ${escapeHtml(rel.description || 'related')}${weight}</li>`;
+        })
+        .join('');
+    return `<ul class="openvault-dossier-relationships">${items}</ul>`;
+}
+
 /**
  * Render reflection progress counters for all characters.
  * @param {Object|null} reflectionState - charName → { importance_sum }

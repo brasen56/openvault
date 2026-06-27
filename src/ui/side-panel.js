@@ -6,6 +6,7 @@
  */
 
 import { CHARACTERS_KEY, extensionFolderPath, MEMORIES_KEY, UI_DEFAULT_HINTS } from '../constants.js';
+import { getDeps } from '../deps.js';
 import {
     archiveMemories,
     deleteCommunity,
@@ -32,6 +33,7 @@ import {
 } from './export-import.js';
 import { renderGraphViz, stopSimulation } from './graph-viz.js';
 import {
+    buildCharacterDossier,
     buildCharacterStateData,
     filterEntities,
     filterMemories,
@@ -48,6 +50,7 @@ import {
 } from './settings.js';
 import { refreshStats } from './status.js';
 import {
+    renderCharacterDossier,
     renderCharacterState,
     renderEntityCard,
     renderEntityEdit,
@@ -440,6 +443,33 @@ function bindSidePanelEvents() {
         } else {
             showToast('error', `Failed to remove "${charName}"`);
         }
+    });
+
+    // Character dossier click-to-expand (read-only view)
+    // =========================================================================
+    $panel.on('click', '.openvault-character-item', (e) => {
+        // The delete button has its own handler; ignore clicks that originate there.
+        // (jQuery delegated handlers on the same panel all fire, so we must guard.)
+        if ($(e.target).closest('.openvault-character-delete').length) return;
+
+        const $row = $(e.currentTarget).closest('.openvault-character-row');
+        const name = $row.data('character');
+        if (!name) return;
+
+        const $dossier = $row.children('.openvault-character-dossier-container').first();
+        if ($row.hasClass('openvault-character-expanded')) {
+            $dossier.slideUp(200);
+            $row.removeClass('openvault-character-expanded');
+            return;
+        }
+
+        // Build the dossier fresh on each expand so it reflects the current vault.
+        const data = getOpenVaultData();
+        const settings = getDeps().getExtensionSettings().openvault || {};
+        const dossier = buildCharacterDossier(name, data, settings.reflectionThreshold);
+        $dossier.html(renderCharacterDossier(dossier));
+        $row.addClass('openvault-character-expanded');
+        $dossier.slideDown(200);
     });
 
     // =========================================================================
@@ -1095,7 +1125,13 @@ function renderSideCharacters() {
 
     const html = charNames
         .sort()
-        .map((name) => renderCharacterState(buildCharacterStateData(name, characters[name])))
+        .map(
+            (name) => `
+        <div class="openvault-character-row" data-character="${escapeHtml(name)}">
+            ${renderCharacterState(buildCharacterStateData(name, characters[name]))}
+            <div class="openvault-character-dossier-container" hidden></div>
+        </div>`
+        )
         .join('');
 
     $container.html(html);

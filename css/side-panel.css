@@ -255,6 +255,199 @@
     height: 6px;
 }
 
+/* Character dossier — click-to-expand (read-only per-character view) */
+
+/* The whole card is the toggle; make that obvious. Delete button keeps its own cursor. */
+.openvault-side-scroll .openvault-character-row .openvault-character-item {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.openvault-side-scroll .openvault-character-row .openvault-character-item:hover {
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2)) 60%, transparent);
+}
+
+/* Rotating chevron after the name indicates expand state (mirrors details.css) */
+.openvault-character-row .openvault-character-name::after {
+    content: "\203A";
+    margin-left: 6px;
+    font-size: 1.1em;
+    font-weight: bold;
+    opacity: 0.4;
+    display: inline-block;
+    transition:
+        transform 0.2s ease,
+        opacity 0.15s;
+}
+
+.openvault-character-row.openvault-character-expanded .openvault-character-name::after {
+    transform: rotate(90deg);
+    opacity: 0.8;
+}
+
+/* Nested dossier body reads as a continuation of the card above it */
+.openvault-character-dossier-container {
+    padding: 4px 10px 10px 14px;
+    margin-top: 2px;
+    border-left: 2px solid var(--SmartThemeBorderColor, #333);
+    font-size: 0.9em;
+}
+
+/* "Next insight" progress meter (distinct from the hidden emotion bar) */
+.openvault-dossier-progress {
+    margin-bottom: 6px;
+}
+
+.openvault-dossier-progress-label {
+    font-size: 0.74em;
+    color: var(--SmartThemeEmColor, #888);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.openvault-dossier-progress-ready {
+    color: var(--SmartThemeQuoteColor, #4a4);
+    font-weight: 600;
+}
+
+.openvault-dossier-progress-ready i {
+    margin-right: 3px;
+}
+
+.openvault-dossier-progress-bar {
+    height: 5px;
+    background: var(--SmartThemeBorderColor, #333);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.openvault-dossier-progress-fill {
+    height: 100%;
+    background: var(--SmartThemeEmColor, #48c);
+    transition: width 0.3s;
+}
+
+/* Sections (Insights / Relationships) */
+.openvault-dossier-section {
+    margin-top: 8px;
+}
+
+.openvault-dossier-section-title {
+    font-size: 0.7em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--SmartThemeEmColor, #888);
+    margin-bottom: 4px;
+}
+
+.openvault-dossier-section-title i {
+    margin-right: 4px;
+    color: var(--SmartThemeEmColor, #48c);
+}
+
+/* Level groups (Headline traits / Supporting specifics) */
+.openvault-dossier-level-group {
+    margin-bottom: 8px;
+}
+
+.openvault-dossier-level-label {
+    font-size: 0.68em;
+    color: var(--SmartThemeEmColor, #888);
+    margin-bottom: 3px;
+}
+
+.openvault-dossier-level-badge {
+    font-weight: 600;
+    color: var(--SmartThemeQuoteColor, #c90);
+}
+
+/* Reflection cards */
+.openvault-dossier-reflection {
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2)) 50%, transparent);
+    border-radius: 4px;
+}
+
+.openvault-dossier-reflection-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 3px;
+}
+
+.openvault-dossier-reflection-summary {
+    line-height: 1.4;
+}
+
+/* Evidence drill-down (<details> per reflection) */
+.openvault-dossier-evidence {
+    margin-top: 5px;
+}
+
+.openvault-dossier-evidence summary {
+    cursor: pointer;
+    font-size: 0.74em;
+    color: var(--SmartThemeEmColor, #7b8ab8);
+    user-select: none;
+    opacity: 0.8;
+    transition: opacity 0.15s;
+}
+
+.openvault-dossier-evidence summary:hover {
+    opacity: 1;
+}
+
+.openvault-dossier-evidence summary i {
+    margin-right: 3px;
+}
+
+.openvault-dossier-evidence-list {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+}
+
+.openvault-dossier-evidence-item {
+    font-size: 0.82em;
+    line-height: 1.4;
+    padding: 3px 0 3px 8px;
+    border-left: 2px solid var(--SmartThemeBorderColor, #333);
+    margin-bottom: 2px;
+}
+
+.openvault-dossier-evidence-item.missing {
+    color: var(--error-color, #e74c3c);
+    opacity: 0.85;
+}
+
+.openvault-dossier-evidence-item.missing i {
+    margin-right: 3px;
+}
+
+/* Relationships list */
+.openvault-dossier-relationships {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 0.88em;
+}
+
+.openvault-dossier-relationship {
+    padding: 3px 0;
+    line-height: 1.4;
+}
+
+.openvault-dossier-relationship-name {
+    font-weight: 500;
+}
+
+.openvault-dossier-relationship-weight {
+    color: var(--SmartThemeEmColor, #888);
+}
+
 /* Entity search/filter bar */
 .openvault-side-entity-filters {
     display: flex;

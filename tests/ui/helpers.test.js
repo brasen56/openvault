@@ -403,7 +403,13 @@ describe('ui/helpers', () => {
             const d = buildCharacterDossier('Alice', buildData(), 40);
             const level1 = d.reflectionsByLevel.find((g) => g.level === 1).reflections[0];
             expect(level1.evidence).toEqual([
-                { id: 'e1', type: 'event', summary: 'Alice signed instead of speaking', importance: 3, level: undefined },
+                {
+                    id: 'e1',
+                    type: 'event',
+                    summary: 'Alice signed instead of speaking',
+                    importance: 3,
+                    level: undefined,
+                },
             ]);
             const level2 = d.reflectionsByLevel.find((g) => g.level === 2).reflections[0];
             expect(level2.evidence[0].id).toBe('ref_1');
@@ -420,9 +426,7 @@ describe('ui/helpers', () => {
 
         it('builds relationships from graph edges, resolving the other end name', () => {
             const d = buildCharacterDossier('Alice', buildData(), 40);
-            expect(d.relationships).toEqual([
-                { name: 'Bob', key: 'bob', description: 'trusts cautiously', weight: 3 },
-            ]);
+            expect(d.relationships).toEqual([{ name: 'Bob', key: 'bob', description: 'trusts cautiously', weight: 3 }]);
         });
 
         it('matches edges in either direction', () => {
