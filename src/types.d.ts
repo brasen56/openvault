@@ -24,6 +24,13 @@ export type Memory = {
     is_transient?: boolean | undefined;
     source_ids?: string[] | undefined;
     parent_ids?: string[] | undefined;
+    character?: string | undefined;
+    emotional_impact?: {
+        [key: string]: string;
+    } | undefined;
+    relationship_impact?: {
+        [key: string]: string;
+    } | undefined;
     _st_synced?: boolean | undefined;
     _proxyVectorScore?: number | undefined;
     archive_reason?: string | undefined;
@@ -124,6 +131,13 @@ export type ScoredMemory = {
         is_transient?: boolean | undefined;
         source_ids?: string[] | undefined;
         parent_ids?: string[] | undefined;
+        character?: string | undefined;
+        emotional_impact?: {
+            [key: string]: string;
+        } | undefined;
+        relationship_impact?: {
+            [key: string]: string;
+        } | undefined;
         _st_synced?: boolean | undefined;
         _proxyVectorScore?: number | undefined;
         archive_reason?: string | undefined;
@@ -253,6 +267,13 @@ export type OpenVaultData = {
         is_transient?: boolean | undefined;
         source_ids?: string[] | undefined;
         parent_ids?: string[] | undefined;
+        character?: string | undefined;
+        emotional_impact?: {
+            [key: string]: string;
+        } | undefined;
+        relationship_impact?: {
+            [key: string]: string;
+        } | undefined;
         _st_synced?: boolean | undefined;
         _proxyVectorScore?: number | undefined;
         archive_reason?: string | undefined;
@@ -391,6 +412,13 @@ export type StSyncChanges = {
             is_transient?: boolean | undefined;
             source_ids?: string[] | undefined;
             parent_ids?: string[] | undefined;
+            character?: string | undefined;
+            emotional_impact?: {
+                [key: string]: string;
+            } | undefined;
+            relationship_impact?: {
+                [key: string]: string;
+            } | undefined;
             _st_synced?: boolean | undefined;
             _proxyVectorScore?: number | undefined;
             archive_reason?: string | undefined;
@@ -485,6 +513,13 @@ export type GenerateReflectionsResult = {
         is_transient?: boolean | undefined;
         source_ids?: string[] | undefined;
         parent_ids?: string[] | undefined;
+        character?: string | undefined;
+        emotional_impact?: {
+            [key: string]: string;
+        } | undefined;
+        relationship_impact?: {
+            [key: string]: string;
+        } | undefined;
         _st_synced?: boolean | undefined;
         _proxyVectorScore?: number | undefined;
         archive_reason?: string | undefined;
@@ -519,6 +554,13 @@ export type GenerateReflectionsResult = {
                 is_transient?: boolean | undefined;
                 source_ids?: string[] | undefined;
                 parent_ids?: string[] | undefined;
+                character?: string | undefined;
+                emotional_impact?: {
+                    [key: string]: string;
+                } | undefined;
+                relationship_impact?: {
+                    [key: string]: string;
+                } | undefined;
                 _st_synced?: boolean | undefined;
                 _proxyVectorScore?: number | undefined;
                 archive_reason?: string | undefined;
@@ -587,6 +629,13 @@ export type ConsolidateEdgesResult = {
                 is_transient?: boolean | undefined;
                 source_ids?: string[] | undefined;
                 parent_ids?: string[] | undefined;
+                character?: string | undefined;
+                emotional_impact?: {
+                    [key: string]: string;
+                } | undefined;
+                relationship_impact?: {
+                    [key: string]: string;
+                } | undefined;
                 _st_synced?: boolean | undefined;
                 _proxyVectorScore?: number | undefined;
                 archive_reason?: string | undefined;
@@ -655,6 +704,13 @@ export type MergeEntityResult = {
                 is_transient?: boolean | undefined;
                 source_ids?: string[] | undefined;
                 parent_ids?: string[] | undefined;
+                character?: string | undefined;
+                emotional_impact?: {
+                    [key: string]: string;
+                } | undefined;
+                relationship_impact?: {
+                    [key: string]: string;
+                } | undefined;
                 _st_synced?: boolean | undefined;
                 _proxyVectorScore?: number | undefined;
                 archive_reason?: string | undefined;
@@ -807,6 +863,13 @@ export type RetrievalContext = {
         is_transient?: boolean | undefined;
         source_ids?: string[] | undefined;
         parent_ids?: string[] | undefined;
+        character?: string | undefined;
+        emotional_impact?: {
+            [key: string]: string;
+        } | undefined;
+        relationship_impact?: {
+            [key: string]: string;
+        } | undefined;
         _st_synced?: boolean | undefined;
         _proxyVectorScore?: number | undefined;
         archive_reason?: string | undefined;
@@ -884,6 +947,13 @@ export type PromptContext = {
         is_transient?: boolean | undefined;
         source_ids?: string[] | undefined;
         parent_ids?: string[] | undefined;
+        character?: string | undefined;
+        emotional_impact?: {
+            [key: string]: string;
+        } | undefined;
+        relationship_impact?: {
+            [key: string]: string;
+        } | undefined;
         _st_synced?: boolean | undefined;
         _proxyVectorScore?: number | undefined;
         archive_reason?: string | undefined;
@@ -925,6 +995,13 @@ export type BasePromptParams = {
             is_transient?: boolean | undefined;
             source_ids?: string[] | undefined;
             parent_ids?: string[] | undefined;
+            character?: string | undefined;
+            emotional_impact?: {
+                [key: string]: string;
+            } | undefined;
+            relationship_impact?: {
+                [key: string]: string;
+            } | undefined;
             _st_synced?: boolean | undefined;
             _proxyVectorScore?: number | undefined;
             archive_reason?: string | undefined;
@@ -971,6 +1048,13 @@ export type GraphPromptParams = {
             is_transient?: boolean | undefined;
             source_ids?: string[] | undefined;
             parent_ids?: string[] | undefined;
+            character?: string | undefined;
+            emotional_impact?: {
+                [key: string]: string;
+            } | undefined;
+            relationship_impact?: {
+                [key: string]: string;
+            } | undefined;
             _st_synced?: boolean | undefined;
             _proxyVectorScore?: number | undefined;
             archive_reason?: string | undefined;
@@ -1029,6 +1113,13 @@ export type ReflectionPromptParams = {
         is_transient?: boolean | undefined;
         source_ids?: string[] | undefined;
         parent_ids?: string[] | undefined;
+        character?: string | undefined;
+        emotional_impact?: {
+            [key: string]: string;
+        } | undefined;
+        relationship_impact?: {
+            [key: string]: string;
+        } | undefined;
         _st_synced?: boolean | undefined;
         _proxyVectorScore?: number | undefined;
         archive_reason?: string | undefined;

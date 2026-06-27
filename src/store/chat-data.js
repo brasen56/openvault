@@ -4,6 +4,7 @@ import {
     CHARACTERS_KEY,
     CONSOLIDATION,
     EMBEDDING_SOURCES,
+    ENTITY_TYPES,
     GRAPH_JACCARD_DUPLICATE_THRESHOLD,
     MEMORIES_KEY,
     METADATA_KEY,
@@ -661,6 +662,93 @@ export function incrementGraphMessageCount(count) {
 }
 
 /**
+ * Reconcile the display-name-keyed stores when two characters are merged.
+ *
+ * The graph is keyed by normalized key, but `character_states`, `reflection_state`,
+ * and the character fields on memories are keyed by display name — so merging two
+ * graph nodes (via mergeEntities) leaves those stores split. This migrates every
+ * reference from `sourceName` onto `targetName`. Matching is case-insensitive so it
+ * also catches historical case/variant drift; the replacement is always the exact
+ * `targetName`. Pure (operates on the passed data object) for testability.
+ *
+ * @param {OpenVaultData} data - OpenVault data object (mutated)
+ * @param {string} sourceName - Display name being absorbed
+ * @param {string} targetName - Surviving display name
+ * @returns {void}
+ */
+export function reconcileCharacterIdentity(data, sourceName, targetName) {
+    if (!data || !sourceName || !targetName) return;
+    if (sourceName.toLowerCase() === targetName.toLowerCase()) return;
+
+    const srcLower = sourceName.toLowerCase();
+    const isSource = (n) => typeof n === 'string' && n.toLowerCase() === srcLower;
+    const dedupe = (arr) => [...new Set(arr)];
+
+    // 1. Memories: reassign source -> target across every character-bearing field.
+    const memories = data[MEMORIES_KEY] || [];
+    for (const m of memories) {
+        if (Array.isArray(m.characters_involved)) {
+            m.characters_involved = dedupe(m.characters_involved.map((n) => (isSource(n) ? targetName : n)));
+        }
+        if (Array.isArray(m.witnesses)) {
+            m.witnesses = dedupe(m.witnesses.map((n) => (isSource(n) ? targetName : n)));
+        }
+        if (m.emotional_impact && typeof m.emotional_impact === 'object') {
+            for (const key of Object.keys(m.emotional_impact)) {
+                if (isSource(key)) {
+                    // Keep target's existing emotion if it already has one for this event.
+                    if (m.emotional_impact[targetName] === undefined) {
+                        m.emotional_impact[targetName] = m.emotional_impact[key];
+                    }
+                    delete m.emotional_impact[key];
+                }
+            }
+        }
+        // Reflections carry a singular `character` field in addition to the array.
+        if (isSource(m.character)) m.character = targetName;
+    }
+
+    // 2. character_states: fold every source-matching entry into the target.
+    const states = data[CHARACTERS_KEY];
+    if (states) {
+        for (const key of Object.keys(states)) {
+            if (!isSource(key)) continue;
+            const src = states[key];
+            const tgt = states[targetName];
+            if (!tgt) {
+                states[targetName] = { ...src, name: targetName };
+            } else {
+                tgt.known_events = dedupe([...(tgt.known_events || []), ...(src.known_events || [])]);
+                // Newest emotion wins.
+                if ((src.last_updated || 0) > (tgt.last_updated || 0)) {
+                    tgt.current_emotion = src.current_emotion;
+                    tgt.emotion_intensity = src.emotion_intensity;
+                    tgt.last_updated = src.last_updated;
+                    if (src.emotion_from_messages) tgt.emotion_from_messages = src.emotion_from_messages;
+                }
+            }
+            if (key !== targetName) delete states[key];
+        }
+    }
+
+    // 3. reflection_state: sum accumulated importance.
+    const reflectionState = data.reflection_state;
+    if (reflectionState) {
+        for (const key of Object.keys(reflectionState)) {
+            if (!isSource(key)) continue;
+            const src = reflectionState[key];
+            const tgt = reflectionState[targetName];
+            if (!tgt) {
+                reflectionState[targetName] = { ...src };
+            } else {
+                tgt.importance_sum = (tgt.importance_sum || 0) + (src.importance_sum || 0);
+            }
+            if (key !== targetName) delete reflectionState[key];
+        }
+    }
+}
+
+/**
  * Merge source entity into target entity. Source is deleted.
  * @param {string} sourceKey - Entity to absorb (will be deleted)
  * @param {string} targetKey - Entity that survives
@@ -687,6 +775,13 @@ export async function mergeEntities(sourceKey, targetKey, graph = null) {
     if (!sourceNode || !targetNode) {
         return { success: false };
     }
+
+    // Capture display names before the source node is deleted below — needed to
+    // reconcile the name-keyed stores (character_states/reflection_state/memories)
+    // for character merges.
+    const isCharacterMerge = sourceNode.type === ENTITY_TYPES.PERSON || targetNode.type === ENTITY_TYPES.PERSON;
+    const sourceName = sourceNode.name;
+    const targetName = targetNode.name;
 
     const toDelete = [];
     const toSync = [];
@@ -812,6 +907,13 @@ export async function mergeEntities(sourceKey, targetKey, graph = null) {
     if (sourceNode._st_synced || targetNode._st_synced) {
         const text = `[OV_ID:${targetKey}] ${targetNode.description}`;
         toSync.push({ hash: cyrb53(text), text, item: targetNode });
+    }
+
+    // 4b. For character merges, reconcile the display-name-keyed stores the graph
+    // merge above doesn't touch (character_states, reflection_state, memory fields).
+    if (isCharacterMerge) {
+        const data = ctx.chatMetadata?.openvault;
+        if (data) reconcileCharacterIdentity(data, sourceName, targetName);
     }
 
     // 5. Save

@@ -5,9 +5,15 @@
  * Shows the original and duplicate side-by-side with accept/reject actions.
  */
 
-import { MEMORIES_KEY } from '../constants.js';
-import { deleteMemory as deleteMemoryAction, getOpenVaultData, saveOpenVaultData } from '../store/chat-data.js';
+import { ENTITY_TYPES, MEMORIES_KEY } from '../constants.js';
+import {
+    deleteMemory as deleteMemoryAction,
+    getOpenVaultData,
+    mergeEntities,
+    saveOpenVaultData,
+} from '../store/chat-data.js';
 import { escapeHtml, showToast } from '../utils/dom.js';
+import { tokenizeName } from '../utils/transliterate.js';
 
 // =============================================================================
 // Data Access
@@ -119,6 +125,62 @@ export function findNearDuplicates() {
     return candidates;
 }
 
+/**
+ * Find likely duplicate characters among PERSON graph nodes by comparing their
+ * name tokens. A pair is flagged when one name's tokens are a subset of the
+ * other's (e.g. "Greg" vs "Greg Williams") or when both share the exact same
+ * token set in a different order. The fuller name (more tokens, or more mentions
+ * on a tie) is suggested as the survivor.
+ *
+ * @param {Object.<string, {name?: string, type?: string, mentions?: number}>} graphNodes
+ * @returns {Array<{sourceKey: string, sourceName: string, targetKey: string, targetName: string, reason: string}>}
+ */
+export function findCharacterDuplicates(graphNodes) {
+    const persons = Object.entries(graphNodes || {})
+        .filter(([, n]) => n?.type === ENTITY_TYPES.PERSON && n.name)
+        .map(([key, n]) => ({ key, name: n.name, mentions: n.mentions || 0, tokens: tokenizeName(n.name) }))
+        .filter((p) => p.tokens.length > 0);
+
+    const pairs = [];
+
+    for (let i = 0; i < persons.length; i++) {
+        for (let j = i + 1; j < persons.length; j++) {
+            const a = persons[i];
+            const b = persons[j];
+            const setA = new Set(a.tokens);
+            const setB = new Set(b.tokens);
+            const aInB = [...setA].every((t) => setB.has(t));
+            const bInA = [...setB].every((t) => setA.has(t));
+
+            let shorter;
+            let longer;
+            if (aInB && bInA) {
+                // Same token set, different display name (e.g. reordered) — survivor
+                // is whichever is mentioned more, falling back to the first.
+                [longer, shorter] = a.mentions >= b.mentions ? [a, b] : [b, a];
+            } else if (aInB) {
+                shorter = a;
+                longer = b; // a's tokens ⊂ b's tokens → b is fuller
+            } else if (bInA) {
+                shorter = b;
+                longer = a;
+            } else {
+                continue;
+            }
+
+            pairs.push({
+                sourceKey: shorter.key,
+                sourceName: shorter.name,
+                targetKey: longer.key,
+                targetName: longer.name,
+                reason: `"${shorter.name}" looks like the same person as "${longer.name}"`,
+            });
+        }
+    }
+
+    return pairs;
+}
+
 // =============================================================================
 // Rendering
 // =============================================================================
@@ -188,7 +250,59 @@ function renderDuplicatePair(candidate, index) {
 }
 
 /**
- * Render the full duplicates review panel.
+ * Render a single suggested character-merge pair.
+ * @param {{sourceKey: string, sourceName: string, targetKey: string, targetName: string, reason: string}} pair
+ * @returns {string} HTML string
+ */
+function renderCharacterDuplicatePair(pair) {
+    return `
+        <div class="openvault-dup-pair openvault-char-dup-pair">
+            <div class="openvault-dup-header">
+                <span class="openvault-dup-badge">Possible same character</span>
+                <span class="openvault-dup-reason">${escapeHtml(pair.reason)}</span>
+            </div>
+            <div class="openvault-dup-cards">
+                <div class="openvault-dup-card">
+                    <div class="openvault-dup-card-label">Absorb</div>
+                    <div class="openvault-dup-card-body"><div class="openvault-dup-summary">${escapeHtml(pair.sourceName)}</div></div>
+                </div>
+                <div class="openvault-dup-card">
+                    <div class="openvault-dup-card-label">Into (survives)</div>
+                    <div class="openvault-dup-card-body"><div class="openvault-dup-summary">${escapeHtml(pair.targetName)}</div></div>
+                </div>
+            </div>
+            <div class="openvault-dup-footer">
+                <button class="openvault-char-merge-confirm openvault-dup-action-btn" data-source-key="${escapeHtml(pair.sourceKey)}" data-target-key="${escapeHtml(pair.targetKey)}">
+                    <i class="fa-solid fa-object-group"></i> Merge "${escapeHtml(pair.sourceName)}" → "${escapeHtml(pair.targetName)}"
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Build the suggested character-merges section (empty string when none).
+ * @returns {string} HTML string
+ */
+function renderCharacterDuplicatesSection() {
+    const data = getOpenVaultData();
+    const pairs = findCharacterDuplicates(data?.graph?.nodes || {});
+    if (pairs.length === 0) return '';
+
+    const rows = pairs.map(renderCharacterDuplicatePair).join('');
+    return `
+        <div class="openvault-dup-summary-bar">
+            <span><i class="fa-solid fa-user-group"></i> ${pairs.length} possible duplicate character${pairs.length !== 1 ? 's' : ''} found</span>
+        </div>
+        <div class="openvault-dup-list">
+            ${rows}
+        </div>
+        <div class="openvault-char-dup-divider"></div>
+    `;
+}
+
+/**
+ * Render the full duplicates review panel (character merges + memory near-dupes).
  * @param {HTMLElement} container - The container element to render into
  */
 export function renderDuplicatesPanel(container) {
@@ -197,29 +311,33 @@ export function renderDuplicatesPanel(container) {
     }
     if (!container) return;
 
+    const charSection = renderCharacterDuplicatesSection();
     const candidates = findNearDuplicates();
 
-    if (candidates.length === 0) {
+    if (!charSection && candidates.length === 0) {
         container.innerHTML = `
             <div class="openvault-dup-empty">
                 <i class="fa-solid fa-circle-check" style="font-size: 2em; color: var(--SmartThemeQuoteColor);"></i>
-                <p>No near-duplicate memories found</p>
-                <small>All memories appear to be sufficiently distinct.</small>
+                <p>No duplicates found</p>
+                <small>All characters and memories appear to be distinct.</small>
             </div>
         `;
         return;
     }
 
-    const pairs = candidates.map((c, i) => renderDuplicatePair(c, i)).join('');
-
-    container.innerHTML = `
+    const memorySection =
+        candidates.length > 0
+            ? `
         <div class="openvault-dup-summary-bar">
             <span><i class="fa-solid fa-clone"></i> ${candidates.length} near-duplicate pair${candidates.length !== 1 ? 's' : ''} found</span>
         </div>
         <div class="openvault-dup-list">
-            ${pairs}
+            ${candidates.map((c, i) => renderDuplicatePair(c, i)).join('')}
         </div>
-    `;
+    `
+            : '';
+
+    container.innerHTML = charSection + memorySection;
 }
 
 // =============================================================================
@@ -298,6 +416,36 @@ export async function handleDuplicateAction(action, index) {
 }
 
 /**
+ * Merge one suggested duplicate character into another. Delegates to
+ * mergeEntities, which (for PERSON entities) also reconciles character_states,
+ * reflection_state, and memory character fields.
+ * @param {string} sourceKey - Normalized key of the character to absorb
+ * @param {string} targetKey - Normalized key of the surviving character
+ */
+export async function handleCharacterMerge(sourceKey, targetKey) {
+    if (!sourceKey || !targetKey || sourceKey === targetKey) return;
+    try {
+        const result = await mergeEntities(sourceKey, targetKey);
+        if (!result?.success) {
+            showToast('error', 'Failed to merge characters');
+            return;
+        }
+        if (result.stChanges) {
+            const { applySyncChanges } = await import('../extraction/extract.js');
+            await applySyncChanges(result.stChanges);
+        }
+        showToast('success', 'Characters merged');
+        const container = document.getElementById('openvault_duplicates_content');
+        if (container) renderDuplicatesPanel(container);
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            console.error('[OpenVault] Character merge failed:', err);
+            showToast('error', `Merge failed: ${err.message}`);
+        }
+    }
+}
+
+/**
  * Bind duplicate review events to a container element.
  * @param {HTMLElement|JQuery} $container - jQuery or DOM element
  */
@@ -309,6 +457,12 @@ export const renderDuplicatePanel = renderDuplicatesPanel;
  */
 export function bindDuplicateEvents($container) {
     $container = $container.jquery ? $container : $($container);
+
+    $container.on('click', '.openvault-char-merge-confirm', function () {
+        const sourceKey = $(this).data('source-key');
+        const targetKey = $(this).data('target-key');
+        handleCharacterMerge(String(sourceKey ?? ''), String(targetKey ?? ''));
+    });
 
     $container.on('click', '.openvault-dup-action-btn', function () {
         const action = $(this).data('action');

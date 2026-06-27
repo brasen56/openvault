@@ -973,6 +973,16 @@
     gap: 12px;
 }
 
+.openvault-char-dup-pair .openvault-dup-badge {
+    background: rgba(120, 170, 255, 0.18);
+    color: var(--SmartThemeQuoteColor, #79f);
+}
+
+.openvault-char-dup-divider {
+    margin: 4px 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .openvault-dup-empty {
     display: flex;
     flex-direction: column;

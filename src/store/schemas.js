@@ -42,6 +42,11 @@ export const MemorySchema = z.object({
     // Reflection-specific: IDs of source memories and parent reflections
     source_ids: z.array(z.string()).optional(),
     parent_ids: z.array(z.string()).optional(),
+    // Reflection-specific: the single character a reflection is about
+    character: z.string().optional(),
+    // Event-derived: per-character emotion / relationship deltas (parser.js)
+    emotional_impact: z.record(z.string(), z.string()).optional(),
+    relationship_impact: z.record(z.string(), z.string()).optional(),
     _st_synced: z.boolean().optional(),
     _proxyVectorScore: z.number().optional(),
     // Contradiction merge metadata (written by mergeContradictingMemories)

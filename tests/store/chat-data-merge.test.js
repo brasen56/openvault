@@ -2,7 +2,7 @@
 /* global describe, it, expect, beforeEach, setupTestContext */
 import { describe, expect, it, vi } from 'vitest';
 import { setDeps } from '../../src/deps.js';
-import { mergeEntities } from '../../src/store/chat-data.js';
+import { mergeEntities, reconcileCharacterIdentity } from '../../src/store/chat-data.js';
 
 describe('mergeEntities', () => {
     let mockGraph;
@@ -235,6 +235,98 @@ describe('mergeEntities', () => {
             expect(mockGraph.edges.source__target).toBeUndefined();
             expect(mockGraph.edges.target__target).toBeUndefined();
             expect(result.stChanges.toDelete.length).toBeGreaterThan(0);
+        });
+    });
+
+    describe('reconciles name-keyed stores on a PERSON merge', () => {
+        it('migrates memories, character_states, and reflection_state from source to target', async () => {
+            const saveFn = vi.fn(async () => true);
+            const data = {
+                schema_version: 3,
+                memories: [
+                    { id: 'm1', characters_involved: ['Greg', 'User'], witnesses: ['Greg'] },
+                    { id: 'm2', emotional_impact: { Greg: 'angry' } },
+                    { id: 'r1', type: 'reflection', character: 'Greg', characters_involved: ['Greg'] },
+                ],
+                character_states: {
+                    Greg: { name: 'Greg', current_emotion: 'angry', last_updated: 200, known_events: ['m1'] },
+                    'Greg Williams': {
+                        name: 'Greg Williams',
+                        current_emotion: 'calm',
+                        last_updated: 100,
+                        known_events: ['m2'],
+                    },
+                },
+                reflection_state: { Greg: { importance_sum: 12 }, 'Greg Williams': { importance_sum: 5 } },
+                processed_message_ids: [],
+                graph: {
+                    nodes: {
+                        greg: { name: 'Greg', type: 'PERSON', description: 'a man', mentions: 3, aliases: [] },
+                        'greg williams': {
+                            name: 'Greg Williams',
+                            type: 'PERSON',
+                            description: 'a tall man',
+                            mentions: 5,
+                            aliases: [],
+                        },
+                    },
+                    edges: {},
+                    _mergeRedirects: {},
+                },
+            };
+            setupTestContext({ context: { chatMetadata: { openvault: data } }, deps: { saveChatConditional: saveFn } });
+
+            const { mergeEntities: mergeImported } = await import('../../src/store/chat-data.js');
+            const result = await mergeImported('greg', 'greg williams');
+
+            expect(result.success).toBe(true);
+            // Memories reassigned to the surviving display name
+            expect(data.memories[0].characters_involved).toEqual(['Greg Williams', 'User']);
+            expect(data.memories[0].witnesses).toEqual(['Greg Williams']);
+            expect(data.memories[1].emotional_impact).toEqual({ 'Greg Williams': 'angry' });
+            expect(data.memories[2].character).toBe('Greg Williams');
+            // character_states folded together, source removed, newest emotion wins
+            expect(data.character_states.Greg).toBeUndefined();
+            expect(data.character_states['Greg Williams'].current_emotion).toBe('angry');
+            expect(data.character_states['Greg Williams'].known_events).toEqual(['m2', 'm1']);
+            // reflection_state importance summed, source removed
+            expect(data.reflection_state.Greg).toBeUndefined();
+            expect(data.reflection_state['Greg Williams'].importance_sum).toBe(17);
+        });
+    });
+
+    describe('reconcileCharacterIdentity (unit)', () => {
+        it('is a no-op when source and target are the same (case-insensitive)', () => {
+            const data = { memories: [{ characters_involved: ['Alex'] }] };
+            reconcileCharacterIdentity(data, 'Alex', 'alex');
+            expect(data.memories[0].characters_involved).toEqual(['Alex']);
+        });
+
+        it('matches the source name case-insensitively but writes the exact target name', () => {
+            const data = { memories: [{ characters_involved: ['greg', 'GREG'] }] };
+            reconcileCharacterIdentity(data, 'Greg', 'Greg Williams');
+            expect(data.memories[0].characters_involved).toEqual(['Greg Williams']);
+        });
+
+        it('does not overwrite an existing target emotion on the same event', () => {
+            const data = { memories: [{ emotional_impact: { Greg: 'angry', 'Greg Williams': 'calm' } }] };
+            reconcileCharacterIdentity(data, 'Greg', 'Greg Williams');
+            expect(data.memories[0].emotional_impact).toEqual({ 'Greg Williams': 'calm' });
+        });
+
+        it('moves a source character_state entry when the target has none', () => {
+            const data = {
+                character_states: { Greg: { name: 'Greg', current_emotion: 'wary', known_events: ['e1'] } },
+            };
+            reconcileCharacterIdentity(data, 'Greg', 'Greg Williams');
+            expect(data.character_states.Greg).toBeUndefined();
+            expect(data.character_states['Greg Williams'].name).toBe('Greg Williams');
+            expect(data.character_states['Greg Williams'].current_emotion).toBe('wary');
+        });
+
+        it('handles missing stores gracefully', () => {
+            expect(() => reconcileCharacterIdentity({}, 'Greg', 'Greg Williams')).not.toThrow();
+            expect(() => reconcileCharacterIdentity(null, 'Greg', 'Greg Williams')).not.toThrow();
         });
     });
 
