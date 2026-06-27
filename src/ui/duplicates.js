@@ -6,10 +6,12 @@
  */
 
 import { ENTITY_TYPES, MEMORIES_KEY } from '../constants.js';
+import { normalizeKey } from '../graph/graph.js';
 import {
     deleteMemory as deleteMemoryAction,
     getOpenVaultData,
     mergeEntities,
+    reconcileCharacterIdentity,
     saveOpenVaultData,
 } from '../store/chat-data.js';
 import { escapeHtml, showToast } from '../utils/dom.js';
@@ -126,27 +128,69 @@ export function findNearDuplicates() {
 }
 
 /**
- * Find likely duplicate characters among PERSON graph nodes by comparing their
- * name tokens. A pair is flagged when one name's tokens are a subset of the
- * other's (e.g. "Greg" vs "Greg Williams") or when both share the exact same
- * token set in a different order. The fuller name (more tokens, or more mentions
- * on a tie) is suggested as the survivor.
- *
- * @param {Object.<string, {name?: string, type?: string, mentions?: number}>} graphNodes
- * @returns {Array<{sourceKey: string, sourceName: string, targetKey: string, targetName: string, reason: string}>}
+ * Format a short context line for a character from its activity counts.
+ * @param {{knownEvents: number, mentions: number}} p
+ * @returns {string}
  */
-export function findCharacterDuplicates(graphNodes) {
-    const persons = Object.entries(graphNodes || {})
-        .filter(([, n]) => n?.type === ENTITY_TYPES.PERSON && n.name)
-        .map(([key, n]) => ({ key, name: n.name, mentions: n.mentions || 0, tokens: tokenizeName(n.name) }))
+function characterMeta(p) {
+    if (p.knownEvents > 0) return `${p.knownEvents} known event${p.knownEvents !== 1 ? 's' : ''}`;
+    if (p.mentions > 0) return `${p.mentions} mention${p.mentions !== 1 ? 's' : ''}`;
+    return '';
+}
+
+/**
+ * Find likely duplicate characters across ALL identity stores — graph PERSON
+ * nodes, character_states keys, and reflection_state keys — by comparing name
+ * tokens. Scanning every store (not just graph nodes) catches names that live in
+ * character_states but were never, or are no longer, a graph node — which neither
+ * the entity view nor a node-only scan can surface.
+ *
+ * A pair is flagged when one name's tokens are a subset of the other's
+ * (e.g. "Alex" vs "Alex Hiro") or both share the same token set in a different
+ * order. The fuller name (more tokens, or higher activity on a tie) is suggested
+ * as the survivor. Each side carries a description + count so similarly-named
+ * characters (e.g. two different "Marcus" entries) can be told apart.
+ *
+ * @param {Object} data - OpenVault data ({ graph, character_states, reflection_state })
+ * @returns {Array<{sourceName: string, targetName: string, sourceDesc: string, targetDesc: string, sourceMeta: string, targetMeta: string, reason: string}>}
+ */
+export function findCharacterDuplicates(data) {
+    const graphNodes = data?.graph?.nodes || {};
+    const states = data?.character_states || {};
+    const reflectionState = data?.reflection_state || {};
+
+    // Registry keyed by lowercased name so the same character across stores merges
+    // into one entry (and historical case drift collapses together).
+    /** @type {Map<string, {name: string, desc: string, mentions: number, knownEvents: number}>} */
+    const registry = new Map();
+    const upsert = (name, patch) => {
+        if (!name || typeof name !== 'string') return;
+        const key = name.toLowerCase();
+        const cur = registry.get(key) || { name, desc: '', mentions: 0, knownEvents: 0 };
+        registry.set(key, { ...cur, ...patch });
+    };
+
+    for (const node of Object.values(graphNodes)) {
+        if (node?.type === ENTITY_TYPES.PERSON && node.name) {
+            upsert(node.name, { desc: node.description || '', mentions: node.mentions || 0 });
+        }
+    }
+    for (const [name, st] of Object.entries(states)) {
+        upsert(name, { knownEvents: (st?.known_events || []).length });
+    }
+    for (const name of Object.keys(reflectionState)) {
+        upsert(name, {});
+    }
+
+    const people = [...registry.values()]
+        .map((p) => ({ ...p, tokens: tokenizeName(p.name), weight: (p.mentions || 0) + (p.knownEvents || 0) }))
         .filter((p) => p.tokens.length > 0);
 
     const pairs = [];
-
-    for (let i = 0; i < persons.length; i++) {
-        for (let j = i + 1; j < persons.length; j++) {
-            const a = persons[i];
-            const b = persons[j];
+    for (let i = 0; i < people.length; i++) {
+        for (let j = i + 1; j < people.length; j++) {
+            const a = people[i];
+            const b = people[j];
             const setA = new Set(a.tokens);
             const setB = new Set(b.tokens);
             const aInB = [...setA].every((t) => setB.has(t));
@@ -156,8 +200,8 @@ export function findCharacterDuplicates(graphNodes) {
             let longer;
             if (aInB && bInA) {
                 // Same token set, different display name (e.g. reordered) — survivor
-                // is whichever is mentioned more, falling back to the first.
-                [longer, shorter] = a.mentions >= b.mentions ? [a, b] : [b, a];
+                // is whichever is more active, falling back to the first.
+                [longer, shorter] = a.weight >= b.weight ? [a, b] : [b, a];
             } else if (aInB) {
                 shorter = a;
                 longer = b; // a's tokens ⊂ b's tokens → b is fuller
@@ -169,11 +213,13 @@ export function findCharacterDuplicates(graphNodes) {
             }
 
             pairs.push({
-                sourceKey: shorter.key,
                 sourceName: shorter.name,
-                targetKey: longer.key,
                 targetName: longer.name,
-                reason: `"${shorter.name}" looks like the same person as "${longer.name}"`,
+                sourceDesc: shorter.desc,
+                targetDesc: longer.desc,
+                sourceMeta: characterMeta(shorter),
+                targetMeta: characterMeta(longer),
+                reason: `"${shorter.name}" may be the same person as "${longer.name}"`,
             });
         }
     }
@@ -250,8 +296,33 @@ function renderDuplicatePair(candidate, index) {
 }
 
 /**
+ * Render one side (character) of a suggested merge with its disambiguating context.
+ * @param {string} label - Column label
+ * @param {string} name - Character display name
+ * @param {string} meta - Short activity line (e.g. "277 known events")
+ * @param {string} desc - Entity description (may be empty for state-only characters)
+ * @returns {string} HTML string
+ */
+function renderCharacterDuplicateCard(label, name, meta, desc) {
+    const metaLine = meta ? `<div class="openvault-char-dup-meta">${escapeHtml(meta)}</div>` : '';
+    const descLine = desc
+        ? `<div class="openvault-char-dup-desc">${escapeHtml(desc)}</div>`
+        : `<div class="openvault-char-dup-desc openvault-char-dup-desc-empty">No description (state only)</div>`;
+    return `
+        <div class="openvault-dup-card">
+            <div class="openvault-dup-card-label">${label}</div>
+            <div class="openvault-dup-card-body">
+                <div class="openvault-dup-summary">${escapeHtml(name)}</div>
+                ${metaLine}
+                ${descLine}
+            </div>
+        </div>
+    `;
+}
+
+/**
  * Render a single suggested character-merge pair.
- * @param {{sourceKey: string, sourceName: string, targetKey: string, targetName: string, reason: string}} pair
+ * @param {{sourceName: string, targetName: string, sourceDesc: string, targetDesc: string, sourceMeta: string, targetMeta: string, reason: string}} pair
  * @returns {string} HTML string
  */
 function renderCharacterDuplicatePair(pair) {
@@ -262,17 +333,11 @@ function renderCharacterDuplicatePair(pair) {
                 <span class="openvault-dup-reason">${escapeHtml(pair.reason)}</span>
             </div>
             <div class="openvault-dup-cards">
-                <div class="openvault-dup-card">
-                    <div class="openvault-dup-card-label">Absorb</div>
-                    <div class="openvault-dup-card-body"><div class="openvault-dup-summary">${escapeHtml(pair.sourceName)}</div></div>
-                </div>
-                <div class="openvault-dup-card">
-                    <div class="openvault-dup-card-label">Into (survives)</div>
-                    <div class="openvault-dup-card-body"><div class="openvault-dup-summary">${escapeHtml(pair.targetName)}</div></div>
-                </div>
+                ${renderCharacterDuplicateCard('Absorb', pair.sourceName, pair.sourceMeta, pair.sourceDesc)}
+                ${renderCharacterDuplicateCard('Into (survives)', pair.targetName, pair.targetMeta, pair.targetDesc)}
             </div>
             <div class="openvault-dup-footer">
-                <button class="openvault-char-merge-confirm openvault-dup-action-btn" data-source-key="${escapeHtml(pair.sourceKey)}" data-target-key="${escapeHtml(pair.targetKey)}">
+                <button class="openvault-char-merge-confirm openvault-dup-action-btn" data-source-name="${escapeHtml(pair.sourceName)}" data-target-name="${escapeHtml(pair.targetName)}">
                     <i class="fa-solid fa-object-group"></i> Merge "${escapeHtml(pair.sourceName)}" → "${escapeHtml(pair.targetName)}"
                 </button>
             </div>
@@ -286,7 +351,7 @@ function renderCharacterDuplicatePair(pair) {
  */
 function renderCharacterDuplicatesSection() {
     const data = getOpenVaultData();
-    const pairs = findCharacterDuplicates(data?.graph?.nodes || {});
+    const pairs = findCharacterDuplicates(data);
     if (pairs.length === 0) return '';
 
     const rows = pairs.map(renderCharacterDuplicatePair).join('');
@@ -416,25 +481,48 @@ export async function handleDuplicateAction(action, index) {
 }
 
 /**
- * Merge one suggested duplicate character into another. Delegates to
- * mergeEntities, which (for PERSON entities) also reconciles character_states,
- * reflection_state, and memory character fields.
- * @param {string} sourceKey - Normalized key of the character to absorb
- * @param {string} targetKey - Normalized key of the surviving character
+ * Merge one suggested duplicate character into another, by display name.
+ *
+ * When both names are graph entities, delegates to mergeEntities (which merges the
+ * graph and reconciles the name-keyed stores). When a name has no graph node — an
+ * orphaned character_states/reflection_state entry, e.g. "Alex" surviving only in
+ * the Characters tab — it reconciles the name-keyed stores directly, since there is
+ * no graph node to merge. This is the path the entity-view merge can't reach.
+ *
+ * @param {string} sourceName - Display name of the character to absorb
+ * @param {string} targetName - Display name of the surviving character
  */
-export async function handleCharacterMerge(sourceKey, targetKey) {
-    if (!sourceKey || !targetKey || sourceKey === targetKey) return;
+export async function handleCharacterMerge(sourceName, targetName) {
+    if (!sourceName || !targetName || sourceName.toLowerCase() === targetName.toLowerCase()) return;
     try {
-        const result = await mergeEntities(sourceKey, targetKey);
-        if (!result?.success) {
-            showToast('error', 'Failed to merge characters');
+        const data = getOpenVaultData();
+        if (!data) {
+            showToast('warning', 'No chat loaded');
             return;
         }
-        if (result.stChanges) {
-            const { applySyncChanges } = await import('../extraction/extract.js');
-            await applySyncChanges(result.stChanges);
+        const nodes = data.graph?.nodes || {};
+        const sourceKey = normalizeKey(sourceName);
+        const targetKey = normalizeKey(targetName);
+
+        if (nodes[sourceKey] && nodes[targetKey] && sourceKey !== targetKey) {
+            // Both are graph entities — full graph + state merge.
+            const result = await mergeEntities(sourceKey, targetKey);
+            if (!result?.success) {
+                showToast('error', 'Failed to merge characters');
+                return;
+            }
+            if (result.stChanges) {
+                const { applySyncChanges } = await import('../extraction/extract.js');
+                await applySyncChanges(result.stChanges);
+            }
+        } else {
+            // At least one name has no graph node — reconcile the name-keyed stores
+            // directly (the graph has nothing to merge for it).
+            reconcileCharacterIdentity(data, sourceName, targetName);
+            await saveOpenVaultData();
         }
-        showToast('success', 'Characters merged');
+
+        showToast('success', `Merged "${sourceName}" → "${targetName}"`);
         const container = document.getElementById('openvault_duplicates_content');
         if (container) renderDuplicatesPanel(container);
     } catch (err) {
@@ -459,9 +547,9 @@ export function bindDuplicateEvents($container) {
     $container = $container.jquery ? $container : $($container);
 
     $container.on('click', '.openvault-char-merge-confirm', function () {
-        const sourceKey = $(this).data('source-key');
-        const targetKey = $(this).data('target-key');
-        handleCharacterMerge(String(sourceKey ?? ''), String(targetKey ?? ''));
+        const sourceName = $(this).data('source-name');
+        const targetName = $(this).data('target-name');
+        handleCharacterMerge(String(sourceName ?? ''), String(targetName ?? ''));
     });
 
     $container.on('click', '.openvault-dup-action-btn', function () {

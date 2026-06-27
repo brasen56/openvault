@@ -1,81 +1,111 @@
 import { describe, expect, it } from 'vitest';
 import { findCharacterDuplicates } from '../../src/ui/duplicates.js';
 
-const person = (name, mentions = 0) => ({ name, type: 'PERSON', mentions });
+const person = (name, mentions = 0, description = '') => ({ name, type: 'PERSON', mentions, description });
+const withGraph = (nodes, extra = {}) => ({ graph: { nodes }, ...extra });
 
 describe('findCharacterDuplicates', () => {
     it('flags a bare name as a duplicate of its fuller form', () => {
-        const nodes = {
-            greg: person('Greg'),
-            'greg williams': person('Greg Williams'),
-        };
-        const pairs = findCharacterDuplicates(nodes);
+        const data = withGraph({ greg: person('Greg'), 'greg williams': person('Greg Williams') });
+        const pairs = findCharacterDuplicates(data);
         expect(pairs).toHaveLength(1);
         expect(pairs[0].sourceName).toBe('Greg');
         expect(pairs[0].targetName).toBe('Greg Williams');
-        expect(pairs[0].sourceKey).toBe('greg');
-        expect(pairs[0].targetKey).toBe('greg williams');
     });
 
     it('always suggests the fuller name as the survivor regardless of node order', () => {
-        const nodes = {
-            'alex hiro': person('Alex Hiro'),
-            alex: person('Alex'),
-        };
-        const [pair] = findCharacterDuplicates(nodes);
+        const data = withGraph({ 'alex hiro': person('Alex Hiro'), alex: person('Alex') });
+        const [pair] = findCharacterDuplicates(data);
         expect(pair.sourceName).toBe('Alex');
         expect(pair.targetName).toBe('Alex Hiro');
     });
 
     it('ignores non-PERSON nodes', () => {
-        const nodes = {
+        const data = withGraph({
             castle: { name: 'Castle', type: 'PLACE' },
             'castle keep': { name: 'Castle Keep', type: 'PLACE' },
-        };
-        expect(findCharacterDuplicates(nodes)).toEqual([]);
+        });
+        expect(findCharacterDuplicates(data)).toEqual([]);
     });
 
     it('does not flag unrelated names', () => {
-        const nodes = {
-            greg: person('Greg'),
-            alex: person('Alex'),
-        };
-        expect(findCharacterDuplicates(nodes)).toEqual([]);
+        const data = withGraph({ greg: person('Greg'), alex: person('Alex') });
+        expect(findCharacterDuplicates(data)).toEqual([]);
     });
 
     it('does not confuse similar but distinct names (Greg vs Gregory)', () => {
-        const nodes = {
-            greg: person('Greg'),
-            gregory: person('Gregory'),
-        };
-        expect(findCharacterDuplicates(nodes)).toEqual([]);
+        const data = withGraph({ greg: person('Greg'), gregory: person('Gregory') });
+        expect(findCharacterDuplicates(data)).toEqual([]);
     });
 
     it('suggests both fuller forms when a bare name matches two full names', () => {
-        const nodes = {
+        const data = withGraph({
             alex: person('Alex'),
             'alex hiro': person('Alex Hiro'),
             'alex wong': person('Alex Wong'),
-        };
-        const pairs = findCharacterDuplicates(nodes);
+        });
+        const pairs = findCharacterDuplicates(data);
         const targets = pairs.map((p) => p.targetName).sort();
         expect(pairs).toHaveLength(2);
         expect(targets).toEqual(['Alex Hiro', 'Alex Wong']);
         expect(pairs.every((p) => p.sourceName === 'Alex')).toBe(true);
     });
 
-    it('picks the higher-mention node as survivor for same-token reorderings', () => {
-        const nodes = {
+    it('detects an orphaned character_states name with no graph node', () => {
+        // "Alex" exists only in character_states; "Alex Hiro" is the graph node.
+        const data = withGraph(
+            { 'alex hiro': person('Alex Hiro', 50) },
+            {
+                character_states: {
+                    Alex: { name: 'Alex', known_events: new Array(277).fill('e') },
+                    'Alex Hiro': { name: 'Alex Hiro', known_events: new Array(1246).fill('e') },
+                },
+            }
+        );
+        const pairs = findCharacterDuplicates(data);
+        expect(pairs).toHaveLength(1);
+        expect(pairs[0].sourceName).toBe('Alex');
+        expect(pairs[0].targetName).toBe('Alex Hiro');
+        // Orphan side carries its event count for context; survivor carries its description
+        expect(pairs[0].sourceMeta).toBe('277 known events');
+        expect(pairs[0].targetDesc).toBe('');
+    });
+
+    it('also scans reflection_state keys', () => {
+        const data = withGraph(
+            {},
+            {
+                reflection_state: { Greg: { importance_sum: 10 }, 'Greg Williams': { importance_sum: 4 } },
+            }
+        );
+        const pairs = findCharacterDuplicates(data);
+        expect(pairs).toHaveLength(1);
+        expect(pairs[0].targetName).toBe('Greg Williams');
+    });
+
+    it('carries description context so two similar names can be told apart', () => {
+        const data = withGraph({
+            marcus: person('Marcus', 8, 'the stable boy'),
+            'marcus feltner': person('Marcus Feltner', 20, 'the merchant lord'),
+        });
+        const [pair] = findCharacterDuplicates(data);
+        expect(pair.sourceDesc).toBe('the stable boy');
+        expect(pair.targetDesc).toBe('the merchant lord');
+    });
+
+    it('picks the more active node as survivor for same-token reorderings', () => {
+        const data = withGraph({
             'greg williams': person('Greg Williams', 2),
             'williams greg': person('Williams Greg', 9),
-        };
-        const [pair] = findCharacterDuplicates(nodes);
+        });
+        const [pair] = findCharacterDuplicates(data);
         expect(pair.targetName).toBe('Williams Greg');
         expect(pair.sourceName).toBe('Greg Williams');
     });
 
-    it('handles an empty or missing node map', () => {
+    it('handles empty or missing data', () => {
         expect(findCharacterDuplicates({})).toEqual([]);
         expect(findCharacterDuplicates(null)).toEqual([]);
+        expect(findCharacterDuplicates(withGraph({}))).toEqual([]);
     });
 });
