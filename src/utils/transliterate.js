@@ -52,8 +52,32 @@ export function levenshteinDistance(a, b) {
 }
 
 /**
- * Resolve a character name against a list of known canonical names,
- * supporting cross-script matching via transliteration + Levenshtein distance.
+ * Tokenize a name into normalized word tokens for subset matching.
+ * Lowercases, drops possessive suffixes ("Alex's" -> "alex"), and splits on
+ * any run of non-alphanumeric characters (whitespace, hyphens, punctuation).
+ *
+ * @param {string} str - Name string
+ * @returns {string[]} Normalized, non-empty tokens
+ */
+export function tokenizeName(str) {
+    return str
+        .toLowerCase()
+        .replace(/['’]s\b/gu, '')
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter((t) => t.length > 0);
+}
+
+/**
+ * Resolve a character name against a list of known canonical names. Tries, in
+ * order: exact (case-insensitive) match, first-name<->full-name token-subset
+ * match, then cross-script matching via transliteration + Levenshtein distance.
+ *
+ * The subset tier lets a partial name snap onto a fuller canonical one
+ * (e.g. "Alex" or "Hiro" -> "Alex Hiro"), which prevents bare-name extractions
+ * from spawning duplicate characters alongside their full-named selves. It only
+ * fires when exactly ONE canonical name contains all of the input's tokens —
+ * ambiguous cases (e.g. "Alex" with both "Alex Hiro" and "Alex Wong" present)
+ * are deliberately left unresolved rather than guessing.
  *
  * @param {string} name - Character name to resolve (may be Cyrillic or Latin)
  * @param {string[]} canonicalNames - Known canonical character names
@@ -66,6 +90,27 @@ export function resolveCharacterName(name, canonicalNames, maxDistance = 2) {
     // Exact case-insensitive match
     for (const canonical of canonicalNames) {
         if (canonical.toLowerCase() === lower) return canonical;
+    }
+
+    // First-name <-> full-name (token-subset) match. A name whose tokens are a
+    // proper subset of exactly one canonical name resolves to that canonical.
+    // Tokens shorter than 2 chars are ignored to avoid initial/noise matches.
+    const nameTokens = tokenizeName(name);
+    if (nameTokens.length > 0 && nameTokens.every((t) => t.length >= 2)) {
+        let subsetMatch = null;
+        let subsetCount = 0;
+        for (const canonical of canonicalNames) {
+            const canonTokens = tokenizeName(canonical);
+            // Require a strictly fuller canonical so we never "resolve" to an equal
+            // or shorter name (exact equality is already handled above).
+            if (canonTokens.length <= nameTokens.length) continue;
+            if (nameTokens.every((t) => canonTokens.includes(t))) {
+                subsetMatch = canonical;
+                subsetCount++;
+                if (subsetCount > 1) break;
+            }
+        }
+        if (subsetCount === 1) return subsetMatch;
     }
 
     // Cross-script match via transliteration

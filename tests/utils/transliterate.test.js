@@ -102,4 +102,42 @@ describe('resolveCharacterName', () => {
     it('trims whitespace in transliteration lookup', () => {
         expect(resolveCharacterName('Сузи ', ['Suzy', 'Vova'])).toBe('Suzy');
     });
+
+    describe('first-name <-> full-name subset matching', () => {
+        it('resolves a bare first name to the fuller canonical name', () => {
+            expect(resolveCharacterName('Alex', ['Alex Hiro', 'Greg Williams'])).toBe('Alex Hiro');
+        });
+
+        it('resolves a bare last name to the fuller canonical name', () => {
+            expect(resolveCharacterName('Hiro', ['Alex Hiro', 'Greg Williams'])).toBe('Alex Hiro');
+        });
+
+        it('leaves ambiguous partial names unresolved (two matching canonicals)', () => {
+            expect(resolveCharacterName('Alex', ['Alex Hiro', 'Alex Wong'])).toBeNull();
+        });
+
+        it('does not resolve a fuller name onto a shorter canonical (superset)', () => {
+            expect(resolveCharacterName('Alex Hiro', ['Alex'])).toBeNull();
+        });
+
+        it('prefers an exact match over a subset match', () => {
+            expect(resolveCharacterName('Alex', ['Alex', 'Alex Hiro'])).toBe('Alex');
+        });
+
+        it('matches a two-token name as a subset of a three-token canonical', () => {
+            expect(resolveCharacterName('Alex Hiro', ['Alex Hiro Tanaka'])).toBe('Alex Hiro Tanaka');
+        });
+
+        it('ignores possessive suffixes when tokenizing', () => {
+            expect(resolveCharacterName("Alex's", ['Alex Hiro'])).toBe('Alex Hiro');
+        });
+
+        it('does not subset-match single-character tokens', () => {
+            expect(resolveCharacterName('A', ['A Team'])).toBeNull();
+        });
+
+        it('returns null when the partial name is not a token of any canonical', () => {
+            expect(resolveCharacterName('Bob', ['Alex Hiro', 'Greg Williams'])).toBeNull();
+        });
+    });
 });

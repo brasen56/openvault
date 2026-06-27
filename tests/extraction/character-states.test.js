@@ -519,6 +519,26 @@ describe('canonicalizeEventCharNames', () => {
         expect(events[0].characters_involved).toContain('dragon');
     });
 
+    it('snaps a bare first name onto a full-named PERSON graph node', () => {
+        const events = [
+            {
+                characters_involved: ['Alex'],
+                emotional_impact: { Alex: 'wary' },
+            },
+        ];
+
+        const graphNodes = {
+            'alex hiro': { type: 'PERSON', name: 'Alex Hiro' },
+        };
+
+        canonicalizeEventCharNames(events, [], graphNodes);
+
+        // The bare 'Alex' extraction should resolve to the established 'Alex Hiro'
+        // node instead of spawning a duplicate character.
+        expect(events[0].characters_involved).toEqual(['Alex Hiro']);
+        expect(events[0].emotional_impact).toEqual({ 'Alex Hiro': 'wary' });
+    });
+
     it('deduplicates across all fields', () => {
         const events = [
             {
