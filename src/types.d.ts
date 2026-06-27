@@ -242,6 +242,12 @@ export type CommunitySummary = {
     last_updated?: number | undefined;
 };
 
+export type CanonNote = {
+    id: string;
+    text: string;
+    created_at?: number | undefined;
+};
+
 export type OpenVaultData = {
     schema_version: number;
     memories?: {
@@ -342,6 +348,13 @@ export type OpenVaultData = {
     embedding_model_id?: string | undefined;
     contradiction_analyzed?: {
         [key: string]: number;
+    } | undefined;
+    canon_notes?: {
+        [key: string]: {
+            id: string;
+            text: string;
+            created_at?: number | undefined;
+        }[];
     } | undefined;
 };
 

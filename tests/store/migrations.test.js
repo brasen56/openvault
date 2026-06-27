@@ -6,7 +6,7 @@ import { CURRENT_SCHEMA_VERSION, runSchemaMigrations } from '../../src/store/mig
 describe('migration orchestrator', () => {
     describe('runSchemaMigrations', () => {
         it('returns false when no migration needed (already v2)', () => {
-            const data = { schema_version: 2, memories: [] };
+            const data = { schema_version: 2, memories: [], canon_notes: {} };
             const result = runSchemaMigrations(data, []);
             expect(result).toBe(false);
         });
@@ -94,7 +94,7 @@ describe('v2 migration', () => {
     });
 
     it('returns false when no changes needed', () => {
-        const data = { schema_version: 2 };
+        const data = { schema_version: 2, canon_notes: {} };
         const result = runSchemaMigrations(data, chat);
         expect(result).toBe(false);
     });
@@ -249,6 +249,42 @@ describe('v4 migration — extraction_count backfill', () => {
     it('bumps schema_version to 4', () => {
         const data = { schema_version: 3, memories: [] };
         runSchemaMigrations(data, []);
-        expect(data.schema_version).toBe(4);
+        // v4 runs the backfill; the orchestrator always advances to current (now 5).
+        expect(data.schema_version).toBe(CURRENT_SCHEMA_VERSION);
+    });
+});
+
+describe('v5 migration — canon_notes initialization', () => {
+    it('initializes canon_notes as an empty object when missing', () => {
+        const data = { schema_version: 4, memories: [] };
+
+        const result = runSchemaMigrations(data, []);
+
+        expect(result).toBe(true);
+        expect(data.canon_notes).toEqual({});
+    });
+
+    it('does not overwrite an existing canon_notes record', () => {
+        const existing = { Alice: [{ id: 'canon_1', text: 'never demands' }] };
+        const data = { schema_version: 4, memories: [], canon_notes: existing };
+
+        const result = runSchemaMigrations(data, []);
+
+        expect(result).toBe(false);
+        expect(data.canon_notes).toBe(existing);
+    });
+
+    it('replaces a malformed canon_notes value with an empty object', () => {
+        const data = { schema_version: 4, memories: [], canon_notes: 'oops' };
+
+        runSchemaMigrations(data, []);
+
+        expect(data.canon_notes).toEqual({});
+    });
+
+    it('bumps schema_version to 5', () => {
+        const data = { schema_version: 4, memories: [] };
+        runSchemaMigrations(data, []);
+        expect(data.schema_version).toBe(5);
     });
 });

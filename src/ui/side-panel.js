@@ -8,6 +8,7 @@
 import { CHARACTERS_KEY, extensionFolderPath, MEMORIES_KEY, UI_DEFAULT_HINTS } from '../constants.js';
 import { getDeps } from '../deps.js';
 import {
+    addCanonNote,
     archiveMemories,
     deleteCommunity,
     deleteEntity as deleteEntityAction,
@@ -15,6 +16,7 @@ import {
     deleteMemory as deleteMemoryAction,
     getOpenVaultData,
     mergeEntities,
+    removeCanonNote,
     unarchiveMemories,
     updateCommunity,
     updateEntity,
@@ -514,6 +516,12 @@ function bindSidePanelEvents() {
             await handleCopyDossierText(this);
         } else if (action === 'dossier-export-lorebook') {
             handleExportDossierLorebook(this);
+        } else if (action === 'dossier-mark-wrong') {
+            await handleMarkReflectionWrong(this);
+        } else if (action === 'dossier-add-canon-note') {
+            await handleAddCanonNote(this);
+        } else if (action === 'dossier-remove-canon-note') {
+            await handleRemoveCanonNote(this);
         }
     });
 
@@ -636,6 +644,85 @@ function handleExportDossierLorebook(btn) {
     } catch (err) {
         console.error('[OpenVault] Dossier lorebook export error:', err);
         showToast('error', `Export failed: ${err.message}`);
+    }
+}
+/**
+ * Re-render the dossier for the character that owns the given button. Walks up
+ * to the enclosing `.openvault-character-row` and rebuilds the dossier body in
+ * place so the UI reflects the corrected vault immediately.
+ * @param {HTMLElement} btn
+ */
+function refreshDossierFromButton(btn) {
+    const $row = $(btn).closest('.openvault-character-row');
+    const name = $row.data('character');
+    if (!name) return;
+    const $dossier = $row.children('.openvault-character-dossier-container').first();
+    if (!$dossier.length) return;
+    const data = getOpenVaultData();
+    const settings = getDeps().getExtensionSettings().openvault || {};
+    const dossier = buildCharacterDossier(name, data, settings.reflectionThreshold);
+    $dossier.html(renderCharacterDossier(dossier));
+}
+
+/**
+ * "Mark wrong" on a reflection card → archive it (Phase 3 correction loop).
+ * Archives, never deletes, so the evidence trail survives and it stops
+ * influencing retrieval/reflection. Then refreshes the dossier.
+ * @param {HTMLElement} btn
+ */
+async function handleMarkReflectionWrong(btn) {
+    const reflectionId = $(btn).attr('data-reflection-id');
+    if (!reflectionId) return;
+    if (
+        !confirm(
+            'Mark this insight wrong? It will be archived so it stops influencing the character. (Reversible from the Manage tab.)'
+        )
+    )
+        return;
+    const result = await archiveMemories([String(reflectionId)]);
+    if (result.count > 0) {
+        showToast('success', 'Insight marked wrong and archived');
+        refreshDossierFromButton(btn);
+    } else {
+        showToast('info', 'That insight was already archived');
+    }
+}
+
+/**
+ * Add a canon note (authoritative correction) for the character whose dossier
+ * contains the button. Reads the sibling textarea, trims, persists, refreshes.
+ * @param {HTMLElement} btn
+ */
+async function handleAddCanonNote(btn) {
+    const name = $(btn).closest('.openvault-character-row').data('character');
+    if (!name) return;
+    const $input = $(btn).closest('.openvault-dossier-canon-add').find('.openvault-dossier-canon-input');
+    const text = ($input.val() || '').trim();
+    if (!text) {
+        showToast('info', 'Enter a correction first');
+        return;
+    }
+    const result = await addCanonNote(name, text);
+    if (result.success) {
+        showToast('success', 'Canon note added');
+        refreshDossierFromButton(btn);
+    } else {
+        showToast('error', 'Could not add canon note');
+    }
+}
+
+/**
+ * Remove a canon note by id.
+ * @param {HTMLElement} btn
+ */
+async function handleRemoveCanonNote(btn) {
+    const name = $(btn).closest('.openvault-character-row').data('character');
+    const noteId = $(btn).attr('data-note-id');
+    if (!name || !noteId) return;
+    const removed = await removeCanonNote(name, String(noteId));
+    if (removed) {
+        showToast('success', 'Canon note removed');
+        refreshDossierFromButton(btn);
     }
 }
 

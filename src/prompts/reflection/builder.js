@@ -34,6 +34,25 @@ function formatExistingReflections(existingReflections) {
 }
 
 /**
+ * Format canon notes (authoritative corrections from the Phase 3 correction
+ * loop) as a hard negative-constraint section. These OVERRIDE any pattern the
+ * model might infer from memories and pair with the grounding rule in rules.js.
+ * Empty / blank input yields no section.
+ * @param {Array<{text?: string}>} canonNotes
+ * @returns {string}
+ */
+function formatCanonNotes(canonNotes) {
+    if (!Array.isArray(canonNotes) || canonNotes.length === 0) return '';
+    const lines = canonNotes
+        .map((n) => (n.text || '').trim())
+        .filter((text) => text.length > 0)
+        .map((text) => `- ${text}`)
+        .join('\n');
+    if (!lines) return '';
+    return `<canon_notes>\nAuthoritative corrections for this character. These OVERRIDE any pattern you might infer from the memories — never generate an insight that contradicts them, and do not soften them into "sometimes" or "tends to":\n${lines}\n</canon_notes>`;
+}
+
+/**
  * Build the unified reflection prompt.
  * @param {string} characterName - Character name to reflect on
  * @param {Memory[]} recentMemories - Recent memories (events + reflections candidate set)
@@ -42,6 +61,7 @@ function formatExistingReflections(existingReflections) {
  * @param {string} preamble - System prompt preamble
  * @param {'auto'|'en'|'ru'} [outputLanguage] - Output language
  * @param {string} prefill - Assistant prefill text (required)
+ * @param {Array<{id: string, text: string}>} [canonNotes] - Authoritative corrections injected as a hard negative constraint (Phase 3 correction loop)
  * @returns {LLMMessages} Array of {role, content} message objects
  */
 export function buildUnifiedReflectionPrompt(
@@ -52,7 +72,8 @@ export function buildUnifiedReflectionPrompt(
     preamble,
     outputLanguage = 'auto',
     // @ts-expect-error - TS1016: flat param list with default before required param is TS limitation
-    prefill
+    prefill,
+    canonNotes = []
 ) {
     const hasOldReflections = recentMemories.some((m) => m.type === 'reflection' && (m.level || 1) >= 1);
 
@@ -95,12 +116,13 @@ export function buildUnifiedReflectionPrompt(
     const charSection = characterDescription
         ? `<character_description>\n${characterDescription}\n</character_description>\n\n`
         : '';
+    const canonSection = formatCanonNotes(canonNotes);
     const reflectionSection = formatExistingReflections(existingReflections);
     const reflectionBlock = reflectionSection ? `\n\n${reflectionSection}` : '';
 
     const userPrompt = `<character>${characterName}</character>
 
-${charSection}<recent_memories>
+${charSection}${canonSection ? `${canonSection}\n\n` : ''}<recent_memories>
 ${memoryList}
 </recent_memories>${reflectionBlock}
 

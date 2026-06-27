@@ -321,6 +321,34 @@ describe('ui/templates', () => {
         it('does not throw for a null dossier', () => {
             expect(() => renderCharacterDossier(null)).not.toThrow();
         });
+        it('renders a mark-wrong button on each reflection card', () => {
+            const html = renderCharacterDossier(buildDossier());
+            expect(html).toContain('data-action="dossier-mark-wrong"');
+        });
+
+        it('renders the canon notes editor with existing notes', () => {
+            const html = renderCharacterDossier({
+                ...buildDossier(),
+                canonNotes: [{ id: 'canon_1', text: 'Accommodates others; never demands' }],
+            });
+            expect(html).toContain('Canon notes');
+            expect(html).toContain('data-action="dossier-add-canon-note"');
+            expect(html).toContain('data-action="dossier-remove-canon-note"');
+            expect(html).toContain('Accommodates others; never demands');
+        });
+
+        it('shows the empty placeholder when there are no canon notes', () => {
+            const html = renderCharacterDossier({ ...buildDossier(), canonNotes: [] });
+            expect(html).toContain('No corrections set');
+        });
+
+        it('HTML-escapes canon note text', () => {
+            const html = renderCharacterDossier({
+                ...buildDossier(),
+                canonNotes: [{ id: 'canon_1', text: '<script>x</script>' }],
+            });
+            expect(html).not.toContain('<script>x</script>');
+        });
     });
 });
 

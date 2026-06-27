@@ -401,6 +401,7 @@ export function buildCharacterDossier(name, data, reflectionThreshold = 40) {
             ready: importanceSum >= threshold,
         },
         aliases: selfNode?.aliases || [],
+        canonNotes: data?.canon_notes?.[name] || [],
     };
 }
 
@@ -442,6 +443,17 @@ export function formatDossierAsText(dossier) {
     lines.push(`- Mood: ${state.emotion || 'neutral'}${emotionSuffix} (intensity ${state.intensity ?? 5}/10)`);
     lines.push(`- Known events: ${state.knownCount ?? 0}`);
     lines.push('');
+
+    const canonNotes = dossier?.canonNotes || [];
+
+    if (canonNotes.length > 0) {
+        lines.push('## Canon Notes (authoritative corrections)');
+        lines.push('These override any pattern inferred from the memories:');
+        for (const note of canonNotes) {
+            lines.push(`- ${note.text || ''}`.trim());
+        }
+        lines.push('');
+    }
 
     if (headline.length > 0) {
         lines.push('## Headline Traits');

@@ -19,6 +19,9 @@ export const METADATA_KEY = 'openvault';
 export const MEMORIES_KEY = 'memories';
 export const CHARACTERS_KEY = 'character_states';
 export const PROCESSED_MESSAGES_KEY = 'processed_message_ids';
+// Phase 3 correction loop: per-character authoritative corrections.
+// Stored as Record<characterName, CanonNote[]> on the openvault data object.
+export const CANON_NOTES_KEY = 'canon_notes';
 
 // Sentinel speaker label used in narrator mode, where one character card voices
 // many NPCs. Replaces the card name in the extraction transcript so the card name

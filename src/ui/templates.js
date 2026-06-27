@@ -295,6 +295,8 @@ export function renderCharacterDossier(dossier) {
                 <div class="openvault-dossier-section-title"><i class="fa-solid fa-diagram-project"></i> Relationships</div>
                 ${renderDossierRelationships(relationships)}
             </div>
+            ${renderDossierCanonNotes(dossier?.canonNotes)}
+
         </div>
     `;
 }
@@ -352,11 +354,15 @@ function renderDossierReflections(reflectionsByLevel) {
 function renderDossierReflectionCard(reflection) {
     const stars = '★'.repeat(reflection.importance || 3);
     const summary = escapeHtml(reflection.summary || 'No summary');
+    const id = escapeHtml(reflection.id || '');
+
     return `
         <div class="openvault-dossier-reflection">
             <div class="openvault-dossier-reflection-meta">
                 <span class="openvault-memory-card-badge importance">${stars}</span>
                 <span class="openvault-dossier-level-badge">L${reflection.level || 1}</span>
+                <button class="openvault-btn openvault-export-import-btn openvault-dossier-mark-wrong" data-action="dossier-mark-wrong" data-reflection-id="${id}" title="Mark this insight wrong — archives it so it stops influencing the character"><i class="fa-solid fa-ban"></i> Mark wrong</button>
+
             </div>
             <div class="openvault-dossier-reflection-summary">${summary}</div>
             ${renderDossierEvidence(reflection.evidence)}
@@ -399,6 +405,40 @@ function renderDossierRelationships(relationships) {
         })
         .join('');
     return `<ul class="openvault-dossier-relationships">${items}</ul>`;
+}
+/**
+ * Render the canon-notes editor (Phase 3 correction loop): a read list of
+ * authoritative corrections with remove buttons, plus a textarea to add one.
+ * @param {Array<{id: string, text: string}>} canonNotes
+ * @returns {string} HTML
+ */
+function renderDossierCanonNotes(canonNotes) {
+    const notes = Array.isArray(canonNotes) ? canonNotes : [];
+    const items = notes
+        .map((note) => {
+            const text = escapeHtml(note.text || '');
+            const id = escapeHtml(note.id || '');
+            return `<li class="openvault-dossier-canon-note" data-note-id="${id}">
+                <span class="openvault-dossier-canon-note-text">${text}</span>
+                <button class="openvault-btn openvault-export-import-btn openvault-dossier-remove-canon-note" data-action="dossier-remove-canon-note" data-note-id="${id}" title="Remove this correction"><i class="fa-solid fa-xmark"></i></button>
+            </li>`;
+        })
+        .join('');
+    const list =
+        notes.length > 0
+            ? `<ul class="openvault-dossier-canon-notes-list">${items}</ul>`
+            : '<p class="openvault-placeholder">No corrections set</p>';
+    return `
+        <div class="openvault-dossier-section openvault-dossier-canon">
+            <div class="openvault-dossier-section-title"><i class="fa-solid fa-gavel"></i> Canon notes</div>
+            <p class="openvault-dossier-canon-help">Authoritative corrections. These override inferred patterns and steer future reflections away from them.</p>
+            ${list}
+            <div class="openvault-dossier-canon-add">
+                <textarea class="openvault-dossier-canon-input" rows="2" placeholder="e.g. Accommodates others; never demands"></textarea>
+                <button class="openvault-btn openvault-export-import-btn openvault-dossier-add-canon-note" data-action="dossier-add-canon-note" title="Add this correction"><i class="fa-solid fa-plus"></i> Add</button>
+            </div>
+        </div>
+    `;
 }
 
 /**

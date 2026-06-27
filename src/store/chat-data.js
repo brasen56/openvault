@@ -1,6 +1,7 @@
 // @ts-check
 
 import {
+    CANON_NOTES_KEY,
     CHARACTERS_KEY,
     CONSOLIDATION,
     EMBEDDING_SOURCES,
@@ -49,6 +50,7 @@ export function getOpenVaultData() {
             communities: {},
             graph_message_count: 0,
             contradiction_analyzed: {},
+            [CANON_NOTES_KEY]: {},
         };
     }
     const data = context.chatMetadata[METADATA_KEY];
@@ -585,6 +587,80 @@ export async function unarchiveMemories(ids) {
         logDebug(`Unarchived ${count} memories`);
     }
     return { success: true, count };
+}
+
+// =============================================================================
+// Canon Notes (Phase 3 correction loop)
+// =============================================================================
+// Per-character authoritative corrections, stored as
+// Record<characterName, CanonNote[]> and injected into the reflection prompt
+// as a hard negative constraint so a marked-wrong synthesis drift (e.g.
+// "demands ASL") does not regenerate. "Mark wrong" on a reflection only
+// archives the memory (see archiveMemories above); the canon note is the
+// durable steering that keeps the corrected theme from re-entrenching.
+
+/**
+ * Read a character's canon notes (authoritative corrections). Defensive against
+ * unmigrated data: materializes an empty list on first read.
+ * @param {string} characterName - Character display name
+ * @returns {import('../types.d.ts').CanonNote[]}
+ */
+export function getCanonNotes(characterName) {
+    const data = getOpenVaultData();
+    if (!data) return [];
+    if (!data[CANON_NOTES_KEY] || typeof data[CANON_NOTES_KEY] !== 'object') {
+        data[CANON_NOTES_KEY] = {};
+    }
+    return data[CANON_NOTES_KEY][characterName] || [];
+}
+
+/**
+ * Add an authoritative correction (canon note) for a character. Steers
+ * reflection away from a marked-wrong synthesis drift.
+ * @param {string} characterName - Character display name
+ * @param {string} text - The correction text
+ * @returns {Promise<{success: boolean, note?: import('../types.d.ts').CanonNote}>}
+ */
+export async function addCanonNote(characterName, text) {
+    const data = getOpenVaultData();
+    if (!data) return { success: false };
+    const trimmed = String(text || '').trim();
+    if (!trimmed) return { success: false };
+
+    if (!data[CANON_NOTES_KEY] || typeof data[CANON_NOTES_KEY] !== 'object') {
+        data[CANON_NOTES_KEY] = {};
+    }
+    const notes = (data[CANON_NOTES_KEY][characterName] ??= []);
+    const note = {
+        id: `canon_${generateId()}`,
+        text: trimmed,
+        created_at: getDeps().Date.now(),
+    };
+    notes.push(note);
+    await getDeps().saveChatConditional();
+    logDebug(`Added canon note for ${characterName}`);
+    return { success: true, note };
+}
+
+/**
+ * Remove an authoritative correction (canon note) by id.
+ * @param {string} characterName - Character display name
+ * @param {string} noteId - The canon note id
+ * @returns {Promise<boolean>} True if a note was removed
+ */
+export async function removeCanonNote(characterName, noteId) {
+    const data = getOpenVaultData();
+    if (!data) return false;
+    const notes = data[CANON_NOTES_KEY]?.[characterName];
+    if (!Array.isArray(notes)) return false;
+
+    const filtered = notes.filter((n) => n.id !== noteId);
+    if (filtered.length === notes.length) return false;
+
+    data[CANON_NOTES_KEY][characterName] = filtered;
+    await getDeps().saveChatConditional();
+    logDebug(`Removed canon note ${noteId} for ${characterName}`);
+    return true;
 }
 
 /**

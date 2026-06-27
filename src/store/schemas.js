@@ -181,6 +181,12 @@ export const CommunitySummarySchema = z.object({
     last_updated: z.number().optional(),
 });
 
+export const CanonNoteSchema = z.object({
+    id: z.string(),
+    text: z.string(),
+    created_at: z.number().optional(),
+});
+
 export const OpenVaultDataSchema = z.object({
     schema_version: z.number(),
     memories: z.array(MemorySchema).optional(),
@@ -195,6 +201,11 @@ export const OpenVaultDataSchema = z.object({
     // Cache of memory-pair keys already checked by LLM contradiction analysis.
     // Key embeds each summary's content hash so it self-invalidates on edits.
     contradiction_analyzed: z.record(z.string(), z.number()).optional(),
+    // Phase 3 correction loop: per-character authoritative corrections (canon).
+    // Key = character display name, value = ordered list of CanonNote entries.
+    // Injected into the reflection prompt as a hard negative constraint so a
+    // marked-wrong synthesis drift (e.g. "demands ASL") does not regenerate.
+    canon_notes: z.record(z.string(), z.array(CanonNoteSchema)).optional(),
 });
 
 // --- StVectorItem Schema ---

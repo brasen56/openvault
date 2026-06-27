@@ -20,6 +20,7 @@
  */
 
 import {
+    CANON_NOTES_KEY,
     CHARACTERS_KEY,
     COMMUNITY_STALENESS_THRESHOLD,
     CONSOLIDATION,
@@ -745,7 +746,10 @@ export async function synthesizeReflections(data, characterNames, settings, opti
                             characterName,
                             data[MEMORIES_KEY] || [],
                             data[CHARACTERS_KEY] || {},
-                            { extractionCount: data.graph_message_count || 0 }
+                            {
+                                extractionCount: data.graph_message_count || 0,
+                                canonNotes: data[CANON_NOTES_KEY]?.[characterName] || [],
+                            }
                         );
                         if (reflections.length > 0) {
                             addMemories(reflections);

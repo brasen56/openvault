@@ -639,7 +639,11 @@ async function handleGenerateReflections() {
                     charName,
                     data.memories || [],
                     data.character_states || {},
-                    { force: true, extractionCount: data.graph_message_count || 0 }
+                    {
+                        force: true,
+                        extractionCount: data.graph_message_count || 0,
+                        canonNotes: data.canon_notes?.[charName] || [],
+                    }
                 );
 
                 if (reflections.length > 0) {

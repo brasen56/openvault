@@ -204,10 +204,13 @@ export function shouldSkipReflectionGeneration(
  * @param {number} [options.extractionCount] - Current `data.graph_message_count`; stamped onto
  *   new reflections as the monotonic decay anchor. Omitting it leaves reflections un-stamped
  *   and they fall back to legacy position-based decay.
+ * @param {Array<{id: string, text: string}>} [options.canonNotes] - Authoritative corrections
+ *   for this character (Phase 3 correction loop); injected into the reflection prompt as a
+ *   hard negative constraint so a marked-wrong synthesis drift does not regenerate.
  * @returns {Promise<{reflections: Array, stChanges: import('../types.d.ts').StSyncChanges}>} Reflections and ST sync changes
  */
 export async function generateReflections(characterName, allMemories, characterStates, options = {}) {
-    const { force = false, extractionCount = null } = options;
+    const { force = false, extractionCount = null, canonNotes = [] } = options;
     const t0 = performance.now();
     const deps = getDeps();
     const settings = deps.getExtensionSettings()?.[extensionName] || {};
@@ -292,11 +295,12 @@ export async function generateReflections(characterName, allMemories, characterS
         charDesc,
         preamble,
         outputLanguage,
-        prefill
+        prefill,
+        canonNotes
     );
 
     logDebug(
-        `Reflection: Context for ${characterName}: ${recentMemories.length} events (${eventBudget}tk), ${budgetedReflections.length} existing reflections (${reflectionBudget}tk), charDesc=${charDesc.length > 0 ? 'yes' : 'no'}`
+        `Reflection: Context for ${characterName}: ${recentMemories.length} events (${eventBudget}tk), ${budgetedReflections.length} existing reflections (${reflectionBudget}tk), charDesc=${charDesc.length > 0 ? 'yes' : 'no'}, canonNotes=${canonNotes.length}`
     );
     const reflectionResponse = await callLLM(reflectionPrompt, LLM_CONFIGS.reflection, { structured: true });
     const { reflections } = parseUnifiedReflectionResponse(reflectionResponse);

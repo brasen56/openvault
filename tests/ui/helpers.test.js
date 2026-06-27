@@ -507,6 +507,20 @@ describe('ui/helpers', () => {
             expect(d.progress.importanceSum).toBe(0);
             expect(d.state.emotion).toBe('neutral');
         });
+        it('exposes canon notes for the character', () => {
+            const data = buildData();
+            data.canon_notes = {
+                Alice: [{ id: 'canon_1', text: 'Accommodates others; never demands' }],
+                Bob: [{ id: 'canon_2', text: 'private to Bob' }],
+            };
+            const d = buildCharacterDossier('Alice', data, 40);
+            expect(d.canonNotes).toEqual([{ id: 'canon_1', text: 'Accommodates others; never demands' }]);
+        });
+
+        it('defaults canonNotes to an empty array when none exist', () => {
+            const d = buildCharacterDossier('Alice', buildData(), 40);
+            expect(d.canonNotes).toEqual([]);
+        });
     });
 
     describe('formatDossierAsText', () => {
@@ -579,6 +593,19 @@ describe('ui/helpers', () => {
             expect(text).not.toContain('## Headline Traits');
             expect(text).not.toContain('## Supporting Specifics');
             expect(text).not.toContain('## Relationships');
+        });
+        it('includes a Canon Notes section when canonNotes are present', () => {
+            const text = formatDossierAsText({
+                name: 'Alice',
+                canonNotes: [{ id: 'canon_1', text: 'Accommodates others; never demands' }],
+            });
+            expect(text).toContain('## Canon Notes');
+            expect(text).toContain('Accommodates others; never demands');
+        });
+
+        it('omits the Canon Notes section when there are none', () => {
+            const text = formatDossierAsText({ name: 'Ghost' });
+            expect(text).not.toContain('## Canon Notes');
         });
     });
 
