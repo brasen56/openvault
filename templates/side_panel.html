@@ -158,11 +158,16 @@
     <div class="openvault-side-tab-content" data-side-tab-content="settings">
         <div id="openvault_side_settings" class="openvault-side-scroll">
 
-            <!-- Quick Toggles -->
-            <div class="openvault-card">
-                <div class="openvault-card-header">
-                    <span class="openvault-card-title"><i class="fa-solid fa-toggle-on"></i> Quick Toggles</span>
-                </div>
+            <!-- ════════════════════════════════════════════════════════════════
+                 Consolidated Settings — every control uses the openvault_side_<id>
+                 convention and mirrors its main-panel counterpart. A delegated
+                 handler syncs values and fires the main-panel handler so both
+                 panels stay in sync automatically.
+                 ════════════════════════════════════════════════════════════════ -->
+
+            <!-- ▸ General -->
+            <details class="openvault-details openvault-side-cat" open>
+                <summary><i class="fa-solid fa-gear"></i> General</summary>
                 <div class="openvault-settings-group">
                     <label class="checkbox_label">
                         <input type="checkbox" id="openvault_side_enabled" />
@@ -173,21 +178,86 @@
                         <span>Auto-hide Messages</span>
                     </label>
                     <label class="checkbox_label">
-                        <input type="checkbox" id="openvault_side_reflection_generation" />
-                        <span>Auto-generate Reflections</span>
+                        <input type="checkbox" id="openvault_side_debug" />
+                        <span>Debug Mode</span>
                     </label>
+                    <small class="openvault-hint">Verbose logging to console</small>
                     <label class="checkbox_label">
-                        <input type="checkbox" id="openvault_side_reflection_injection" />
-                        <span>Inject Reflections</span>
+                        <input type="checkbox" id="openvault_side_request_logging" />
+                        <span>Request Logging</span>
                     </label>
-                </div>
-            </div>
+                    <small class="openvault-hint">Show full LLM responses for prompt tuning</small>
+                    <label class="checkbox_label">
+                        <input type="checkbox" id="openvault_side_narrator_mode" />
+                        <span>Narrator Mode</span>
+                    </label>
+                    <small class="openvault-hint">One card voices many NPCs — card name not extracted as a character</small>
 
-            <!-- Key Retrieval Settings -->
-            <div class="openvault-card">
-                <div class="openvault-card-header">
-                    <span class="openvault-card-title"><i class="fa-solid fa-sliders"></i> Retrieval Settings</span>
+                    <label for="openvault_side_extraction_profile" style="margin-top: 10px;">Extraction Profile</label>
+                    <select id="openvault_side_extraction_profile" class="text_pole"></select>
+                    <label for="openvault_side_backup_profile" style="margin-top: 8px;">Backup Profile</label>
+                    <select id="openvault_side_backup_profile" class="text_pole"></select>
                 </div>
+            </details>
+
+            <!-- ▸ Extraction -->
+            <details class="openvault-details openvault-side-cat" open>
+                <summary><i class="fa-solid fa-microscope"></i> Extraction</summary>
+                <div class="openvault-settings-group">
+                    <label for="openvault_side_extraction_token_budget">
+                        Batch Size: <span id="openvault_side_extraction_token_budget_value">8000</span> tokens
+                        <small class="openvault-default-hint" data-default-key="extractionTokenBudget"></small>
+                    </label>
+                    <input type="range" id="openvault_side_extraction_token_budget" min="1000" max="32000" step="1000" />
+                    <small class="openvault-hint">Tokens processed per extraction batch</small>
+
+                    <label for="openvault_side_extraction_max_turns" style="margin-top: 10px;">
+                        Max Turns: <span id="openvault_side_extraction_max_turns_value">30</span>
+                        <small class="openvault-default-hint" data-default-key="extractionMaxTurns"></small>
+                    </label>
+                    <input type="range" id="openvault_side_extraction_max_turns" min="10" max="100" step="1" />
+                    <small class="openvault-hint">Max conversation turns per extraction batch</small>
+
+                    <label for="openvault_side_extraction_rearview" style="margin-top: 10px;">
+                        Context Window: <span id="openvault_side_extraction_rearview_value">6000</span> tokens
+                        <small class="openvault-default-hint" data-default-key="contextWindowSize"></small>
+                    </label>
+                    <input type="range" id="openvault_side_extraction_rearview" min="1000" max="32000" step="1000" />
+                    <small class="openvault-hint">Token budget for extraction memory context</small>
+                </div>
+            </details>
+
+            <!-- ▸ Visible Chat & Auto-Hide -->
+            <details class="openvault-details openvault-side-cat">
+                <summary><i class="fa-solid fa-eye-slash"></i> Visible Chat &amp; Auto-Hide</summary>
+                <div class="openvault-settings-group">
+                    <label for="openvault_side_visible_chat_budget">
+                        Visible Chat Budget: <span id="openvault_side_visible_chat_budget_value">16000</span> tokens
+                        <small class="openvault-default-hint" data-default-key="visibleChatBudget"></small>
+                    </label>
+                    <input type="range" id="openvault_side_visible_chat_budget" min="4000" max="64000" step="1000" />
+                    <small class="openvault-hint">Token budget kept for visible chat history</small>
+
+                    <label for="openvault_side_frozen_replies" style="margin-top: 10px;">
+                        Frozen Initial Replies: <span id="openvault_side_frozen_replies_value">0</span>
+                        <small class="openvault-default-hint" data-default-key="frozenReplies"></small>
+                    </label>
+                    <input type="range" id="openvault_side_frozen_replies" min="0" max="20" step="1" />
+                    <small class="openvault-hint">Initial replies always kept visible</small>
+
+                    <label for="openvault_side_max_visible_messages" style="margin-top: 10px;">
+                        Max Visible Messages: <span id="openvault_side_max_visible_messages_value">0</span>
+                        <small class="openvault-default-hint" data-default-key="maxVisibleMessages"></small>
+                    </label>
+                    <input type="range" id="openvault_side_max_visible_messages" min="0" max="200" step="1" />
+                    <small class="openvault-hint">Hard cap on visible messages (0 = unlimited)</small>
+                </div>
+            </details>
+
+
+            <!-- ▸ Retrieval & Scoring -->
+            <details class="openvault-details openvault-side-cat" open>
+                <summary><i class="fa-solid fa-sliders"></i> Retrieval &amp; Scoring</summary>
                 <div class="openvault-settings-group">
                     <label for="openvault_side_final_budget">
                         Context Budget: <span id="openvault_side_final_budget_value">8000</span> tokens
@@ -217,6 +287,13 @@
                     <input type="range" id="openvault_side_dedup_threshold" min="0.80" max="0.98" step="0.01" />
                     <small class="openvault-hint">How similar memories must be to count as duplicates</small>
 
+                    <label for="openvault_side_dedup_jaccard" style="margin-top: 10px;">
+                        Jaccard Dedup: <span id="openvault_side_dedup_jaccard_value">0.50</span>
+                        <small class="openvault-default-hint" data-default-key="dedupJaccardThreshold"></small>
+                    </label>
+                    <input type="range" id="openvault_side_dedup_jaccard" min="0.30" max="0.90" step="0.01" />
+                    <small class="openvault-hint">Token-overlap filter for near-duplicates</small>
+
                     <label for="openvault_side_forgetfulness_lambda" style="margin-top: 10px;">
                         Decay Rate: <span id="openvault_side_forgetfulness_lambda_value">0.05</span>
                         <small class="openvault-default-hint" data-default-key="forgetfulnessBaseLambda"></small>
@@ -224,13 +301,177 @@
                     <input type="range" id="openvault_side_forgetfulness_lambda" min="0.01" max="0.20" step="0.01" />
                     <small class="openvault-hint">How quickly old memories fade. Higher = forgets faster</small>
                 </div>
-            </div>
+            </details>
 
-            <!-- Reranker Settings -->
-            <div class="openvault-card">
-                <div class="openvault-card-header">
-                    <span class="openvault-card-title"><i class="fa-solid fa-arrow-up-wide-short"></i> Reranker</span>
+            <!-- ▸ Reflection -->
+            <details class="openvault-details openvault-side-cat">
+                <summary><i class="fa-solid fa-lightbulb"></i> Reflection</summary>
+                <div class="openvault-settings-group">
+                    <label class="checkbox_label">
+                        <input type="checkbox" id="openvault_side_reflection_generation" />
+                        <span>Auto-generate Reflections</span>
+                    </label>
+                    <small class="openvault-hint">Periodically summarize memories into higher-level insights</small>
+                    <label class="checkbox_label">
+                        <input type="checkbox" id="openvault_side_reflection_injection" />
+                        <span>Inject Reflections</span>
+                    </label>
+                    <small class="openvault-hint">Include reflections in retrieved context</small>
+
+                    <label for="openvault_side_reflection_threshold" style="margin-top: 10px;">
+                        Reflection Threshold: <span id="openvault_side_reflection_threshold_value">50</span>
+                        <small class="openvault-default-hint" data-default-key="reflectionThreshold"></small>
+                    </label>
+                    <input type="range" id="openvault_side_reflection_threshold" min="10" max="100" step="5" />
+                    <small class="openvault-hint">Minimum events before a reflection is generated</small>
+
+                    <label for="openvault_side_max_insights" style="margin-top: 10px;">
+                        Max Insights: <span id="openvault_side_max_insights_value">3</span>
+                        <small class="openvault-default-hint" data-default-key="maxInsightsPerReflection"></small>
+                    </label>
+                    <input type="range" id="openvault_side_max_insights" min="1" max="5" step="1" />
+                    <small class="openvault-hint">Max insights per reflection</small>
+
+                    <label for="openvault_side_max_reflections" style="margin-top: 10px;">
+                        Max Reflections/Character: <span id="openvault_side_max_reflections_value">50</span>
+                        <small class="openvault-default-hint" data-default-key="maxReflectionsPerCharacter"></small>
+                    </label>
+                    <input type="range" id="openvault_side_max_reflections" min="10" max="200" step="10" />
+                    <small class="openvault-hint">Prevents reflection memory bloat per character</small>
                 </div>
+            </details>
+
+
+            <!-- ▸ Language & Injection -->
+            <details class="openvault-details openvault-side-cat">
+                <summary><i class="fa-solid fa-language"></i> Language &amp; Injection</summary>
+                <div class="openvault-settings-group">
+                    <label for="openvault_side_preamble_language">Preamble Language</label>
+                    <select id="openvault_side_preamble_language" class="text_pole">
+                        <option value="cn">Chinese</option>
+                        <option value="en">English</option>
+                    </select>
+                    <small class="openvault-hint">Language of the anti-refusal system preamble</small>
+
+                    <label for="openvault_side_output_language" style="margin-top: 8px;">Output Language</label>
+                    <select id="openvault_side_output_language" class="text_pole">
+                        <option value="auto">Auto-detect</option>
+                        <option value="ru">Russian</option>
+                        <option value="en">English</option>
+                    </select>
+                    <small class="openvault-hint">Language for extracted memories</small>
+
+                    <label for="openvault_side_memory_position" style="margin-top: 10px;">Memory Position</label>
+                    <select id="openvault_side_memory_position" class="text_pole">
+                        <option value="0">↑Main (Before system prompt)</option>
+                        <option value="1">↓Main (After system prompt)</option>
+                        <option value="5" selected>↓Char (After char defs)</option>
+                        <option value="4">In-chat (At depth)</option>
+                        <option value="-1">Custom (Macro)</option>
+                    </select>
+                    <div id="openvault_side_memory_depth_container" style="display:none; margin-top: 6px;">
+                        <input type="number" id="openvault_side_memory_depth" class="text_pole" min="0" max="50" value="4" style="width: 80px;" />
+                        <small>Messages from end</small>
+                    </div>
+
+                    <label for="openvault_side_world_position" style="margin-top: 10px;">World Info Position</label>
+                    <select id="openvault_side_world_position" class="text_pole">
+                        <option value="0">↑Main (Before system prompt)</option>
+                        <option value="1">↓Main (After system prompt)</option>
+                        <option value="5" selected>↓Char (After char defs)</option>
+                        <option value="4">In-chat (At depth)</option>
+                        <option value="-1">Custom (Macro)</option>
+                    </select>
+                    <div id="openvault_side_world_depth_container" style="display:none; margin-top: 6px;">
+                        <input type="number" id="openvault_side_world_depth" class="text_pole" min="0" max="50" value="4" style="width: 80px;" />
+                        <small>Messages from end</small>
+                    </div>
+
+                    <label for="openvault_side_post_history_prompt" style="display: block; margin-top: 12px;">
+                        <i class="fa-solid fa-comment-dots"></i> Post-History Prompt
+                    </label>
+                    <textarea id="openvault_side_post_history_prompt" class="text_pole" rows="2" placeholder="Injected after all chat messages"></textarea>
+                </div>
+            </details>
+
+
+            <!-- ▸ Embeddings -->
+            <details class="openvault-details openvault-side-cat">
+                <summary><i class="fa-solid fa-vector-square"></i> Embeddings</summary>
+                <div class="openvault-settings-group">
+                    <label for="openvault_side_embedding_source">Embedding Model</label>
+                    <select id="openvault_side_embedding_source" class="text_pole">
+                        <optgroup label="Multilingual">
+                            <option value="multilingual-e5-small">multilingual-e5-small</option>
+                            <option value="embeddinggemma-300m">embeddinggemma-300m</option>
+                        </optgroup>
+                        <optgroup label="English Only">
+                            <option value="bge-small-en-v1.5">bge-small-en-v1.5</option>
+                        </optgroup>
+                        <optgroup label="External">
+                            <option value="ollama">Ollama (Custom server)</option>
+                            <option value="openai_compat">OpenAI-Compatible API</option>
+                            <option value="st_vector">ST Vector Storage</option>
+                        </optgroup>
+                    </select>
+
+                    <label for="openvault_side_embedding_query_prefix" style="margin-top: 8px;">Query Prefix</label>
+                    <input id="openvault_side_embedding_query_prefix" type="text" class="text_pole" placeholder="query: " />
+
+                    <label for="openvault_side_embedding_doc_prefix" style="margin-top: 8px;">Document Prefix</label>
+                    <input id="openvault_side_embedding_doc_prefix" type="text" class="text_pole" placeholder="passage: " />
+
+                    <div id="openvault_side_embedding_status_container" style="margin-top: 8px;">
+                        <div id="openvault_side_embedding_status" class="openvault-embedding-status loading">
+                            <i class="fa-solid fa-circle-notch fa-spin"></i>
+                            <span>Not loaded</span>
+                        </div>
+                    </div>
+
+                    <div id="openvault_side_ollama_settings" style="display: none; margin-top: 8px;">
+                        <label for="openvault_side_ollama_url">
+                            Ollama URL
+                            <button id="openvault_side_test_ollama_btn" class="menu_button openvault-test-btn">
+                                <i class="fa-solid fa-plug"></i> Test
+                            </button>
+                        </label>
+                        <input type="text" id="openvault_side_ollama_url" class="text_pole" placeholder="http://localhost:11434" />
+                        <label for="openvault_side_embedding_model" style="margin-top: 6px;">Model Name</label>
+                        <input type="text" id="openvault_side_embedding_model" class="text_pole" placeholder="nomic-embed-text" />
+                    </div>
+
+                    <div id="openvault_side_openai_compat_settings" style="display: none; margin-top: 8px;">
+                        <label for="openvault_side_openai_compat_url">
+                            API Base URL
+                            <button id="openvault_side_test_openai_compat_btn" class="menu_button openvault-test-btn">
+                                <i class="fa-solid fa-plug"></i> Test
+                            </button>
+                        </label>
+                        <input type="text" id="openvault_side_openai_compat_url" class="text_pole" placeholder="https://api.openai.com" />
+                        <label for="openvault_side_openai_compat_api_key" style="margin-top: 6px;">API Key</label>
+                        <input type="password" id="openvault_side_openai_compat_api_key" class="text_pole" placeholder="sk-..." />
+                        <label for="openvault_side_openai_compat_model" style="margin-top: 6px;">Model Name</label>
+                        <input type="text" id="openvault_side_openai_compat_model" class="text_pole" placeholder="text-embedding-3-small" />
+                    </div>
+
+                    <label for="openvault_side_max_concurrency" style="margin-top: 10px;">
+                        Cloud API Concurrency: <span id="openvault_side_max_concurrency_value">1</span>
+                        <small class="openvault-default-hint" data-default-key="maxConcurrency"></small>
+                    </label>
+                    <input type="range" id="openvault_side_max_concurrency" min="1" max="2" step="1" />
+
+                    <label for="openvault_side_backfill_rpm" style="margin-top: 8px;">
+                        Backfill RPM: <span id="openvault_side_backfill_rpm_value">10</span>
+                        <small class="openvault-default-hint" data-default-key="backfillRateLimit"></small>
+                    </label>
+                    <input type="range" id="openvault_side_backfill_rpm" min="5" max="30" step="5" />
+                </div>
+            </details>
+
+
+            <!-- ▸ Reranker -->
+            <details class="openvault-details openvault-side-cat">
+                <summary><i class="fa-solid fa-arrow-up-wide-short"></i> Reranker</summary>
                 <div class="openvault-settings-group">
                     <label class="checkbox_label">
                         <input type="checkbox" id="openvault_side_reranker_enabled" />
@@ -238,9 +479,7 @@
                     </label>
                     <small class="openvault-hint">Re-orders top memories via external API for better relevance</small>
 
-                    <label for="openvault_side_reranker_url" style="margin-top: 10px;">
-                        API URL
-                    </label>
+                    <label for="openvault_side_reranker_url" style="margin-top: 10px;">API URL</label>
                     <input type="text" id="openvault_side_reranker_url" class="text_pole" placeholder="https://api.jina.ai/v1" />
                     <small class="openvault-hint">Reranker API base URL (<code>/rerank</code> appended automatically)</small>
 
@@ -264,13 +503,11 @@
                     <input type="range" id="openvault_side_reranker_max_docs" min="5" max="200" step="5" />
                     <small class="openvault-hint">Max documents sent to the reranker</small>
                 </div>
-            </div>
+            </details>
 
-            <!-- Contradiction Detection -->
-            <div class="openvault-card">
-                <div class="openvault-card-header">
-                    <span class="openvault-card-title"><i class="fa-solid fa-shuffle"></i> Contradiction Detection</span>
-                </div>
+            <!-- ▸ Contradiction Detection -->
+            <details class="openvault-details openvault-side-cat">
+                <summary><i class="fa-solid fa-shuffle"></i> Contradiction Detection</summary>
                 <div class="openvault-settings-group">
                     <label class="checkbox_label">
                         <input type="checkbox" id="openvault_side_contradiction_filter" />
@@ -365,7 +602,41 @@
                         </details>
                     </div>
                 </div>
-            </div>
+            </details>
+
+            <!-- ▸ Actions & Maintenance -->
+            <details class="openvault-details openvault-side-cat">
+                <summary><i class="fa-solid fa-screwdriver-wrench"></i> Actions &amp; Maintenance</summary>
+                <div class="openvault-settings-group">
+                    <button id="openvault_side_extract_all_btn" class="menu_button wide" style="margin-top: 4px;">
+                        <i class="fa-solid fa-cloud-arrow-down"></i> Extract All Messages
+                    </button>
+                    <small class="openvault-hint">Backfill memories from all chat history</small>
+
+                    <button id="openvault_side_generate_reflections_btn" class="menu_button wide" style="margin-top: 8px;">
+                        <i class="fa-solid fa-lightbulb"></i> Generate Reflections
+                    </button>
+                    <small class="openvault-hint">Manually trigger reflection generation</small>
+
+                    <button id="openvault_side_backfill_embeddings_btn" class="menu_button wide" style="margin-top: 8px;">
+                        <i class="fa-solid fa-database"></i> Backfill Embeddings
+                    </button>
+                    <small class="openvault-hint">Re-embed all memories with current model</small>
+
+                    <button id="openvault_side_export_debug_btn" class="menu_button wide" style="margin-top: 8px;">
+                        <i class="fa-solid fa-bug"></i> Export Debug Info
+                    </button>
+
+                    <div style="margin-top: 12px; border-top: 1px solid rgba(255,193,7,0.3); padding-top: 10px;">
+                        <button id="openvault_side_reset_settings_btn" class="menu_button wide">
+                            <i class="fa-solid fa-rotate-left"></i> Reset Settings
+                        </button>
+                        <button id="openvault_side_reset_backfill_btn" class="menu_button wide" style="margin-top: 6px;">
+                            <i class="fa-solid fa-trash-can-arrow-up"></i> Reset &amp; Re-extract
+                        </button>
+                    </div>
+                </div>
+            </details>
 
         </div>
     </div>

@@ -1312,8 +1312,8 @@ export function updateInjectionUI(type = 'both') {
 // =============================================================================
 
 /**
- * Bind general settings controls inside the side panel (Quick Toggles,
- * Retrieval Settings, and Reranker). Uses jQuery delegation rooted on
+ * Bind ALL settings controls inside the side panel (10 collapsible categories
+ * mirroring the main extension manager). Compact helpers keep binding DRY.
  * `$panel` — same pattern as `bindSidePanelContradictionSettings`.
  *
  * @param {JQuery} $panel - The side panel root element.
@@ -1321,88 +1321,164 @@ export function updateInjectionUI(type = 'both') {
 export function bindSidePanelGeneralSettings($panel) {
     if (!$panel || !$panel.length) return;
 
-    // ── Quick Toggles ──
-    $panel.on('change.sideGeneral', '#openvault_side_enabled', function () {
-        const val = $(this).is(':checked');
-        setSetting('enabled', val);
-        syncCrossPanel('openvault_side_enabled', val);
-        updateEventListeners();
+    // Compact helpers — keep all binding logic DRY. Each mirrors the value to
+    // the main panel and fires the main-panel handler (which does setSetting +
+    // side effects + syncCrossPanel back here).
+    /** @param {string} sel CSS selector for the side checkbox */
+    const bindChk = (sel, key, after) => {
+        $panel.on('change.sideGeneral', sel, function () {
+            const v = $(this).is(':checked');
+            setSetting(key, v);
+            syncCrossPanel(sel.slice(1), v);
+            if (after) after(v);
+        });
+    };
+    /** @param {string} sel CSS selector for the side range slider */
+    const bindRng = (sel, key, isFloat, after) => {
+        $panel.on('input.sideGeneral', sel, function () {
+            const v = isFloat ? parseFloat($(this).val()) : parseInt($(this).val(), 10);
+            setSetting(key, v);
+            $panel.find(`${sel}_value`).text(v);
+            syncCrossPanel(sel.slice(1), v);
+            if (after) after(v);
+        });
+    };
+    /** @param {string} sel CSS selector for the side text/select (change event) */
+    const bindTxt = (sel, key, trim = true) => {
+        $panel.on('change.sideGeneral', sel, function () {
+            const v = trim ? $(this).val().trim() : $(this).val();
+            setSetting(key, v);
+        });
+    };
+
+    // ── General: checkboxes ──
+    bindChk('#openvault_side_enabled', 'enabled', () => updateEventListeners());
+    bindChk('#openvault_side_auto_hide', 'autoHideEnabled');
+    bindChk('#openvault_side_debug', 'debugMode');
+    bindChk('#openvault_side_request_logging', 'requestLogging');
+    bindChk('#openvault_side_narrator_mode', 'narratorMode');
+    bindChk('#openvault_side_reflection_generation', 'reflectionGenerationEnabled');
+    bindChk('#openvault_side_reflection_injection', 'reflectionInjectionEnabled');
+
+    // ── General: profile selectors ──
+    bindTxt('#openvault_side_extraction_profile', 'extractionProfile');
+    bindTxt('#openvault_side_backup_profile', 'backupProfile');
+
+    // ── Extraction: sliders ──
+    bindRng('#openvault_side_extraction_token_budget', 'extractionTokenBudget');
+    bindRng('#openvault_side_extraction_max_turns', 'extractionMaxTurns');
+    bindRng('#openvault_side_extraction_rearview', 'extractionRearviewTokens');
+
+    // ── Visible Chat: sliders ──
+    bindRng('#openvault_side_visible_chat_budget', 'visibleChatBudget');
+    bindRng('#openvault_side_frozen_replies', 'frozenReplies');
+    bindRng('#openvault_side_max_visible_messages', 'maxVisibleMessages');
+
+    // ── Retrieval & Scoring ──
+    bindRng('#openvault_side_final_budget', 'retrievalFinalTokens');
+    bindRng('#openvault_side_alpha', 'alpha', true);
+    bindRng('#openvault_side_vector_threshold', 'vectorSimilarityThreshold', true);
+    bindRng('#openvault_side_dedup_threshold', 'dedupSimilarityThreshold', true);
+    bindRng('#openvault_side_dedup_jaccard', 'dedupJaccardThreshold', true);
+    bindRng('#openvault_side_forgetfulness_lambda', 'forgetfulnessBaseLambda', true);
+
+    // ── Reflection ──
+    bindRng('#openvault_side_reflection_threshold', 'reflectionThreshold');
+    bindRng('#openvault_side_max_insights', 'maxInsightsPerReflection');
+    bindRng('#openvault_side_max_reflections', 'maxReflectionsPerCharacter');
+
+    // ── Language & Injection ──
+    bindTxt('#openvault_side_preamble_language', 'preambleLanguage', false);
+    bindTxt('#openvault_side_output_language', 'outputLanguage', false);
+    bindTxt('#openvault_side_post_history_prompt', 'postHistoryPrompt', false);
+    $panel.on('change.sideGeneral', '#openvault_side_memory_position', function () {
+        const position = parseInt($(this).val(), 10);
+        setSetting('injection.memory.position', position);
+        $panel.find('#openvault_side_memory_depth_container').toggle(position === 4);
+        syncCrossPanel('openvault_side_memory_position', position);
     });
-    $panel.on('change.sideGeneral', '#openvault_side_auto_hide', function () {
-        const val = $(this).is(':checked');
-        setSetting('autoHideEnabled', val);
-        syncCrossPanel('openvault_side_auto_hide', val);
+    $panel.on('input.sideGeneral', '#openvault_side_memory_depth', function () {
+        setSetting('injection.memory.depth', parseInt($(this).val(), 10) || 4);
     });
-    $panel.on('change.sideGeneral', '#openvault_side_reflection_generation', function () {
-        const val = $(this).is(':checked');
-        setSetting('reflectionGenerationEnabled', val);
-        syncCrossPanel('openvault_side_reflection_generation', val);
+    $panel.on('change.sideGeneral', '#openvault_side_world_position', function () {
+        const position = parseInt($(this).val(), 10);
+        setSetting('injection.world.position', position);
+        $panel.find('#openvault_side_world_depth_container').toggle(position === 4);
+        syncCrossPanel('openvault_side_world_position', position);
     });
-    $panel.on('change.sideGeneral', '#openvault_side_reflection_injection', function () {
-        const val = $(this).is(':checked');
-        setSetting('reflectionInjectionEnabled', val);
-        syncCrossPanel('openvault_side_reflection_injection', val);
+    $panel.on('input.sideGeneral', '#openvault_side_world_depth', function () {
+        setSetting('injection.world.depth', parseInt($(this).val(), 10) || 4);
     });
 
-    // ── Retrieval Settings ──
-    $panel.on('input.sideGeneral', '#openvault_side_final_budget', function () {
-        const val = parseInt($(this).val(), 10);
-        setSetting('retrievalFinalTokens', val);
-        $panel.find('#openvault_side_final_budget_value').text(val);
-        syncCrossPanel('openvault_side_final_budget', val);
+    // ── Embeddings ──
+    $panel.on('change.sideGeneral', '#openvault_side_embedding_source', async function () {
+        const value = $(this).val();
+        setSetting('embeddingSource', value);
+        const prefixes = embeddingModelPrefixes[value] || embeddingModelPrefixes._default;
+        setSetting('embeddingQueryPrefix', prefixes.queryPrefix);
+        setSetting('embeddingDocPrefix', prefixes.docPrefix);
+        $panel.find('#openvault_side_embedding_query_prefix').val(prefixes.queryPrefix);
+        $panel.find('#openvault_side_embedding_doc_prefix').val(prefixes.docPrefix);
+        $panel.find('#openvault_side_ollama_settings').toggle(value === 'ollama');
+        $panel.find('#openvault_side_openai_compat_settings').toggle(value === 'openai_compat');
+        syncCrossPanel('openvault_side_embedding_source', value);
     });
-    $panel.on('input.sideGeneral', '#openvault_side_alpha', function () {
-        const val = parseFloat($(this).val());
-        setSetting('alpha', val);
-        $panel.find('#openvault_side_alpha_value').text(val);
-        syncCrossPanel('openvault_side_alpha', val);
+    bindTxt('#openvault_side_embedding_query_prefix', 'embeddingQueryPrefix', false);
+    bindTxt('#openvault_side_embedding_doc_prefix', 'embeddingDocPrefix', false);
+    bindTxt('#openvault_side_ollama_url', 'ollamaUrl');
+    bindTxt('#openvault_side_embedding_model', 'embeddingModel');
+    bindTxt('#openvault_side_openai_compat_url', 'openaiCompatUrl');
+    bindTxt('#openvault_side_openai_compat_api_key', 'openaiCompatApiKey');
+    bindTxt('#openvault_side_openai_compat_model', 'openaiCompatModel');
+    bindRng('#openvault_side_max_concurrency', 'maxConcurrency');
+    $panel.on('input.sideGeneral', '#openvault_side_backfill_rpm', function () {
+        const value = validateRPM($(this).val(), 10);
+        setSetting('backfillMaxRPM', value);
+        $panel.find('#openvault_side_backfill_rpm_value').text(value);
     });
-    $panel.on('input.sideGeneral', '#openvault_side_vector_threshold', function () {
-        const val = parseFloat($(this).val());
-        setSetting('vectorSimilarityThreshold', val);
-        $panel.find('#openvault_side_vector_threshold_value').text(val);
-        syncCrossPanel('openvault_side_vector_threshold', val);
+    // Embedding test buttons (side-panel copies of main-panel handlers)
+    $panel.on('click.sideGeneral', '#openvault_side_test_ollama_btn', async function () {
+        const $btn = $(this);
+        const url = $('#openvault_side_ollama_url').val().trim();
+        if (!url) { $btn.html('<i class="fa-solid fa-xmark"></i> No URL'); return; }
+        $btn.html('<i class="fa-solid fa-spinner fa-spin"></i> Testing...');
+        try { await testOllamaConnection(url); $btn.html('<i class="fa-solid fa-check"></i> Connected'); }
+        catch { $btn.html('<i class="fa-solid fa-xmark"></i> Failed'); }
+        setTimeout(() => $btn.html('<i class="fa-solid fa-plug"></i> Test'), 3000);
     });
-    $panel.on('input.sideGeneral', '#openvault_side_dedup_threshold', function () {
-        const val = parseFloat($(this).val());
-        setSetting('dedupSimilarityThreshold', val);
-        $panel.find('#openvault_side_dedup_threshold_value').text(val);
-        syncCrossPanel('openvault_side_dedup_threshold', val);
-    });
-    $panel.on('input.sideGeneral', '#openvault_side_forgetfulness_lambda', function () {
-        const val = parseFloat($(this).val());
-        setSetting('forgetfulnessBaseLambda', val);
-        $panel.find('#openvault_side_forgetfulness_lambda_value').text(val);
-        syncCrossPanel('openvault_side_forgetfulness_lambda', val);
+    $panel.on('click.sideGeneral', '#openvault_side_test_openai_compat_btn', async function () {
+        const $btn = $(this);
+        const url = $('#openvault_side_openai_compat_url').val().trim();
+        const model = $('#openvault_side_openai_compat_model').val().trim();
+        if (!url || !model) { $btn.html('<i class="fa-solid fa-xmark"></i> Missing'); return; }
+        $btn.html('<i class="fa-solid fa-spinner fa-spin"></i> Testing...');
+        try {
+            await testOpenAICompatConnection(url, $('#openvault_side_openai_compat_api_key').val().trim(), model);
+            $btn.html('<i class="fa-solid fa-check"></i> Connected');
+        } catch { $btn.html('<i class="fa-solid fa-xmark"></i> Failed'); }
+        setTimeout(() => $btn.html('<i class="fa-solid fa-plug"></i> Test'), 3000);
     });
 
-    // ── Reranker Settings ──
-    $panel.on('change.sideGeneral', '#openvault_side_reranker_enabled', function () {
-        const val = $(this).is(':checked');
-        setSetting('rerankerEnabled', val);
-        syncCrossPanel('openvault_side_reranker_enabled', val);
-    });
-    $panel.on('change.sideGeneral', '#openvault_side_reranker_url', function () {
-        setSetting('rerankerApiUrl', $(this).val().trim());
-    });
-    $panel.on('change.sideGeneral', '#openvault_side_reranker_api_key', function () {
-        setSetting('rerankerApiKey', $(this).val().trim());
-    });
-    $panel.on('change.sideGeneral', '#openvault_side_reranker_model', function () {
-        setSetting('rerankerModel', $(this).val().trim());
-    });
-    $panel.on('input.sideGeneral', '#openvault_side_reranker_top_n', function () {
-        const val = parseInt($(this).val(), 10);
-        setSetting('rerankerTopN', val);
-        $panel.find('#openvault_side_reranker_top_n_value').text(val);
-        syncCrossPanel('openvault_side_reranker_top_n', val);
-    });
-    $panel.on('input.sideGeneral', '#openvault_side_reranker_max_docs', function () {
-        const val = parseInt($(this).val(), 10);
-        setSetting('rerankerMaxDocuments', val);
-        $panel.find('#openvault_side_reranker_max_docs_value').text(val);
-        syncCrossPanel('openvault_side_reranker_max_docs', val);
-    });
+    // ── Actions & Maintenance (trigger the main-panel buttons) ──
+    $panel.on('click.sideGeneral', '#openvault_side_extract_all_btn', () => $('#openvault_extract_all_btn').trigger('click'));
+    $panel.on('click.sideGeneral', '#openvault_side_generate_reflections_btn', () =>
+        $('#openvault_generate_reflections_btn').trigger('click'));
+    $panel.on('click.sideGeneral', '#openvault_side_backfill_embeddings_btn', () =>
+        $('#openvault_backfill_embeddings_btn').trigger('click'));
+    $panel.on('click.sideGeneral', '#openvault_side_export_debug_btn', () =>
+        $('#openvault_export_debug_btn').trigger('click'));
+    $panel.on('click.sideGeneral', '#openvault_side_reset_settings_btn', () =>
+        $('#openvault_reset_settings_btn').trigger('click'));
+    $panel.on('click.sideGeneral', '#openvault_side_reset_backfill_btn', () =>
+        $('#openvault_reset_backfill_btn').trigger('click'));
+
+    // ── Reranker ──
+    bindChk('#openvault_side_reranker_enabled', 'rerankerEnabled');
+    bindTxt('#openvault_side_reranker_url', 'rerankerApiUrl');
+    bindTxt('#openvault_side_reranker_api_key', 'rerankerApiKey');
+    bindTxt('#openvault_side_reranker_model', 'rerankerModel');
+    bindRng('#openvault_side_reranker_top_n', 'rerankerTopN');
+    bindRng('#openvault_side_reranker_max_docs', 'rerankerMaxDocuments');
 }
 
 /**
@@ -1414,35 +1490,80 @@ export function updateSidePanelGeneralSettings() {
     const $enabled = $('#openvault_side_enabled');
     if (!$enabled.length) return; // side panel not injected yet
 
-    // Quick Toggles
-    $enabled.prop('checked', settings.enabled);
-    $('#openvault_side_auto_hide').prop('checked', settings.autoHideEnabled);
-    $('#openvault_side_reflection_generation').prop('checked', settings.reflectionGenerationEnabled);
-    $('#openvault_side_reflection_injection').prop('checked', settings.reflectionInjectionEnabled);
+    // DRY helpers
+    const chk = (id, val) => $(`#${id}`).prop('checked', val);
+    const rng = (id, val) => { $(`#${id}`).val(val); $(`#${id}_value`).text(val); };
+    const txt = (id, val) => $(`#${id}`).val(val ?? '');
 
-    // Retrieval Settings
-    $('#openvault_side_final_budget').val(settings.retrievalFinalTokens);
-    $('#openvault_side_final_budget_value').text(settings.retrievalFinalTokens);
-    $('#openvault_side_alpha').val(settings.alpha);
-    $('#openvault_side_alpha_value').text(settings.alpha);
-    $('#openvault_side_vector_threshold').val(settings.vectorSimilarityThreshold);
-    $('#openvault_side_vector_threshold_value').text(settings.vectorSimilarityThreshold);
-    $('#openvault_side_dedup_threshold').val(settings.dedupSimilarityThreshold);
-    $('#openvault_side_dedup_threshold_value').text(settings.dedupSimilarityThreshold);
-    $('#openvault_side_forgetfulness_lambda').val(settings.forgetfulnessBaseLambda);
-    $('#openvault_side_forgetfulness_lambda_value').text(settings.forgetfulnessBaseLambda);
+    // General
+    chk('openvault_side_enabled', settings.enabled);
+    chk('openvault_side_auto_hide', settings.autoHideEnabled);
+    chk('openvault_side_debug', settings.debugMode);
+    chk('openvault_side_request_logging', settings.requestLogging);
+    chk('openvault_side_narrator_mode', settings.narratorMode);
+    chk('openvault_side_reflection_generation', settings.reflectionGenerationEnabled);
+    chk('openvault_side_reflection_injection', settings.reflectionInjectionEnabled);
 
-    // Reranker Settings
-    $('#openvault_side_reranker_enabled').prop('checked', settings.rerankerEnabled);
-    $('#openvault_side_reranker_url').val(settings.rerankerApiUrl || '');
-    $('#openvault_side_reranker_api_key').val(settings.rerankerApiKey || '');
-    $('#openvault_side_reranker_model').val(settings.rerankerModel || '');
-    $('#openvault_side_reranker_top_n').val(settings.rerankerTopN ?? defaultSettings.rerankerTopN);
-    $('#openvault_side_reranker_top_n_value').text(settings.rerankerTopN ?? defaultSettings.rerankerTopN);
-    $('#openvault_side_reranker_max_docs').val(settings.rerankerMaxDocuments ?? defaultSettings.rerankerMaxDocuments);
-    $('#openvault_side_reranker_max_docs_value').text(
-        settings.rerankerMaxDocuments ?? defaultSettings.rerankerMaxDocuments
-    );
+    // Extraction
+    rng('openvault_side_extraction_token_budget', settings.extractionTokenBudget);
+    rng('openvault_side_extraction_max_turns', settings.extractionMaxTurns);
+    rng('openvault_side_extraction_rearview', settings.extractionRearviewTokens);
+
+    // Visible Chat
+    rng('openvault_side_visible_chat_budget', settings.visibleChatBudget);
+    rng('openvault_side_frozen_replies', settings.frozenReplies);
+    rng('openvault_side_max_visible_messages', settings.maxVisibleMessages);
+
+    // Retrieval & Scoring
+    rng('openvault_side_final_budget', settings.retrievalFinalTokens);
+    rng('openvault_side_alpha', settings.alpha);
+    rng('openvault_side_vector_threshold', settings.vectorSimilarityThreshold);
+    rng('openvault_side_dedup_threshold', settings.dedupSimilarityThreshold);
+    rng('openvault_side_dedup_jaccard', settings.dedupJaccardThreshold);
+    rng('openvault_side_forgetfulness_lambda', settings.forgetfulnessBaseLambda);
+
+    // Reflection
+    rng('openvault_side_reflection_threshold', settings.reflectionThreshold);
+    rng('openvault_side_max_insights', settings.maxInsightsPerReflection);
+    rng('openvault_side_max_reflections', settings.maxReflectionsPerCharacter);
+
+    // Language & Injection
+    txt('openvault_side_preamble_language', settings.preambleLanguage || 'cn');
+    txt('openvault_side_output_language', settings.outputLanguage || 'auto');
+    txt('openvault_side_post_history_prompt', settings.postHistoryPrompt || '');
+    const memPos = settings.injection?.memory?.position ?? 5;
+    txt('openvault_side_memory_position', memPos);
+    $('#openvault_side_memory_depth_container').toggle(memPos === 4);
+    txt('openvault_side_memory_depth', settings.injection?.memory?.depth ?? 4);
+    const worldPos = settings.injection?.world?.position ?? 5;
+    txt('openvault_side_world_position', worldPos);
+    $('#openvault_side_world_depth_container').toggle(worldPos === 4);
+    txt('openvault_side_world_depth', settings.injection?.world?.depth ?? 4);
+
+    // Embeddings
+    txt('openvault_side_embedding_source', settings.embeddingSource);
+    txt('openvault_side_embedding_query_prefix', settings.embeddingQueryPrefix);
+    txt('openvault_side_embedding_doc_prefix', settings.embeddingDocPrefix);
+    $('#openvault_side_ollama_settings').toggle(settings.embeddingSource === 'ollama');
+    txt('openvault_side_ollama_url', settings.ollamaUrl);
+    txt('openvault_side_embedding_model', settings.embeddingModel);
+    $('#openvault_side_openai_compat_settings').toggle(settings.embeddingSource === 'openai_compat');
+    txt('openvault_side_openai_compat_url', settings.openaiCompatUrl);
+    txt('openvault_side_openai_compat_api_key', settings.openaiCompatApiKey);
+    txt('openvault_side_openai_compat_model', settings.openaiCompatModel);
+    rng('openvault_side_max_concurrency', settings.maxConcurrency);
+    rng('openvault_side_backfill_rpm', settings.backfillMaxRPM);
+
+    // Reranker
+    chk('openvault_side_reranker_enabled', settings.rerankerEnabled);
+    txt('openvault_side_reranker_url', settings.rerankerApiUrl);
+    txt('openvault_side_reranker_api_key', settings.rerankerApiKey);
+    txt('openvault_side_reranker_model', settings.rerankerModel);
+    rng('openvault_side_reranker_top_n', settings.rerankerTopN ?? defaultSettings.rerankerTopN);
+    rng('openvault_side_reranker_max_docs', settings.rerankerMaxDocuments ?? defaultSettings.rerankerMaxDocuments);
+
+    // Profiles (populate dropdown options)
+    populateProfileSelector();
 }
 
 /**
@@ -1924,4 +2045,7 @@ export function populateProfileSelector() {
 
     populateProfileDropdown($('#openvault_extraction_profile'), profiles, settings.extractionProfile);
     populateProfileDropdown($('#openvault_backup_profile'), profiles, settings.backupProfile);
+    // Side panel mirrors
+    populateProfileDropdown($('#openvault_side_extraction_profile'), profiles, settings.extractionProfile);
+    populateProfileDropdown($('#openvault_side_backup_profile'), profiles, settings.backupProfile);
 }
