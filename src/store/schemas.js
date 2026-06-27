@@ -428,6 +428,9 @@ export const BasePromptParamsSchema = z.object({
     preamble: z.string(),
     prefill: z.string(),
     outputLanguage: z.enum(['auto', 'en', 'ru']).optional(),
+    // Narrator/GM mode: name of the storyteller voicing many NPCs. When set, the
+    // prompt instructs the LLM to attribute to NPCs in the prose, not the narrator.
+    narrator: z.string().nullable().optional(),
 });
 
 // Graph extraction prompt parameters
@@ -439,6 +442,8 @@ export const GraphPromptParamsSchema = z.object({
     prefill: z.string(),
     outputLanguage: z.enum(['auto', 'en', 'ru']).optional(),
     extractedEvents: z.array(z.string()).optional(),
+    // Narrator/GM mode: see BasePromptParamsSchema.narrator.
+    narrator: z.string().nullable().optional(),
 });
 
 // Edge consolidation prompt parameters

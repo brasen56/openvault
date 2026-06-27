@@ -938,6 +938,7 @@ export type BasePromptParams = {
     preamble: string;
     prefill: string;
     outputLanguage?: ("auto" | "en" | "ru") | undefined;
+    narrator?: (string | null) | undefined;
 };
 
 export type GraphPromptParams = {
@@ -984,6 +985,7 @@ export type GraphPromptParams = {
     prefill: string;
     outputLanguage?: ("auto" | "en" | "ru") | undefined;
     extractedEvents?: string[] | undefined;
+    narrator?: (string | null) | undefined;
 };
 
 export type EdgeConsolidationParams = {

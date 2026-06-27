@@ -3,6 +3,8 @@ import {
     canonicalizeEventCharNames,
     cleanupCharacterStates,
     selectMemoriesForExtraction,
+    stripNarratorFromEvents,
+    stripNarratorFromGraphResult,
     updateCharacterStatesFromEvents,
 } from '../../src/extraction/extract.js';
 import { buildMockData } from '../factories.js';
@@ -180,6 +182,105 @@ describe('cleanupCharacterStates', () => {
 
         expect(data.character_states['King Aldric']).toBeDefined();
         expect(data.character_states.Queen).toBeUndefined();
+    });
+});
+
+describe('stripNarratorFromEvents', () => {
+    it('removes the narrator from characters_involved and witnesses', () => {
+        const events = [
+            {
+                id: 'event_1',
+                characters_involved: ['Narrator', 'Greg', 'User'],
+                witnesses: ['Narrator', 'Greg'],
+            },
+        ];
+
+        stripNarratorFromEvents(events, 'Narrator');
+
+        expect(events[0].characters_involved).toEqual(['Greg', 'User']);
+        expect(events[0].witnesses).toEqual(['Greg']);
+    });
+
+    it('removes the narrator from emotional_impact keys (case-insensitive)', () => {
+        const events = [
+            {
+                id: 'event_1',
+                emotional_impact: { narrator: 'amused', Greg: 'angry' },
+            },
+        ];
+
+        stripNarratorFromEvents(events, 'Narrator');
+
+        expect(events[0].emotional_impact).toEqual({ Greg: 'angry' });
+    });
+
+    it('drops relationship_impact pairs touching the narrator', () => {
+        const events = [
+            {
+                id: 'event_1',
+                relationship_impact: {
+                    'Narrator->Greg': 'observes',
+                    'Greg->User': 'trust increased',
+                },
+            },
+        ];
+
+        stripNarratorFromEvents(events, 'Narrator');
+
+        expect(events[0].relationship_impact).toEqual({ 'Greg->User': 'trust increased' });
+    });
+
+    it('updateCharacterStatesFromEvents never mints a narrator state after stripping', () => {
+        const data = buildMockData();
+        const events = [
+            {
+                id: 'event_1',
+                emotional_impact: { Narrator: 'amused', Greg: 'angry' },
+                characters_involved: ['Narrator', 'Greg'],
+                message_ids: [1],
+            },
+        ];
+
+        stripNarratorFromEvents(events, 'Narrator');
+        // contextNames excludes the narrator, mirroring narrator-mode extraction
+        updateCharacterStatesFromEvents(events, data, ['User']);
+
+        expect(data.character_states.Narrator).toBeUndefined();
+        expect(data.character_states.Greg).toBeDefined();
+        expect(data.character_states.Greg.current_emotion).toBe('angry');
+    });
+
+    it('is a no-op when narratorName is falsy', () => {
+        const events = [{ id: 'event_1', characters_involved: ['Narrator', 'Greg'] }];
+
+        stripNarratorFromEvents(events, null);
+
+        expect(events[0].characters_involved).toEqual(['Narrator', 'Greg']);
+    });
+});
+
+describe('stripNarratorFromGraphResult', () => {
+    it('drops narrator entities and relationships touching the narrator', () => {
+        const graphResult = {
+            entities: [
+                { name: 'Narrator', type: 'PERSON' },
+                { name: 'Greg', type: 'PERSON' },
+            ],
+            relationships: [
+                { source: 'Narrator', target: 'Greg', description: 'narrates' },
+                { source: 'Greg', target: 'User', description: 'helps' },
+            ],
+        };
+
+        stripNarratorFromGraphResult(graphResult, 'Narrator');
+
+        expect(graphResult.entities).toEqual([{ name: 'Greg', type: 'PERSON' }]);
+        expect(graphResult.relationships).toEqual([{ source: 'Greg', target: 'User', description: 'helps' }]);
+    });
+
+    it('handles missing entity/relationship arrays gracefully', () => {
+        expect(() => stripNarratorFromGraphResult({}, 'Narrator')).not.toThrow();
+        expect(() => stripNarratorFromGraphResult(null, 'Narrator')).not.toThrow();
     });
 });
 

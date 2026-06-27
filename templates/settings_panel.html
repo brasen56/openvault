@@ -387,6 +387,11 @@
                         <div class="openvault-help-text" style="padding: 8px 10px; font-size: 0.85em; color: var(--SmartThemeEmColor); margin-bottom: 10px;">
                             <strong>Time Awareness:</strong> Include timestamps in your messages (e.g., <code>[Friday, June 14, 3:40 PM]</code>) to enable temporal memory tracking. Short-term plans marked as transient will fade from context faster than permanent facts.
                         </div>
+                        <label class="checkbox_label">
+                            <input id="openvault_narrator_mode" type="checkbox" />
+                            <span>Narrator / GM mode</span>
+                        </label>
+                        <small class="openvault-hint">Enable when one character card narrates and voices many NPCs. The card name is treated as a storyteller, not a character — events are attributed to the NPC named in the prose instead of the card. Leave off for normal single-character chats.</small>
                         <label for="openvault_extraction_token_budget">
                             Extraction Batch Size: <span id="openvault_extraction_token_budget_value">8000</span> tokens
                             <small class="openvault-default-hint" data-default-key="extractionTokenBudget"></small>

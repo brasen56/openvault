@@ -20,6 +20,11 @@ export const MEMORIES_KEY = 'memories';
 export const CHARACTERS_KEY = 'character_states';
 export const PROCESSED_MESSAGES_KEY = 'processed_message_ids';
 
+// Sentinel speaker label used in narrator mode, where one character card voices
+// many NPCs. Replaces the card name in the extraction transcript so the card name
+// is never minted as a character. Must not collide with a plausible NPC name.
+export const NARRATOR_LABEL = 'Narrator';
+
 // =============================================================================
 // Injection Position Constants
 // =============================================================================
@@ -60,6 +65,11 @@ export const defaultSettings = {
     extractionTokenBudget: 6000, // Token threshold for extraction batches
     extractionRearviewTokens: 3000, // Token budget for extraction memory context
     extractionMaxTurns: 20, // Max conversation turns per extraction batch
+    // Narrator mode: when one character card narrates/voices many NPCs, the card
+    // name (name2) is a storyteller, not a character. Enabling this stops the card
+    // name from being extracted as a character and tells the LLM to attribute
+    // events to the NPC named in the prose instead.
+    narratorMode: false,
     // Transient reclassification ("AI Reclassify") completion budget. Thinking models
     // spend tokens on reasoning before the JSON, so this caps the response size. Raise it
     // only if reclassify reports truncation (see README); keep it modest for small models.

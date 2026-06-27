@@ -31,6 +31,7 @@ export function buildEventExtractionPrompt({
     preamble,
     prefill,
     outputLanguage = 'auto',
+    narrator = null,
 }) {
     const { char: characterName, user: userName } = names;
     const safeCharName = characterName || 'Character';
@@ -48,7 +49,9 @@ export function buildEventExtractionPrompt({
     });
 
     const memoriesSection = formatEstablishedMemories(existingMemories);
-    const charactersSection = formatCharacters(safeCharName, safeUserName, characterDescription, personaDescription);
+    const charactersSection = narrator
+        ? `<narrator>${narrator} is the storyteller voicing all NPCs — not a character.</narrator>\n<characters>\n<character name="${safeUserName}" role="user"/>\n</characters>`
+        : formatCharacters(safeCharName, safeUserName, characterDescription, personaDescription);
     const contextParts = [memoriesSection, charactersSection].filter(Boolean).join('\n');
     const contextSection = contextParts ? `<context>\n${contextParts}\n</context>\n` : '';
 
@@ -65,7 +68,11 @@ ${messages}
 </messages>
 
 Analyze the messages above. Extract events only.
-Use EXACT character names: ${safeCharName}, ${safeUserName}. Never transliterate these names into another script.
+${
+    narrator
+        ? `The messages are narrated by ${narrator}, who voices many different NPCs — ${narrator} is NOT a character and must never appear in characters_involved, witnesses, emotional_impact, or relationship_impact. Attribute each event to the actual NPC named in the prose (the one speaking or acting). Use the user's character name ${safeUserName} exactly. Use EXACT character names as written; never transliterate them into another script.`
+        : `Use EXACT character names: ${safeCharName}, ${safeUserName}. Never transliterate these names into another script.`
+}
 
 ${constraints}`;
 

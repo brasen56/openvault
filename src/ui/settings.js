@@ -923,6 +923,7 @@ function bindUIElements() {
         updateWordsDisplay(v, 'openvault_extraction_rearview_words');
         updatePayloadCalculator();
     });
+    bindSetting('narrator_mode', 'narratorMode', 'bool');
 
     // Token budget settings
     bindSetting('visible_chat_budget', 'visibleChatBudget');
@@ -1659,6 +1660,8 @@ export function updateUI() {
     $('#openvault_extraction_rearview').val(settings.extractionRearviewTokens);
     $('#openvault_extraction_rearview_value').text(settings.extractionRearviewTokens);
     updateWordsDisplay(settings.extractionRearviewTokens, 'openvault_extraction_rearview_words');
+
+    $('#openvault_narrator_mode').prop('checked', settings.narratorMode);
 
     // Token budget settings
     $('#openvault_visible_chat_budget').val(settings.visibleChatBudget);

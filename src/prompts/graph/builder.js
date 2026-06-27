@@ -33,6 +33,7 @@ export function buildGraphExtractionPrompt({
     preamble,
     prefill,
     outputLanguage = 'auto',
+    narrator = null,
 }) {
     const { char: characterName, user: userName } = names;
     const safeCharName = characterName || 'Character';
@@ -45,7 +46,9 @@ export function buildGraphExtractionPrompt({
         outputLanguage,
     });
 
-    const charactersSection = formatCharacters(safeCharName, safeUserName, characterDescription, personaDescription);
+    const charactersSection = narrator
+        ? `<narrator>${narrator} is the storyteller voicing all NPCs — not a character.</narrator>\n<characters>\n<character name="${safeUserName}" role="user"/>\n</characters>`
+        : formatCharacters(safeCharName, safeUserName, characterDescription, personaDescription);
     const contextSection = charactersSection ? `<context>\n${charactersSection}\n</context>\n` : '';
     const eventsSection =
         extractedEvents.length > 0 ? `<extracted_events>\n${extractedEvents.join('\n')}\n</extracted_events>\n` : '';
@@ -63,7 +66,11 @@ ${messages}
 </messages>
 
 ${eventsSection}Based on the messages${extractedEvents.length > 0 ? ' and extracted events above' : ''}, extract named entities and relationships.
-Use EXACT character names: ${safeCharName}, ${safeUserName}. Never transliterate these names into another script.
+${
+    narrator
+        ? `The messages are narrated by ${narrator}, who voices many different NPCs — ${narrator} is NOT an entity and must never appear as a node or in a relationship. Extract the actual NPCs named in the prose. Use the user's character name ${safeUserName} exactly. Use EXACT character names as written; never transliterate them into another script.`
+        : `Use EXACT character names: ${safeCharName}, ${safeUserName}. Never transliterate these names into another script.`
+}
 
 ${constraints}`;
 

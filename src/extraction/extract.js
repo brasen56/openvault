@@ -29,6 +29,7 @@ import {
     ENTITY_TYPES,
     extensionName,
     MEMORIES_KEY,
+    NARRATOR_LABEL,
 } from '../constants.js';
 import { getDeps } from '../deps.js';
 import { enrichEventsWithEmbeddings } from '../embeddings.js';
@@ -330,6 +331,66 @@ export function canonicalizeEventCharNames(events, contextNames, graphNodes) {
             }
             event.emotional_impact = newImpact;
         }
+    }
+}
+
+/**
+ * Remove the narrator name from all character-bearing fields of extracted events.
+ * In narrator mode the card name (relabeled to NARRATOR_LABEL) is a storyteller, not
+ * a character, so it must never be stored in memories or minted as a character state.
+ * Matching is case-insensitive. Mutates events in place.
+ *
+ * @param {Object[]} events - Extracted events (mutated)
+ * @param {string} narratorName - The narrator label to strip (e.g. NARRATOR_LABEL)
+ */
+export function stripNarratorFromEvents(events, narratorName) {
+    if (!narratorName) return;
+    const target = narratorName.toLowerCase();
+    const isNarrator = (name) => typeof name === 'string' && name.toLowerCase() === target;
+
+    for (const event of events) {
+        if (event.characters_involved) {
+            event.characters_involved = event.characters_involved.filter((n) => !isNarrator(n));
+        }
+        if (event.witnesses) {
+            event.witnesses = event.witnesses.filter((n) => !isNarrator(n));
+        }
+        if (event.emotional_impact) {
+            for (const charName of Object.keys(event.emotional_impact)) {
+                if (isNarrator(charName)) delete event.emotional_impact[charName];
+            }
+        }
+        // relationship_impact keys are "A->B"; drop any pair touching the narrator.
+        if (event.relationship_impact) {
+            for (const pair of Object.keys(event.relationship_impact)) {
+                if (pair.split('->').some((side) => isNarrator(side.trim()))) {
+                    delete event.relationship_impact[pair];
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Remove the narrator from a graph extraction result before it reaches the graph.
+ * Drops any entity named after the narrator and any relationship touching it.
+ * Matching is case-insensitive. Mutates the result in place.
+ *
+ * @param {{entities?: Object[], relationships?: Object[]}} graphResult - Mutated
+ * @param {string} narratorName - The narrator label to strip (e.g. NARRATOR_LABEL)
+ */
+export function stripNarratorFromGraphResult(graphResult, narratorName) {
+    if (!narratorName || !graphResult) return;
+    const target = narratorName.toLowerCase();
+    const isNarrator = (name) => typeof name === 'string' && name.toLowerCase() === target;
+
+    if (Array.isArray(graphResult.entities)) {
+        graphResult.entities = graphResult.entities.filter((e) => !isNarrator(e?.name));
+    }
+    if (Array.isArray(graphResult.relationships)) {
+        graphResult.relationships = graphResult.relationships.filter(
+            (r) => !isNarrator(r?.source) && !isNarrator(r?.target)
+        );
     }
 }
 
@@ -765,6 +826,7 @@ async function synthesizeCommunities(data, settings, characterName, userName) {
  * @param {string} contextParams.preamble
  * @param {string} contextParams.prefill
  * @param {'auto'|'en'|'ru'} contextParams.outputLanguage
+ * @param {string|null} [contextParams.narrator] - Narrator name when in narrator mode
  * @param {Array} existingMemories - Curated memory subset for prompt context
  * @param {AbortSignal} [abortSignal] - Abort signal for mid-request cancellation
  * @returns {Promise<{events: ExtractedEvent[]}>}
@@ -781,6 +843,7 @@ async function fetchEventsFromLLM(contextParams, existingMemories, abortSignal) 
         preamble: contextParams.preamble,
         prefill: contextParams.prefill,
         outputLanguage: contextParams.outputLanguage,
+        narrator: contextParams.narrator,
     });
 
     const t0 = performance.now();
@@ -802,6 +865,7 @@ async function fetchEventsFromLLM(contextParams, existingMemories, abortSignal) 
  * @param {string} contextParams.preamble
  * @param {string} contextParams.prefill
  * @param {'auto'|'en'|'ru'} contextParams.outputLanguage
+ * @param {string|null} [contextParams.narrator] - Narrator name when in narrator mode
  * @param {string[]} formattedEvents - Pre-formatted event strings for the prompt
  * @param {AbortSignal} [abortSignal] - Abort signal for mid-request cancellation
  * @returns {Promise<GraphExtraction>}
@@ -819,6 +883,7 @@ async function fetchGraphFromLLM(contextParams, formattedEvents, abortSignal) {
             preamble: contextParams.preamble,
             prefill: contextParams.prefill,
             outputLanguage: contextParams.outputLanguage,
+            narrator: contextParams.narrator,
         });
 
         const t0 = performance.now();
@@ -1153,9 +1218,15 @@ export async function extractMemories(messageIds = null, targetChatId = null, op
         const characterName = context.name2;
         const userName = context.name1;
 
+        // Narrator mode: the card voices many NPCs, so its name is a storyteller,
+        // not a character. Relabel its messages to a sentinel so the card name is
+        // never fed to the LLM (or minted) as a character. See NARRATOR_LABEL.
+        const narratorMode = !!settings.narratorMode;
+        const narratorName = narratorMode ? NARRATOR_LABEL : null;
+
         const messagesText = messages
             .map((m) => {
-                const speaker = m.is_user ? userName : m.name || characterName;
+                const speaker = m.is_user ? userName : narratorMode ? NARRATOR_LABEL : m.name || characterName;
                 return `[${speaker}]: ${sanitizeMessageContent(m.mes, !!m.is_user)}`;
             })
             .join('\n\n');
@@ -1172,6 +1243,7 @@ export async function extractMemories(messageIds = null, targetChatId = null, op
             preamble: resolveExtractionPreamble(settings),
             prefill: resolveExtractionPrefill(settings),
             outputLanguage: resolveOutputLanguage(settings),
+            narrator: narratorName,
         };
 
         // Stage 1: Event extraction (LLM call)
@@ -1251,6 +1323,10 @@ export async function extractMemories(messageIds = null, targetChatId = null, op
             }
         }
 
+        // In narrator mode, drop any narrator entity/relationship the LLM emitted
+        // before it can become a graph node.
+        if (narratorName) stripNarratorFromGraphResult(graphResult, narratorName);
+
         // Stage 4: Graph updates
         const { graphSyncChanges } = await processGraphUpdates(
             data.graph,
@@ -1262,10 +1338,16 @@ export async function extractMemories(messageIds = null, targetChatId = null, op
 
         // ===== PHASE 1 COMMIT: Events + Graph are done =====
         if (events.length > 0) {
+            // In narrator mode the card name is not a character, so it must not seed
+            // the canonical registry or be auto-whitelisted as a valid character.
+            const contextNames = narratorMode ? [userName] : [characterName, userName];
             // Canonicalize cross-script character names before downstream consumption
-            canonicalizeEventCharNames(events, [characterName, userName], data.graph?.nodes);
+            canonicalizeEventCharNames(events, contextNames, data.graph?.nodes);
+            // Strip the narrator from event character fields so it is never stored
+            // in memories or minted as a character state.
+            if (narratorName) stripNarratorFromEvents(events, narratorName);
             addMemories(events);
-            updateCharacterStatesFromEvents(events, data, [characterName, userName]);
+            updateCharacterStatesFromEvents(events, data, contextNames);
         }
 
         // Mark processed AFTER events are committed to memories
