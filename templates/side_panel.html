@@ -361,6 +361,13 @@
                     </select>
                     <small class="openvault-hint">Language for extracted memories</small>
 
+                    <label for="openvault_side_injection_mode" style="margin-top: 10px;">Injection Mode</label>
+                    <select id="openvault_side_injection_mode" class="text_pole">
+                        <option value="events" selected>Events (retrieve memories per turn)</option>
+                        <option value="identity">Identity (inject character dossier)</option>
+                    </select>
+                    <small class="openvault-hint">Identity mode pairs with a separate memory extension like VectFox — OpenVault handles <em>who characters have become</em>, the other handles <em>what happened</em>.</small>
+
                     <label for="openvault_side_memory_position" style="margin-top: 10px;">Memory Position</label>
                     <select id="openvault_side_memory_position" class="text_pole">
                         <option value="0">↑Main (Before system prompt)</option>

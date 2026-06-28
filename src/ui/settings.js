@@ -1434,6 +1434,11 @@ export function bindSidePanelGeneralSettings($panel) {
     bindTxt('#openvault_side_preamble_language', 'preambleLanguage', false);
     bindTxt('#openvault_side_output_language', 'outputLanguage', false);
     bindTxt('#openvault_side_post_history_prompt', 'postHistoryPrompt', false);
+    $panel.on('change.sideGeneral', '#openvault_side_injection_mode', function () {
+        const mode = $(this).val();
+        setSetting('injectionMode', mode);
+        syncCrossPanel('openvault_side_injection_mode', mode);
+    });
     $panel.on('change.sideGeneral', '#openvault_side_memory_position', function () {
         const position = parseInt($(this).val(), 10);
         setSetting('injection.memory.position', position);
@@ -1596,6 +1601,7 @@ export function updateSidePanelGeneralSettings() {
     txt('openvault_side_preamble_language', settings.preambleLanguage || 'cn');
     txt('openvault_side_output_language', settings.outputLanguage || 'auto');
     txt('openvault_side_post_history_prompt', settings.postHistoryPrompt || '');
+    txt('openvault_side_injection_mode', settings.injectionMode || 'events');
     const memPos = settings.injection?.memory?.position ?? 5;
     txt('openvault_side_memory_position', memPos);
     $('#openvault_side_memory_depth_container').toggle(memPos === 4);

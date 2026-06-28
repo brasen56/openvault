@@ -1,10 +1,15 @@
 # OpenVault
 
-**Agentic, local-first memory for SillyTavern roleplay.**
+**Local-first memory & evolving character identity for SillyTavern roleplay.**
 
-OpenVault gives long roleplays a durable memory. It watches the conversation, extracts the events that matter, builds a knowledge graph of who's who and how they relate, periodically reflects on what it has learned, and injects the most relevant memories back into context before each reply — so characters remember what happened a thousand messages ago without bloating the prompt.
+OpenVault does two things for long roleplays. It gives them a **durable memory** — watching the conversation, extracting the events that matter, and injecting the most relevant ones back into context so characters remember what happened a thousand messages ago. And it gives them an **evolving character identity** — synthesizing those events into per-character insights (reflections) and injecting a stable "who this character has become" sheet, so NPCs grow and stay consistent across the story.
 
-Everything is stored **locally** in the chat's own metadata. Embeddings run on-device by default. No external memory service is required.
+You pick which of the two OpenVault injects via **Injection Mode**:
+
+- **Events** *(default)* — retrieves the most relevant memories per turn.
+- **Identity** — injects a bounded per-character dossier synthesized from reflections, leaving "what happened" to a coinstalled RAG extension (e.g. [VectFox](https://github.com/KritBlade/VectFox)). See [Pairing with VectFox](#pairing-with-vectfox) below.
+
+Everything is stored **locally** in the chat’s own metadata. Embeddings run on-device by default. No external memory service is required.
 
 > **Status:** actively developed fork. Author: **Brasen** · Version **24.0** · [github.com/brasen56/openvault](https://github.com/brasen56/openvault)
 
@@ -12,11 +17,13 @@ Everything is stored **locally** in the chat's own metadata. Embeddings run on-d
 
 ## Highlights
 
+- **Two injection modes** — retrieve memories per turn (Events) or inject a bounded character-identity dossier (Identity). Switchable per chat.
+- **Reflections** — once a character accumulates enough significant events, OpenVault synthesizes higher-level insights (and reflections-of-reflections), giving the model "understanding," not just facts. The engine behind Identity mode.
+- **Character dossiers** — a per-character view joining reflections, current state, and relationships into a correctable "personality sheet," exportable as text or a lorebook entry. Canon notes lock in authoritative corrections.
 - **Automatic extraction** — a background worker turns recent messages into structured memories (summary, importance, participants, witnesses, location, emotional/relationship impact, temporal anchor).
 - **Hybrid retrieval** — an alpha-blend of vector similarity and a 4-tier BM25 keyword match, with a forgetfulness curve so old/rarely-used memories fade and important/often-recalled ones stick.
 - **Local embeddings (RAG)** — on-device `multilingual-e5-small` by default; optional Ollama, OpenAI-compatible, or SillyTavern Vector Storage backends.
 - **Knowledge graph + communities** — entities and relationships are merged into a graph, clustered (Louvain) into communities, and summarized into a rolling global world-state.
-- **Reflections** — once a character accumulates enough significant events, OpenVault synthesizes higher-level insights (and reflections-of-reflections), giving the model "understanding," not just facts.
 - **POV-aware** — memories are filtered by who actually witnessed an event, so characters don't meta-game knowledge they shouldn't have.
 - **Contradiction handling** — a fast keyword filter suppresses stale contradicted memories at retrieval time; an optional LLM tier verifies and merges genuine conflicts, retiring outdated facts.
 - **Auto-hide** — trims old messages from the live context (by token budget) while their extracted memories keep the continuity.
@@ -64,6 +71,33 @@ From the OpenVault panel:
 - **Danger zone** — delete the current chat's memories, or wipe all OpenVault data.
 
 ---
+
+## Two injection modes
+
+OpenVault runs the same extraction + reflection pipeline in both modes — the only difference is **what gets injected** before each reply.
+
+### Events (default)
+
+Per-turn retrieval: the most relevant memories are scored (alpha-blend of vector similarity + 4-tier BM25, with a forgetfulness curve) and injected within a token budget. This is the original behavior and works standalone.
+
+### Identity
+
+Instead of retrieving events, OpenVault injects a bounded per-character "identity sheet" synthesized from reflections: headline traits, top relationships, current emotional state, and any canon notes. A character is auto-injected once they have enough synthesized reflections (`identityMinReflections`); per-character **Always / Never** overrides on each dossier card let you force a quiet character in or suppress a minor NPC. The sheet is trimmed to a per-character token budget (`identityInjectionBudget`, default 2000) so a well-connected main character can’t flood the context.
+
+Extraction keeps running in Identity mode — reflections still need events as raw material. The legacy event/world slots are cleared so Identity mode never overlaps whatever else you have injecting context.
+
+## Pairing with VectFox
+
+[VectFox](https://github.com/KritBlade/VectFox) is a high-performance RAG memory extension (Qdrant + structured event extraction + hybrid search) that scales to 10k+ messages. VectFox’s own positioning is "memory, not a tracker" — it recommends pairing with a tracker for character state. That is exactly the split OpenVault’s Identity mode fills:
+
+| Layer | Question | Owner |
+|---|---|---|
+| Episodic memory | *What happened?* | VectFox (RAG retrieval per turn) |
+| Character identity | *Who is this person now?* | OpenVault (reflection-synthesized dossier) |
+
+**Setup:** enable both extensions. In OpenVault, set **Injection Mode → Identity**. Each injects into its own prompt slot, so they never collide. (In Events mode, OpenVault competes with VectFox on the same job — pick one.)
+
+See [`VISION.md`](VISION.md) for the full two-layer model.
 
 ## How it works
 
