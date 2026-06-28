@@ -19,7 +19,7 @@ import { cachedContent } from './macros.js';
 import { getSettings } from '../settings.js';
 import { getOpenVaultData } from '../store/chat-data.js';
 import { logDebug } from '../utils/logging.js';
-import { isExtensionEnabled, safeSetExtensionPrompt } from '../utils/st-helpers.js';
+import { clearAllInjectionSlots, isExtensionEnabled, safeSetExtensionPrompt } from '../utils/st-helpers.js';
 
 /** Case-insensitive name key (mirrors helpers.js normalizeName). */
 function normalizeName(name) {
@@ -120,15 +120,15 @@ export function injectIdentitySheet(text, settings) {
     const pos = settings?.injection?.identity?.position ?? 5;
     const depth = settings?.injection?.identity?.depth ?? 4;
 
-    // Clear the episodic-layer slots so stale events/world text don't linger
-    // when switching to (or staying in) identity mode.
+    // Clear every slot (incl. the episodic-layer memory/world/entities/posthistory
+    // slots and the identity slot itself) so nothing from events mode — or a prior
+    // identity build — lingers. In identity mode OpenVault owns exactly one
+    // injection, so it never competes with a coinstalled episodic-memory extension.
     cachedContent.memory = '';
     cachedContent.world = '';
-    safeSetExtensionPrompt('', 'openvault', 5, 4);
-    safeSetExtensionPrompt('', 'openvault_world', 5, 4);
+    clearAllInjectionSlots();
 
     if (!text) {
-        safeSetExtensionPrompt('', 'openvault_identity', pos, depth);
         return false;
     }
     safeSetExtensionPrompt(text, 'openvault_identity', pos, depth);

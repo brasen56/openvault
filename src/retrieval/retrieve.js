@@ -346,6 +346,11 @@ export function injectContext(contextText, worldText = '') {
         }
     }
 
+    // Events mode sets its own four slots below; the only foreign slot it must
+    // clear is the identity-mode dossier, so it doesn't linger after a switch
+    // from identity mode back to events mode.
+    safeSetExtensionPrompt('', 'openvault_identity', 1, 0);
+
     // Inject memory / bridge content
     if (!effectiveContent) {
         safeSetExtensionPrompt('', 'openvault', memoryPosition, memoryDepth);

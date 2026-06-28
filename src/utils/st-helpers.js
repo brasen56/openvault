@@ -67,6 +67,33 @@ export function safeSetExtensionPrompt(content, name = extensionName, position =
 }
 
 /**
+ * Every named prompt slot OpenVault writes to. Kept in one place so that disable,
+ * chat-switch, and injection-mode-switch can clear *all* of them. A slot left set
+ * keeps injecting until SillyTavern reloads — that's what caused dossiers/world
+ * text to keep injecting after the extension was disabled, and what let one
+ * mode's slots linger after switching to the other.
+ */
+export const INJECTION_SLOTS = Object.freeze([
+    extensionName, // 'openvault' — memory / bridge
+    'openvault_world',
+    'openvault_entities',
+    'openvault_posthistory',
+    'openvault_identity',
+]);
+
+/**
+ * Clear every OpenVault injection slot. Call this anywhere OpenVault must go
+ * silent (disabled / manual mode, chat switch) or before switching injection
+ * modes, so no slot from a previous state lingers in the prompt. Empty content
+ * clears a slot regardless of its stored position, so position/depth are fixed.
+ */
+export function clearAllInjectionSlots() {
+    for (const slot of INJECTION_SLOTS) {
+        safeSetExtensionPrompt('', slot, 1, 0);
+    }
+}
+
+/**
  * Check if OpenVault extension is enabled
  * @returns {boolean}
  */

@@ -26,7 +26,7 @@ import { setStatus } from './ui/status.js';
 import { recordInjection, resetSessionStartTime } from './ui/transparency.js';
 import { showToast } from './utils/dom.js';
 import { logDebug, logError } from './utils/logging.js';
-import { isExtensionEnabled, safeSetExtensionPrompt, withTimeout } from './utils/st-helpers.js';
+import { clearAllInjectionSlots, isExtensionEnabled, withTimeout } from './utils/st-helpers.js';
 
 // =============================================================================
 // Auto-Hide Old Messages (inlined from auto-hide.js)
@@ -375,8 +375,10 @@ export async function onChatChanged() {
     // Clear operation states on chat change to prevent stale locks
     resetOperationStatesIfSafe();
 
-    // Clear current injection - it will be refreshed in onBeforeGeneration
-    safeSetExtensionPrompt('');
+    // Clear all injection slots - they'll be refreshed in onBeforeGeneration.
+    // Must clear every slot, not just the default one, or a previous chat's
+    // world/entities/identity text lingers until the next generation.
+    clearAllInjectionSlots();
 
     // Load perf data BEFORE refreshing UI so perf tab has data to render
     loadPerfFromChat();
@@ -456,8 +458,10 @@ export function updateEventListeners(_skipInitialization = false) {
     if (isExtensionEnabled()) {
         logDebug('Extension enabled - event listeners registered');
     } else {
-        // Clear injection when disabled/manual
-        safeSetExtensionPrompt('');
+        // Clear ALL injection slots when disabled/manual. Clearing only the
+        // default 'openvault' slot left world/entities/posthistory/identity
+        // injecting until an ST reload — the "still injecting after disable" bug.
+        clearAllInjectionSlots();
         logDebug('Manual mode - injection cleared');
     }
 }

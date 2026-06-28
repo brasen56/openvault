@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { extensionName } from '../../src/constants.js';
 import { resetDeps, setDeps } from '../../src/deps.js';
-import { isExtensionEnabled, safeSetExtensionPrompt, withTimeout, yieldToMain } from '../../src/utils/st-helpers.js';
+import {
+    clearAllInjectionSlots,
+    INJECTION_SLOTS,
+    isExtensionEnabled,
+    safeSetExtensionPrompt,
+    withTimeout,
+    yieldToMain,
+} from '../../src/utils/st-helpers.js';
 
 describe('st-helpers', () => {
     afterEach(() => resetDeps());
@@ -92,7 +99,8 @@ describe('st-helpers', () => {
             });
 
             expect(safeSetExtensionPrompt('test content')).toBe(true);
-            expect(mockSetPrompt).toHaveBeenCalledWith(extensionName, 'test content', 0, 0);
+            // Position code 0 (BEFORE_MAIN) maps through POSITION_MAP to ST BEFORE_PROMPT (2).
+            expect(mockSetPrompt).toHaveBeenCalledWith(extensionName, 'test content', 2, 0);
         });
 
         it('returns false on error', () => {
@@ -116,7 +124,8 @@ describe('st-helpers', () => {
             });
 
             safeSetExtensionPrompt('test content', 'openvault_world');
-            expect(mockSetPrompt).toHaveBeenCalledWith('openvault_world', 'test content', 0, 0);
+            // Default position 0 (BEFORE_MAIN) maps to ST BEFORE_PROMPT (2).
+            expect(mockSetPrompt).toHaveBeenCalledWith('openvault_world', 'test content', 2, 0);
         });
 
         it('defaults to extensionName when no name provided', () => {
@@ -128,7 +137,8 @@ describe('st-helpers', () => {
             });
 
             safeSetExtensionPrompt('test content');
-            expect(mockSetPrompt).toHaveBeenCalledWith('openvault', 'test content', 0, 0);
+            // Default position 0 (BEFORE_MAIN) maps to ST BEFORE_PROMPT (2).
+            expect(mockSetPrompt).toHaveBeenCalledWith('openvault', 'test content', 2, 0);
         });
 
         it('passes position and depth parameters', () => {
@@ -140,7 +150,8 @@ describe('st-helpers', () => {
             });
 
             safeSetExtensionPrompt('test content', 'openvault', 2, 4);
-            expect(mockSetPrompt).toHaveBeenCalledWith('openvault', 'test content', 2, 4);
+            // Legacy position code 2 (BEFORE_AN) has no ST equivalent — maps to IN_PROMPT (0).
+            expect(mockSetPrompt).toHaveBeenCalledWith('openvault', 'test content', 0, 4);
         });
 
         it('skips injection when position is CUSTOM (-1)', () => {
@@ -166,6 +177,30 @@ describe('st-helpers', () => {
             safeSetExtensionPrompt('world content', 'openvault_world', 1, 0);
             // Position 1 is the named world slot — maps to IN_PROMPT (0)
             expect(mockSetPrompt).toHaveBeenCalledWith('openvault_world', 'world content', 0, 0);
+        });
+    });
+
+    describe('clearAllInjectionSlots', () => {
+        it('clears every injection slot with empty content', () => {
+            const mockSetPrompt = vi.fn();
+            setDeps({
+                console: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+                setExtensionPrompt: mockSetPrompt,
+                extension_prompt_types: { IN_PROMPT: 0 },
+            });
+
+            clearAllInjectionSlots();
+
+            // One empty write per known slot — nothing left injecting after disable/switch.
+            expect(mockSetPrompt).toHaveBeenCalledTimes(INJECTION_SLOTS.length);
+            for (const slot of INJECTION_SLOTS) {
+                expect(mockSetPrompt).toHaveBeenCalledWith(slot, '', expect.any(Number), expect.any(Number));
+            }
+        });
+
+        it('includes the identity slot so it does not linger across mode switches', () => {
+            expect(INJECTION_SLOTS).toContain('openvault_identity');
+            expect(INJECTION_SLOTS).toContain(extensionName);
         });
     });
 

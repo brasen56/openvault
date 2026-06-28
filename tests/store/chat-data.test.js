@@ -65,6 +65,9 @@ describe('store/chat-data', () => {
                 graph: expect.any(Object),
                 communities: {},
                 graph_message_count: 0,
+                contradiction_analyzed: {},
+                canon_notes: {},
+                injection_overrides: {},
             });
         });
 

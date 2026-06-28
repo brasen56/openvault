@@ -83,7 +83,7 @@ import { cyrb53, getEmbedding, hasEmbedding, isStSynced, markStSynced } from '..
 import { logDebug, logError, logInfo, logWarn } from '../utils/logging.js';
 import { sanitizeMessageContent } from '../utils/message-sanitizer.js';
 import { createLadderQueue } from '../utils/queue.js';
-import { isExtensionEnabled, safeSetExtensionPrompt, yieldToMain } from '../utils/st-helpers.js';
+import { clearAllInjectionSlots, isExtensionEnabled, yieldToMain } from '../utils/st-helpers.js';
 import { jaccardSimilarity, sliceToTokenBudget, sortMemoriesBySequence } from '../utils/text.js';
 import { countTokens } from '../utils/tokens.js';
 import { resolveCharacterName, transliterateCyrToLat } from '../utils/transliterate.js';
@@ -1789,8 +1789,8 @@ export async function extractAllMessages(optionsOrCallback) {
     // Reset operation state
     clearAllLocks();
 
-    // Clear injection and save
-    safeSetExtensionPrompt('');
+    // Clear all injection slots and save
+    clearAllInjectionSlots();
     await getDeps().saveChatConditional();
 
     // Re-register event listeners

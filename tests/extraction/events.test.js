@@ -474,10 +474,11 @@ describe('onChatChanged migration', () => {
         mockContext.chat = [{ mes: 'Hello', is_user: true, send_date: '1000000' }];
 
         const { onChatChanged } = await import('../../src/events.js');
+        const { CURRENT_SCHEMA_VERSION } = await import('../../src/store/migrations/index.js');
         await onChatChanged();
 
-        // Should have migrated through v2 and v3
-        expect(mockContext.chatMetadata[METADATA_KEY].schema_version).toBe(3);
+        // Should have migrated all the way up to the current schema version
+        expect(mockContext.chatMetadata[METADATA_KEY].schema_version).toBe(CURRENT_SCHEMA_VERSION);
         expect(mockContext.chatMetadata[METADATA_KEY][PROCESSED_MESSAGES_KEY]).toContain('1000000');
         expect(mockToast).toHaveBeenCalledWith('info', expect.stringContaining('optimized'), 'Data Migration', {});
     });
