@@ -717,8 +717,15 @@
                                 Min reflections to auto-inject a character:
                                 <span id="openvault_identity_min_reflections_value">1</span>
                             </label>
-                            <input type="range" id="openvault_identity_min_reflections" min="1" max="10" step="1" value="1" style="width: 100%; margin-bottom: 6px;" />
-                            <small class="openvault-hint">A character is injected once OpenVault has synthesized this many insights about them. Per-character Always/Never overrides (on each dossier card) take precedence.</small>
+                            <input type="range" id="openvault_identity_min_reflections" min="1" max="10" step="1" value="1" style="width: 100%; margin-bottom: 12px;" />
+                            <small class="openvault-hint" style="display:block; margin-bottom: 8px;">A character is injected once OpenVault has synthesized this many insights about them. Per-character Always/Never overrides (on each dossier card) take precedence.</small>
+
+                            <label for="openvault_identity_budget" style="display:block; margin-bottom: 4px;">
+                                Injection token budget (per character):
+                                <span id="openvault_identity_budget_value">2000</span>
+                            </label>
+                            <input type="range" id="openvault_identity_budget" min="500" max="8000" step="500" value="2000" style="width: 100%; margin-bottom: 6px;" />
+                            <small class="openvault-hint">Caps how many tokens each character's dossier uses. Headline traits are kept first, then relationships, then supporting specifics — least-important content is dropped to fit.</small>
                         </div>
 
                         <!-- Memory Position -->

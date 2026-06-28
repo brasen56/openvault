@@ -179,6 +179,11 @@ export const defaultSettings = {
     // this many synthesized reflections. Per-character Always/Never overrides
     // (stored in chat metadata) take precedence. See ROADMAP_Dossier.md.
     identityMinReflections: 1,
+    // Identity injection: per-character token budget for the injected dossier
+    // sheet. Caps reflections (top 10 headline / top 6 specifics) and
+    // relationships (top 6 by weight), then trims to this budget. Prevents a
+    // well-connected main character from flooding the context.
+    identityInjectionBudget: 2000,
     // Injection settings
     injection: {
         memory: { position: 5, depth: 4 },
@@ -346,6 +351,8 @@ export const UI_DEFAULT_HINTS = {
     maxConcurrency: defaultSettings.maxConcurrency,
     reflectionThreshold: defaultSettings.reflectionThreshold,
     maxInsightsPerReflection: defaultSettings.maxInsightsPerReflection,
+    identityMinReflections: defaultSettings.identityMinReflections,
+    identityInjectionBudget: defaultSettings.identityInjectionBudget,
     worldContextBudget: defaultSettings.worldContextBudget,
     communityDetectionInterval: defaultSettings.communityDetectionInterval,
     // Decay & forgetfulness curve tuning

@@ -14,7 +14,7 @@
  * decide *which* characters to inject and *where* to put the sheet.
  */
 
-import { buildCharacterDossier, formatDossierAsText } from '../ui/helpers.js';
+import { buildCharacterDossier, formatDossierForInjection } from '../ui/helpers.js';
 import { cachedContent } from './macros.js';
 import { getSettings } from '../settings.js';
 import { getOpenVaultData } from '../store/chat-data.js';
@@ -95,11 +95,14 @@ export function buildIdentityInjectionText(data, settings) {
     const characters = getInjectableCharacters(data, settings);
     if (characters.length === 0) return '';
     const threshold = Number(settings?.reflectionThreshold) || 40;
+    const budget = Math.max(1, Number(settings?.identityInjectionBudget) || 2000);
     const parts = [];
     for (const name of characters) {
         const dossier = buildCharacterDossier(name, data, threshold);
-        // No footer in injected context — it's just token waste per turn.
-        parts.push(formatDossierAsText(dossier, { includeFooter: false }));
+        // Bounded injection formatter — caps each section and trims to the
+        // per-character token budget so a well-connected character can't
+        // flood the context (see formatDossierForInjection).
+        parts.push(formatDossierForInjection(dossier, { maxTokens: budget }));
     }
     return parts.join('\n\n');
 }

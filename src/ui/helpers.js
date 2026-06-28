@@ -6,6 +6,7 @@
  */
 
 import { getUnextractedMessageIds } from '../extraction/scheduler.js';
+import { countTokens } from '../utils/tokens.js';
 
 // =============================================================================
 // Transient Half-Life Calculation
@@ -481,6 +482,100 @@ export function formatDossierAsText(dossier, { includeFooter = true } = {}) {
         lines.push('Exported from OpenVault');
     }
     return lines.join('\n');
+}
+
+/**
+ * Format a dossier as a BOUNDED, prioritized identity sheet for prompt
+ * injection. Unlike formatDossierAsText (the full export view, which emits
+ * every reflection and every relationship), this caps each section and
+ * respects a token budget — dropping the least-important content first to
+ * stay within budget.
+ *
+ * Priority (must-keep → optional):
+ *   1. Current State + Canon Notes — always emitted (small; canon is
+ *      authoritative user correction).
+ *   2. Headline Traits (level >= 2) — top 10 by importance.
+ *   3. Relationships — top 6 by weight.
+ *   4. Supporting Specifics (level 1) — top 6 by importance.
+ *
+ * Optional sections are added in priority order and skipped once the token
+ * budget is reached. Mirrors the retrieval pipeline's sliceToTokenBudget.
+ *
+ * Pure — no DOM, no mutation.
+ *
+ * @param {ReturnType<typeof buildCharacterDossier>} dossier
+ * @param {{ maxTokens?: number }} [options] - Per-character token budget (default 2000)
+ * @returns {string} Bounded identity sheet
+ */
+export function formatDossierForInjection(dossier, { maxTokens = 2000 } = {}) {
+    const name = dossier?.name || 'Unknown';
+    const state = dossier?.state || {};
+    const byLevel = dossier?.reflectionsByLevel || [];
+    const relationships = dossier?.relationships || [];
+    const canonNotes = dossier?.canonNotes || [];
+
+    // Split + cap reflections by level (dossier already sorts by importance desc
+    // within each level, so slice() takes the most important).
+    const headline = [];
+    const specifics = [];
+    for (const group of byLevel) {
+        const items = (group.reflections || []).slice(0, 12);
+        const bucket = group.level >= 2 ? headline : specifics;
+        for (const r of items) {
+            const stars = '\u2605'.repeat(r.importance || 3);
+            bucket.push(`${stars} ${r.summary || ''}`.trim());
+        }
+    }
+    const headlineCapped = headline.slice(0, 10);
+    const specificsCapped = specifics.slice(0, 6);
+    const relationshipsCapped = relationships.slice(0, 6);
+
+    // ── Must-keep block (always emitted) ─────────────────────────────────
+    const mustLines = [];
+    mustLines.push(`# ${name}`);
+    mustLines.push('');
+    mustLines.push('## Current State');
+    const emotionSuffix = state.emotionSource ? ` ${state.emotionSource}` : '';
+    mustLines.push(`- Mood: ${state.emotion || 'neutral'}${emotionSuffix} (intensity ${state.intensity ?? 5}/10)`);
+    mustLines.push(`- Known events: ${state.knownCount ?? 0}`);
+    mustLines.push('');
+    if (canonNotes.length > 0) {
+        mustLines.push('## Canon Notes');
+        for (const note of canonNotes) {
+            mustLines.push(`- ${note.text || ''}`.trim());
+        }
+        mustLines.push('');
+    }
+    let text = mustLines.join('\n');
+
+    // ── Optional blocks in priority order (greedy fit) ───────────────────
+    const optionalBlocks = [];
+    if (headlineCapped.length > 0) {
+        optionalBlocks.push(['## Headline Traits', ...headlineCapped.map((h) => `- ${h}`), ''].join('\n'));
+    }
+    if (relationshipsCapped.length > 0) {
+        optionalBlocks.push(
+            [
+                '## Relationships',
+                ...relationshipsCapped.map((rel) => `- ${rel.name} \u2014 ${rel.description || 'related'}`),
+                '',
+            ].join('\n')
+        );
+    }
+    if (specificsCapped.length > 0) {
+        optionalBlocks.push(['## Supporting Specifics', ...specificsCapped.map((s) => `- ${s}`), ''].join('\n'));
+    }
+
+    const budget = Math.max(1, maxTokens);
+    for (const block of optionalBlocks) {
+        const candidate = text + block;
+        if (countTokens(candidate) <= budget) {
+            text = candidate;
+        } else {
+            break; // first overflow — skip this and all lower-priority blocks
+        }
+    }
+    return text.trimEnd();
 }
 
 /**

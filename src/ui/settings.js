@@ -1258,6 +1258,13 @@ function bindInjectionSettings() {
         $('#openvault_identity_min_reflections_value').text(v);
     });
 
+    // Per-character token budget for the injected dossier
+    $('#openvault_identity_budget').on('input', function () {
+        const v = Math.max(500, parseInt($(this).val(), 10) || 2000);
+        setSetting('identityInjectionBudget', v);
+        $('#openvault_identity_budget_value').text(v);
+    });
+
     // Identity position selector
     $('#openvault_identity_position').on('change', function () {
         const position = parseInt($(this).val(), 10);
@@ -1328,6 +1335,9 @@ export function updateInjectionUI(type = 'both') {
     const minRef = Math.max(1, parseInt(settings.identityMinReflections, 10) || 1);
     $('#openvault_identity_min_reflections').val(minRef);
     $('#openvault_identity_min_reflections_value').text(minRef);
+    const idBudget = Math.max(500, parseInt(settings.identityInjectionBudget, 10) || 2000);
+    $('#openvault_identity_budget').val(idBudget);
+    $('#openvault_identity_budget_value').text(idBudget);
 }
 
 // =============================================================================

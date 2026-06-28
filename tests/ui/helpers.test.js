@@ -12,6 +12,7 @@ import {
     filterEntities,
     filterMemories,
     formatDossierAsText,
+    formatDossierForInjection,
     formatEmotionSource,
     formatHiddenMessagesText,
     formatMemoryContextCount,
@@ -606,6 +607,80 @@ describe('ui/helpers', () => {
         it('omits the Canon Notes section when there are none', () => {
             const text = formatDossierAsText({ name: 'Ghost' });
             expect(text).not.toContain('## Canon Notes');
+        });
+    });
+
+    describe('formatDossierForInjection', () => {
+        const buildHeavyDossier = () => ({
+            name: 'Alice',
+            state: { emotion: 'guarded', intensity: 7, knownCount: 42 },
+            canonNotes: [{ id: 'c1', text: 'Accommodates others; never demands' }],
+            reflectionsByLevel: [
+                {
+                    level: 3,
+                    reflections: Array.from({ length: 15 }, (_, i) => ({
+                        id: `h${i}`,
+                        summary: `Headline trait number ${i}`,
+                        importance: 5,
+                        level: 3,
+                    })),
+                },
+                {
+                    level: 1,
+                    reflections: Array.from({ length: 10 }, (_, i) => ({
+                        id: `s${i}`,
+                        summary: `Supporting specific number ${i}`,
+                        importance: 3,
+                        level: 1,
+                    })),
+                },
+            ],
+            relationships: Array.from({ length: 20 }, (_, i) => ({
+                name: `Entity${i}`,
+                description: `some relationship ${i}`,
+                weight: 20 - i,
+            })),
+        });
+
+        it('always includes the current state section', () => {
+            const text = formatDossierForInjection(buildHeavyDossier());
+            expect(text).toContain('## Current State');
+            expect(text).toContain('guarded');
+            expect(text).toContain('Known events: 42');
+        });
+
+        it('caps headline traits at 10', () => {
+            const text = formatDossierForInjection(buildHeavyDossier(), { maxTokens: 50000 });
+            const headlineSection = text.split('## Headline Traits')[1] || '';
+            const traitCount = (headlineSection.match(/^- Headline/gm) || []).length;
+            expect(traitCount).toBeLessThanOrEqual(10);
+        });
+
+        it('caps relationships at 6', () => {
+            const text = formatDossierForInjection(buildHeavyDossier(), { maxTokens: 50000 });
+            const relSection = text.split('## Relationships')[1] || '';
+            const relCount = (relSection.match(/^- Entity/gm) || []).length;
+            expect(relCount).toBeLessThanOrEqual(6);
+        });
+
+        it('caps supporting specifics at 6', () => {
+            const text = formatDossierForInjection(buildHeavyDossier(), { maxTokens: 50000 });
+            const specSection = text.split('## Supporting Specifics')[1] || '';
+            const specCount = (specSection.match(/^- Supporting/gm) || []).length;
+            expect(specCount).toBeLessThanOrEqual(6);
+        });
+
+        it('keeps canon notes even under a very tight budget', () => {
+            const text = formatDossierForInjection(buildHeavyDossier(), { maxTokens: 50 });
+            expect(text).toContain('## Canon Notes');
+            expect(text).toContain('Accommodates others; never demands');
+            // No room for optional sections at 50 tokens
+            expect(text).not.toContain('## Headline Traits');
+        });
+
+        it('does not emit the export footer', () => {
+            const text = formatDossierForInjection(buildHeavyDossier());
+            expect(text).not.toContain('Exported from OpenVault');
         });
     });
 
