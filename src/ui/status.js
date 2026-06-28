@@ -59,7 +59,9 @@ export function setStatus(status) {
  * @param {string} statusText - Status text to display
  */
 export function updateEmbeddingStatusDisplay(statusText) {
-    const $containers = $('#openvault_embedding_status, #openvault_dashboard_embedding_status');
+    const $containers = $(
+        '#openvault_embedding_status, #openvault_dashboard_embedding_status, #openvault_side_embedding_status'
+    );
     const lowerStatus = statusText.toLowerCase();
 
     // Determine status type from text

@@ -822,6 +822,20 @@ export function reconcileCharacterIdentity(data, sourceName, targetName) {
             if (key !== targetName) delete reflectionState[key];
         }
     }
+
+    // 4. canon_notes: concatenate the absorbed character's authoritative
+    // corrections onto the survivor so they keep steering reflection generation
+    // (Phase 3 store; arrays of CanonNote keyed by display name).
+    const canonNotes = data[CANON_NOTES_KEY];
+    if (canonNotes) {
+        for (const key of Object.keys(canonNotes)) {
+            if (!isSource(key)) continue;
+            const src = canonNotes[key] || [];
+            const tgt = canonNotes[targetName] || [];
+            canonNotes[targetName] = [...tgt, ...src];
+            if (key !== targetName) delete canonNotes[key];
+        }
+    }
 }
 
 /**

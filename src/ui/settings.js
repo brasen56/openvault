@@ -1551,6 +1551,10 @@ export function updateSidePanelGeneralSettings() {
     txt('openvault_side_openai_compat_url', settings.openaiCompatUrl);
     txt('openvault_side_openai_compat_api_key', settings.openaiCompatApiKey);
     txt('openvault_side_openai_compat_model', settings.openaiCompatModel);
+    // The live status callback only fires on model load/change, which may have
+    // happened before this panel rendered — push the current status now so the
+    // side-panel indicator doesn't stay stuck on its default "Not loaded".
+    updateEmbeddingStatusDisplay(getEmbeddingStatus());
     rng('openvault_side_max_concurrency', settings.maxConcurrency);
     rng('openvault_side_backfill_rpm', settings.backfillMaxRPM);
 

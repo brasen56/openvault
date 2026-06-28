@@ -328,6 +328,25 @@ describe('mergeEntities', () => {
             expect(() => reconcileCharacterIdentity({}, 'Greg', 'Greg Williams')).not.toThrow();
             expect(() => reconcileCharacterIdentity(null, 'Greg', 'Greg Williams')).not.toThrow();
         });
+
+        it('concatenates canon notes onto the survivor and removes the source key', () => {
+            const data = {
+                canon_notes: {
+                    Greg: [{ id: 'c1', text: 'never demands' }],
+                    'Greg Williams': [{ id: 'c2', text: 'speaks formally' }],
+                },
+            };
+            reconcileCharacterIdentity(data, 'Greg', 'Greg Williams');
+            expect(data.canon_notes.Greg).toBeUndefined();
+            expect(data.canon_notes['Greg Williams'].map((n) => n.id)).toEqual(['c2', 'c1']);
+        });
+
+        it('moves canon notes when the survivor has none yet', () => {
+            const data = { canon_notes: { Greg: [{ id: 'c1', text: 'never demands' }] } };
+            reconcileCharacterIdentity(data, 'Greg', 'Greg Williams');
+            expect(data.canon_notes.Greg).toBeUndefined();
+            expect(data.canon_notes['Greg Williams']).toHaveLength(1);
+        });
     });
 
     describe('ST Vector Storage sync', () => {
