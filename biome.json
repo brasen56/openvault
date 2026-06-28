@@ -69,13 +69,20 @@
     },
     "overrides": [
         {
-            "includes": ["src/types.d.ts"],
+            "includes": ["src/types.d.ts", "src/globals.d.ts"],
             "linter": {
                 "rules": {
                     "suspicious": {
-                        "noExplicitAny": "off"
+                        "noExplicitAny": "off",
+                        "noConfusingVoidType": "off"
                     }
                 }
+            }
+        },
+        {
+            "includes": ["src/types.d.ts"],
+            "formatter": {
+                "enabled": false
             }
         }
     ],

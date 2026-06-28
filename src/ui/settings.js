@@ -1440,37 +1440,56 @@ export function bindSidePanelGeneralSettings($panel) {
     $panel.on('click.sideGeneral', '#openvault_side_test_ollama_btn', async function () {
         const $btn = $(this);
         const url = $('#openvault_side_ollama_url').val().trim();
-        if (!url) { $btn.html('<i class="fa-solid fa-xmark"></i> No URL'); return; }
+        if (!url) {
+            $btn.html('<i class="fa-solid fa-xmark"></i> No URL');
+            return;
+        }
         $btn.html('<i class="fa-solid fa-spinner fa-spin"></i> Testing...');
-        try { await testOllamaConnection(url); $btn.html('<i class="fa-solid fa-check"></i> Connected'); }
-        catch { $btn.html('<i class="fa-solid fa-xmark"></i> Failed'); }
+        try {
+            await testOllamaConnection(url);
+            $btn.html('<i class="fa-solid fa-check"></i> Connected');
+        } catch {
+            $btn.html('<i class="fa-solid fa-xmark"></i> Failed');
+        }
         setTimeout(() => $btn.html('<i class="fa-solid fa-plug"></i> Test'), 3000);
     });
     $panel.on('click.sideGeneral', '#openvault_side_test_openai_compat_btn', async function () {
         const $btn = $(this);
         const url = $('#openvault_side_openai_compat_url').val().trim();
         const model = $('#openvault_side_openai_compat_model').val().trim();
-        if (!url || !model) { $btn.html('<i class="fa-solid fa-xmark"></i> Missing'); return; }
+        if (!url || !model) {
+            $btn.html('<i class="fa-solid fa-xmark"></i> Missing');
+            return;
+        }
         $btn.html('<i class="fa-solid fa-spinner fa-spin"></i> Testing...');
         try {
             await testOpenAICompatConnection(url, $('#openvault_side_openai_compat_api_key').val().trim(), model);
             $btn.html('<i class="fa-solid fa-check"></i> Connected');
-        } catch { $btn.html('<i class="fa-solid fa-xmark"></i> Failed'); }
+        } catch {
+            $btn.html('<i class="fa-solid fa-xmark"></i> Failed');
+        }
         setTimeout(() => $btn.html('<i class="fa-solid fa-plug"></i> Test'), 3000);
     });
 
     // ── Actions & Maintenance (trigger the main-panel buttons) ──
-    $panel.on('click.sideGeneral', '#openvault_side_extract_all_btn', () => $('#openvault_extract_all_btn').trigger('click'));
+    $panel.on('click.sideGeneral', '#openvault_side_extract_all_btn', () =>
+        $('#openvault_extract_all_btn').trigger('click')
+    );
     $panel.on('click.sideGeneral', '#openvault_side_generate_reflections_btn', () =>
-        $('#openvault_generate_reflections_btn').trigger('click'));
+        $('#openvault_generate_reflections_btn').trigger('click')
+    );
     $panel.on('click.sideGeneral', '#openvault_side_backfill_embeddings_btn', () =>
-        $('#openvault_backfill_embeddings_btn').trigger('click'));
+        $('#openvault_backfill_embeddings_btn').trigger('click')
+    );
     $panel.on('click.sideGeneral', '#openvault_side_export_debug_btn', () =>
-        $('#openvault_export_debug_btn').trigger('click'));
+        $('#openvault_export_debug_btn').trigger('click')
+    );
     $panel.on('click.sideGeneral', '#openvault_side_reset_settings_btn', () =>
-        $('#openvault_reset_settings_btn').trigger('click'));
+        $('#openvault_reset_settings_btn').trigger('click')
+    );
     $panel.on('click.sideGeneral', '#openvault_side_reset_backfill_btn', () =>
-        $('#openvault_reset_backfill_btn').trigger('click'));
+        $('#openvault_reset_backfill_btn').trigger('click')
+    );
 
     // ── Reranker ──
     bindChk('#openvault_side_reranker_enabled', 'rerankerEnabled');
@@ -1492,7 +1511,10 @@ export function updateSidePanelGeneralSettings() {
 
     // DRY helpers
     const chk = (id, val) => $(`#${id}`).prop('checked', val);
-    const rng = (id, val) => { $(`#${id}`).val(val); $(`#${id}_value`).text(val); };
+    const rng = (id, val) => {
+        $(`#${id}`).val(val);
+        $(`#${id}_value`).text(val);
+    };
     const txt = (id, val) => $(`#${id}`).val(val ?? '');
 
     // General

@@ -175,7 +175,9 @@ function buildLayout(nodeEntries, rawEdges) {
 
     // Map node keys to indices
     nodeIndexMap = new Map();
-    nodeEntries.forEach(([key], i) => nodeIndexMap.set(key, i));
+    nodeEntries.forEach(([key], i) => {
+        nodeIndexMap.set(key, i);
+    });
 
     // Build nodes
     nodes = nodeEntries.map(([key, node]) => ({

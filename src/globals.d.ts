@@ -81,7 +81,6 @@ interface JQuery {
     [index: number]: HTMLElement;
     // Misc
     clone(withDataAndEvents?: boolean): JQuery;
-    detach(): JQuery;
     bind(event: string, handler: any): this;
     unbind(event?: string, handler?: any): this;
     [key: string]: any;

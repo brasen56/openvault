@@ -1600,7 +1600,7 @@
 }
 
 /* Tighten slider spacing in the narrower panel */
-#openvault_side_settings .openvault-settings-group input[type='range'] {
+#openvault_side_settings .openvault-settings-group input[type="range"] {
     width: 100%;
     margin: 4px 0 2px;
 }
@@ -1624,9 +1624,9 @@
 }
 
 #openvault_side_settings .openvault-settings-group select,
-#openvault_side_settings .openvault-settings-group input[type='text'],
-#openvault_side_settings .openvault-settings-group input[type='password'],
-#openvault_side_settings .openvault-settings-group input[type='number'],
+#openvault_side_settings .openvault-settings-group input[type="text"],
+#openvault_side_settings .openvault-settings-group input[type="password"],
+#openvault_side_settings .openvault-settings-group input[type="number"],
 #openvault_side_settings .openvault-settings-group textarea {
     width: 100%;
     box-sizing: border-box;
