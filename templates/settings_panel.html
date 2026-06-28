@@ -698,6 +698,29 @@
                             <small>Choose where memories and world info are injected in the prompt.</small>
                         </p>
 
+                        <!-- Identity Injection Mode -->
+                        <div style="margin-bottom: 20px; padding: 10px; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;">
+                            <h4 style="margin-bottom: 8px;"><i class="fa-solid fa-id-card"></i> Identity Injection Mode</h4>
+                            <small class="openvault-hint" style="display:block; margin-bottom: 10px;">
+                                Inject a stable per-character dossier (synthesized from reflections) instead of
+                                retrieving per-turn events. Pairs with a separate memory extension like VectFox —
+                                OpenVault handles <em>who characters have become</em>, the memory extension handles
+                                <em>what happened</em>. See VISION.md.
+                            </small>
+                            <label for="openvault_injection_mode" style="display:block; margin-bottom: 4px;">Mode:</label>
+                            <select id="openvault_injection_mode" class="text_pole" style="width: 100%; margin-bottom: 10px;">
+                                <option value="events" selected>Events — retrieve & inject memories each turn (default)</option>
+                                <option value="identity">Identity — inject the evolving character dossier</option>
+                            </select>
+
+                            <label for="openvault_identity_min_reflections" style="display:block; margin-bottom: 4px;">
+                                Min reflections to auto-inject a character:
+                                <span id="openvault_identity_min_reflections_value">1</span>
+                            </label>
+                            <input type="range" id="openvault_identity_min_reflections" min="1" max="10" step="1" value="1" style="width: 100%; margin-bottom: 6px;" />
+                            <small class="openvault-hint">A character is injected once OpenVault has synthesized this many insights about them. Per-character Always/Never overrides (on each dossier card) take precedence.</small>
+                        </div>
+
                         <!-- Memory Position -->
                         <div style="margin-bottom: 20px;">
                             <h4 style="margin-bottom: 10px;">Memory Position</h4>
@@ -751,6 +774,26 @@
                                     <i class="fa-solid fa-copy"></i>
                                 </button>
                                 <small style="display: block; margin-top: 4px;">Place this macro in your prompt or character card</small>
+                            </div>
+                        </div>
+
+                        <!-- Identity Position -->
+                        <div>
+                            <h4 style="margin-bottom: 10px;"><i class="fa-solid fa-id-card"></i> Identity Dossier Position</h4>
+                            <small class="openvault-hint" style="display:block; margin-bottom: 8px;">Where the character dossier is injected (only used in Identity mode).</small>
+                            <label for="openvault_identity_position">Position:</label>
+                            <select id="openvault_identity_position" class="text_pole" style="width: 100%; margin-bottom: 8px;">
+                                <option value="0">↑Main (Before system prompt)</option>
+                                <option value="1">↓Main (After system prompt)</option>
+                                <option value="5" selected>↓Char (After char defs — top of chat)</option>
+                                <option value="4">In-chat (At message depth)</option>
+                                <option value="-1">Custom (Use macro manually)</option>
+                            </select>
+
+                            <div id="openvault_identity_depth_container" style="display:none;">
+                                <label for="openvault_identity_depth">Depth:</label>
+                                <input type="number" id="openvault_identity_depth" class="text_pole" min="0" max="50" value="4" style="width: 80px;" />
+                                <small>Messages from end</small>
                             </div>
                         </div>
 

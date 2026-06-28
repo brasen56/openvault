@@ -1245,6 +1245,32 @@ function bindInjectionSettings() {
         setSetting('injection.world.depth', depth);
     });
 
+    // Identity injection mode (events vs. character-dossier)
+    $('#openvault_injection_mode').on('change', function () {
+        setSetting('injectionMode', $(this).val());
+        updateInjectionUI('identity');
+    });
+
+    // Min reflections to auto-inject a character
+    $('#openvault_identity_min_reflections').on('input', function () {
+        const v = Math.max(1, parseInt($(this).val(), 10) || 1);
+        setSetting('identityMinReflections', v);
+        $('#openvault_identity_min_reflections_value').text(v);
+    });
+
+    // Identity position selector
+    $('#openvault_identity_position').on('change', function () {
+        const position = parseInt($(this).val(), 10);
+        setSetting('injection.identity.position', position);
+        updateInjectionUI('identity');
+    });
+
+    // Identity depth input
+    $('#openvault_identity_depth').on('input', function () {
+        const depth = parseInt($(this).val(), 10) || 4;
+        setSetting('injection.identity.depth', depth);
+    });
+
     // Copy macro buttons
     $('#openvault_copy_memory_macro').on('click', () => {
         navigator.clipboard
@@ -1295,6 +1321,13 @@ export function updateInjectionUI(type = 'both') {
 
     if (type === 'both' || type === 'memory') updateType('memory');
     if (type === 'both' || type === 'world') updateType('world');
+    if (type === 'both' || type === 'identity') updateType('identity');
+
+    // Identity mode + auto-gate (not position-based; synced on every refresh).
+    $('#openvault_injection_mode').val(settings.injectionMode || 'events');
+    const minRef = Math.max(1, parseInt(settings.identityMinReflections, 10) || 1);
+    $('#openvault_identity_min_reflections').val(minRef);
+    $('#openvault_identity_min_reflections_value').text(minRef);
 }
 
 // =============================================================================
@@ -1795,6 +1828,9 @@ async function handleRunContradictionScanClick($btn) {
 
 export function updateUI() {
     const settings = getSettings();
+
+    // Identity injection controls (mode + min reflections + position/depth)
+    updateInjectionUI('identity');
 
     // Basic toggles
     $('#openvault_enabled').prop('checked', settings.enabled);

@@ -286,6 +286,7 @@ export function renderCharacterDossier(dossier) {
     return `
         <div class="openvault-character-dossier">
             ${renderDossierActions()}
+            ${renderDossierInjectionControl(dossier)}
             ${renderDossierProgress(progress)}
             <div class="openvault-dossier-section">
                 <div class="openvault-dossier-section-title"><i class="fa-solid fa-lightbulb"></i> Insights</div>
@@ -311,6 +312,33 @@ function renderDossierActions() {
             <button class="openvault-btn openvault-export-import-btn openvault-dossier-action-btn" data-action="dossier-export-lorebook" title="Download as a SillyTavern lorebook entry">
                 <i class="fa-solid fa-book-bookmark"></i> Download lorebook
             </button>
+        </div>
+    `;
+}
+
+/**
+ * Render the per-character identity-injection control (Auto / Always / Never).
+ * Only meaningful in Identity injection mode; harmless otherwise. The override
+ * is read from `dossier.identityOverride` (populated by the caller via
+ * getIdentityOverride) so the template stays free of store imports.
+ * @param {Object} dossier
+ * @returns {string} HTML
+ */
+function renderDossierInjectionControl(dossier) {
+    const name = escapeHtml(dossier?.name || '');
+    const current =
+        dossier?.identityOverride === 'always' || dossier?.identityOverride === 'never'
+            ? dossier.identityOverride
+            : 'auto';
+    return `
+        <div class="openvault-dossier-section openvault-dossier-injection">
+            <div class="openvault-dossier-section-title"><i class="fa-solid fa-syringe"></i> Identity injection</div>
+            <p class="openvault-dossier-canon-help">In Identity mode, whether this character's dossier is injected. "Auto" uses the reflection-count threshold from settings.</p>
+            <select class="openvault-dossier-injection-select text_pole" data-action="dossier-set-injection" data-character="${name}">
+                <option value="auto"${current === 'auto' ? ' selected' : ''}>Auto (by threshold)</option>
+                <option value="always"${current === 'always' ? ' selected' : ''}>Always inject</option>
+                <option value="never"${current === 'never' ? ' selected' : ''}>Never inject</option>
+            </select>
         </div>
     `;
 }

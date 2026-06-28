@@ -7,6 +7,7 @@ import {
     EMBEDDING_SOURCES,
     ENTITY_TYPES,
     GRAPH_JACCARD_DUPLICATE_THRESHOLD,
+    INJECTION_OVERRIDES_KEY,
     MEMORIES_KEY,
     METADATA_KEY,
     PROCESSED_MESSAGES_KEY,
@@ -51,6 +52,7 @@ export function getOpenVaultData() {
             graph_message_count: 0,
             contradiction_analyzed: {},
             [CANON_NOTES_KEY]: {},
+            [INJECTION_OVERRIDES_KEY]: {},
         };
     }
     const data = context.chatMetadata[METADATA_KEY];
@@ -660,6 +662,55 @@ export async function removeCanonNote(characterName, noteId) {
     data[CANON_NOTES_KEY][characterName] = filtered;
     await getDeps().saveChatConditional();
     logDebug(`Removed canon note ${noteId} for ${characterName}`);
+    return true;
+}
+
+// =============================================================================
+// Identity Injection Overrides
+// =============================================================================
+// Per-character control of whether a character's dossier is auto-injected in
+// 'identity' injection mode (see VISION.md — two-layer model). Stored as
+// Record<characterName, 'always' | 'never'>; a missing key means 'auto'
+// (inject when reflection count >= settings.identityMinReflections).
+
+/**
+ * Read a character's identity-injection override.
+ * @param {string} characterName - Character display name
+ * @returns {'auto'|'always'|'never'} 'auto' when no override is set
+ */
+export function getIdentityOverride(characterName) {
+    const data = getOpenVaultData();
+    if (!data) return 'auto';
+    if (!data[INJECTION_OVERRIDES_KEY] || typeof data[INJECTION_OVERRIDES_KEY] !== 'object') {
+        data[INJECTION_OVERRIDES_KEY] = {};
+    }
+    const val = data[INJECTION_OVERRIDES_KEY][characterName];
+    return val === 'always' || val === 'never' ? val : 'auto';
+}
+
+/**
+ * Set or clear a character's identity-injection override.
+ * @param {string} characterName - Character display name
+ * @param {'auto'|'always'|'never'} value - 'auto' removes the override
+ * @returns {Promise<boolean>} True if a change was persisted
+ */
+export async function setIdentityOverride(characterName, value) {
+    const data = getOpenVaultData();
+    if (!data) return false;
+    if (!data[INJECTION_OVERRIDES_KEY] || typeof data[INJECTION_OVERRIDES_KEY] !== 'object') {
+        data[INJECTION_OVERRIDES_KEY] = {};
+    }
+    if (value === 'auto') {
+        if (!(characterName in data[INJECTION_OVERRIDES_KEY])) return false;
+        delete data[INJECTION_OVERRIDES_KEY][characterName];
+    } else if (value === 'always' || value === 'never') {
+        if (data[INJECTION_OVERRIDES_KEY][characterName] === value) return false;
+        data[INJECTION_OVERRIDES_KEY][characterName] = value;
+    } else {
+        return false;
+    }
+    await getDeps().saveChatConditional();
+    logDebug(`Identity override for ${characterName} set to ${value}`);
     return true;
 }
 

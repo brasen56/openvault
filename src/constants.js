@@ -22,6 +22,11 @@ export const PROCESSED_MESSAGES_KEY = 'processed_message_ids';
 // Phase 3 correction loop: per-character authoritative corrections.
 // Stored as Record<characterName, CanonNote[]> on the openvault data object.
 export const CANON_NOTES_KEY = 'canon_notes';
+// Identity injection overrides: per-character control of whether a character's
+// dossier is injected in 'identity' mode. Stored as Record<characterName,
+// 'always' | 'never'> on the openvault data object. Absent key = 'auto'
+// (auto-inject when reflection count >= identityMinReflections).
+export const INJECTION_OVERRIDES_KEY = 'injection_overrides';
 
 // Sentinel speaker label used in narrator mode, where one character card voices
 // many NPCs. Replaces the card name in the extraction transcript so the card name
@@ -164,10 +169,21 @@ export const defaultSettings = {
     preambleLanguage: 'auto',
     extractionPrefill: 'auto',
     outputLanguage: 'auto',
+    // Injection mode: 'events' retrieves and injects per-turn memory (the
+    // episodic layer). 'identity' injects a stable per-character dossier
+    // synthesized from reflections (the character-identity layer) and leaves
+    // episodic retrieval to a coinstalled RAG extension (e.g. VectFox).
+    // See VISION.md — two-layer model.
+    injectionMode: 'events',
+    // Identity injection: a character is auto-injected once they have at least
+    // this many synthesized reflections. Per-character Always/Never overrides
+    // (stored in chat metadata) take precedence. See ROADMAP_Dossier.md.
+    identityMinReflections: 1,
     // Injection settings
     injection: {
         memory: { position: 5, depth: 4 },
         world: { position: 5, depth: 4 },
+        identity: { position: 5, depth: 4 },
     },
     postHistoryPrompt: '',
 };

@@ -356,6 +356,9 @@ export type OpenVaultData = {
             created_at?: number | undefined;
         }[];
     } | undefined;
+    injection_overrides?: {
+        [key: string]: "always" | "never";
+    } | undefined;
 };
 
 export type StVectorItem = {

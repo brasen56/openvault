@@ -12,7 +12,7 @@ OpenVault gives long roleplays a durable memory. It watches the conversation, ex
 
 Everything is stored **locally** in the chat's own metadata. Embeddings run on-device by default. No external memory service is required.
 
-> **Status:** actively developed fork. Author: **Brasen** · Version **23.00** · [github.com/brasen56/openvault](https://github.com/brasen56/openvault)
+> **Status:** actively developed fork. Author: **Brasen** · Version **24.0** · [github.com/brasen56/openvault](https://github.com/brasen56/openvault)
 
 ---
 

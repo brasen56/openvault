@@ -416,7 +416,7 @@ export function buildCharacterDossier(name, data, reflectionThreshold = 40) {
  * @param {ReturnType<typeof buildCharacterDossier>} dossier
  * @returns {string}
  */
-export function formatDossierAsText(dossier) {
+export function formatDossierAsText(dossier, { includeFooter = true } = {}) {
     const name = dossier?.name || 'Unknown';
     const state = dossier?.state || {};
     const byLevel = dossier?.reflectionsByLevel || [];
@@ -476,8 +476,10 @@ export function formatDossierAsText(dossier) {
         lines.push('');
     }
 
-    lines.push('---');
-    lines.push('Exported from OpenVault');
+    if (includeFooter) {
+        lines.push('---');
+        lines.push('Exported from OpenVault');
+    }
     return lines.join('\n');
 }
 

@@ -206,6 +206,10 @@ export const OpenVaultDataSchema = z.object({
     // Injected into the reflection prompt as a hard negative constraint so a
     // marked-wrong synthesis drift (e.g. "demands ASL") does not regenerate.
     canon_notes: z.record(z.string(), z.array(CanonNoteSchema)).optional(),
+    // Identity injection overrides (per-character): 'always' forces the
+    // character's dossier into the identity injection, 'never' suppresses it.
+    // Absent key = 'auto' (auto-inject per identityMinReflections).
+    injection_overrides: z.record(z.string(), z.enum(['always', 'never'])).optional(),
 });
 
 // --- StVectorItem Schema ---

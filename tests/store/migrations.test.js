@@ -5,8 +5,8 @@ import { CURRENT_SCHEMA_VERSION, runSchemaMigrations } from '../../src/store/mig
 
 describe('migration orchestrator', () => {
     describe('runSchemaMigrations', () => {
-        it('returns false when no migration needed (already v2)', () => {
-            const data = { schema_version: 2, memories: [], canon_notes: {} };
+        it('returns false when nothing needs initializing', () => {
+            const data = { schema_version: 2, memories: [], canon_notes: {}, injection_overrides: {} };
             const result = runSchemaMigrations(data, []);
             expect(result).toBe(false);
         });
@@ -94,7 +94,7 @@ describe('v2 migration', () => {
     });
 
     it('returns false when no changes needed', () => {
-        const data = { schema_version: 2, canon_notes: {} };
+        const data = { schema_version: 2, canon_notes: {}, injection_overrides: {} };
         const result = runSchemaMigrations(data, chat);
         expect(result).toBe(false);
     });
@@ -266,7 +266,7 @@ describe('v5 migration — canon_notes initialization', () => {
 
     it('does not overwrite an existing canon_notes record', () => {
         const existing = { Alice: [{ id: 'canon_1', text: 'never demands' }] };
-        const data = { schema_version: 4, memories: [], canon_notes: existing };
+        const data = { schema_version: 4, memories: [], canon_notes: existing, injection_overrides: {} };
 
         const result = runSchemaMigrations(data, []);
 
@@ -282,9 +282,43 @@ describe('v5 migration — canon_notes initialization', () => {
         expect(data.canon_notes).toEqual({});
     });
 
-    it('bumps schema_version to 5', () => {
+    it('bumps schema_version to current', () => {
         const data = { schema_version: 4, memories: [] };
         runSchemaMigrations(data, []);
-        expect(data.schema_version).toBe(5);
+        expect(data.schema_version).toBe(CURRENT_SCHEMA_VERSION);
+    });
+});
+
+describe('v6 migration — injection_overrides initialization', () => {
+    it('initializes injection_overrides as an empty object when missing', () => {
+        const data = { schema_version: 5, memories: [], canon_notes: {} };
+
+        const result = runSchemaMigrations(data, []);
+
+        expect(result).toBe(true);
+        expect(data.injection_overrides).toEqual({});
+    });
+
+    it('does not overwrite an existing injection_overrides record', () => {
+        const existing = { Alice: 'always', Bob: 'never' };
+        const data = {
+            schema_version: 5,
+            memories: [],
+            canon_notes: {},
+            injection_overrides: existing,
+        };
+
+        const result = runSchemaMigrations(data, []);
+
+        expect(result).toBe(false);
+        expect(data.injection_overrides).toBe(existing);
+    });
+
+    it('replaces a malformed injection_overrides value with an empty object', () => {
+        const data = { schema_version: 5, memories: [], canon_notes: {}, injection_overrides: 'oops' };
+
+        runSchemaMigrations(data, []);
+
+        expect(data.injection_overrides).toEqual({});
     });
 });

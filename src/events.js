@@ -180,14 +180,37 @@ export async function onBeforeGeneration(type, _options, dryRun = false) {
         // Auto-hide old messages before building context
         await autoHideOldMessages();
 
-        const { updateInjection } = await import('./retrieval/retrieve.js');
-
-        // Skip retrieval if no memories exist yet
         const data = getOpenVaultData();
         if (!data) {
             logDebug('>>> Skipping retrieval - no context available');
             return;
         }
+
+        const settings = getDeps().getExtensionSettings()[extensionName];
+
+        // ── Identity-layer injection ──────────────────────────────────────
+        // Inject a stable per-character dossier (synthesized from reflections)
+        // instead of retrieving per-turn events. This is OpenVault's pivot from
+        // competing with RAG memory extensions to owning character identity.
+        // See VISION.md (two-layer model). Extraction still runs in the
+        // background — reflections need events to reflect on.
+        if (settings?.injectionMode === 'identity') {
+            const { updateIdentityInjection } = await import('./injection/identity.js');
+            setStatus('retrieving');
+            setGenerationLock();
+            await withTimeout(
+                updateIdentityInjection(),
+                RETRIEVAL_TIMEOUT_MS,
+                'Identity injection'
+            );
+            setStatus('ready');
+            return;
+        }
+        // ──────────────────────────────────────────────────────────────────
+
+        const { updateInjection } = await import('./retrieval/retrieve.js');
+
+        // Skip retrieval if no memories exist yet
         const memories = data[MEMORIES_KEY] || [];
         if (memories.length === 0) {
             logDebug('>>> Skipping retrieval - no memories yet');

@@ -14,9 +14,11 @@ import {
     deleteEntity as deleteEntityAction,
     deleteMemories as deleteMemoriesBulk,
     deleteMemory as deleteMemoryAction,
+    getIdentityOverride,
     getOpenVaultData,
     mergeEntities,
     removeCanonNote,
+    setIdentityOverride,
     unarchiveMemories,
     updateCommunity,
     updateEntity,
@@ -471,6 +473,7 @@ function bindSidePanelEvents() {
         const data = getOpenVaultData();
         const settings = getDeps().getExtensionSettings().openvault || {};
         const dossier = buildCharacterDossier(name, data, settings.reflectionThreshold);
+        dossier.identityOverride = getIdentityOverride(name);
         $dossier.html(renderCharacterDossier(dossier));
         $row.addClass('openvault-character-expanded');
         $dossier.slideDown(200);
@@ -523,6 +526,16 @@ function bindSidePanelEvents() {
         } else if (action === 'dossier-remove-canon-note') {
             await handleRemoveCanonNote(this);
         }
+    });
+
+    // Identity injection override (per-character Auto/Always/Never) — a select,
+    // so it fires 'change' rather than the click delegation above.
+    $panel.on('change', '.openvault-dossier-injection-select', async function () {
+        const name = $(this).data('character');
+        const value = $(this).val();
+        if (!name) return;
+        await setIdentityOverride(String(name), value);
+        showToast('success', `Identity injection for ${name}: ${value}`);
     });
 
     // =========================================================================
@@ -661,6 +674,7 @@ function refreshDossierFromButton(btn) {
     const data = getOpenVaultData();
     const settings = getDeps().getExtensionSettings().openvault || {};
     const dossier = buildCharacterDossier(name, data, settings.reflectionThreshold);
+    dossier.identityOverride = getIdentityOverride(name);
     $dossier.html(renderCharacterDossier(dossier));
 }
 
