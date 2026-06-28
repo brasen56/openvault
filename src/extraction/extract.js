@@ -1005,8 +1005,13 @@ async function processGraphUpdates(graphData, entities, relationships, settings)
         }
     }
 
-    // Clean up runtime-only merge redirects (don't persist to storage)
-    delete graphData._mergeRedirects;
+    // NOTE: _mergeRedirects intentionally PERSISTS — do not blanket-delete it.
+    // It records canonicalization from both semantic dedup and user character-
+    // merges (mergeEntities), and future extraction passes resolve absorbed names
+    // through it (see mergeOrInsertEntity / _resolveKey) so a merged-away NPC
+    // doesn't re-spawn as a duplicate node when its name resurfaces. It's pruned
+    // surgically in deleteEntity and stripped only on export. Wiping it here used
+    // to silently un-merge characters over time.
     return { graphSyncChanges };
 }
 

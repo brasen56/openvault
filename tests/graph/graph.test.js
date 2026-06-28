@@ -337,6 +337,27 @@ describe('mergeOrInsertEntity', () => {
         expect(Object.keys(graphData.nodes)).toHaveLength(1);
     });
 
+    it('routes an absorbed name to its survivor via _mergeRedirects (no duplicate node)', async () => {
+        const { getDocumentEmbedding } = await import('../../src/embeddings.js');
+        // No embedding, so the only way "Alex" lands on the survivor is the redirect path.
+        getDocumentEmbedding.mockResolvedValue(null);
+
+        // Simulate a prior character-merge: "Alex" was absorbed into "Alex Hiro".
+        upsertEntity(graphData, 'Alex Hiro', 'PERSON', 'A swordsman');
+        graphData._mergeRedirects = { alex: 'alex hiro' };
+
+        // "Alex" resurfaces in a later extraction pass.
+        const { key } = await mergeOrInsertEntity(graphData, 'Alex', 'PERSON', 'Seen again', 3, mockSettings);
+
+        // Resolves to the survivor — no fresh "alex" node is created.
+        expect(key).toBe('alex hiro');
+        expect(graphData.nodes.alex).toBeUndefined();
+        expect(Object.keys(graphData.nodes)).toHaveLength(1);
+        // Description folds into the survivor and the resurfaced name is kept as an alias.
+        expect(graphData.nodes['alex hiro'].description).toContain('Seen again');
+        expect(graphData.nodes['alex hiro'].aliases).toContain('Alex');
+    });
+
     it('creates new node when no semantic match exists', async () => {
         const { getDocumentEmbedding } = await import('../../src/embeddings.js');
         getDocumentEmbedding.mockResolvedValue(null);

@@ -424,6 +424,20 @@ export async function mergeOrInsertEntity(graphData, name, type, description, ca
         }
     };
 
+    // Redirect path: if this name was previously absorbed into another entity
+    // (a user character-merge or an earlier semantic/cross-script merge), route
+    // straight to the survivor instead of re-creating the absorbed node. Without
+    // this, a merged-away name resurfacing in extraction spawns a fresh duplicate.
+    const redirectedKey = _resolveKey(graphData, name);
+    if (redirectedKey !== key && graphData.nodes[redirectedKey]) {
+        const survivor = graphData.nodes[redirectedKey];
+        upsertEntity(graphData, survivor.name, type, description, cap);
+        if (!survivor.aliases) survivor.aliases = [];
+        if (!survivor.aliases.includes(name)) survivor.aliases.push(name);
+        syncNode(redirectedKey);
+        return { key: redirectedKey, stChanges };
+    }
+
     // Fast path: exact key match
     if (graphData.nodes[key]) {
         upsertEntity(graphData, name, type, description, cap);
