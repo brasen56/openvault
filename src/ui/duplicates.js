@@ -9,9 +9,12 @@ import { ENTITY_TYPES, MEMORIES_KEY } from '../constants.js';
 import { normalizeKey } from '../graph/graph.js';
 import {
     deleteMemory as deleteMemoryAction,
+    dismissCharacterMerge,
     getOpenVaultData,
+    isCharacterMergeDismissed,
     mergeEntities,
     reconcileCharacterIdentity,
+    renameCharacter,
     saveOpenVaultData,
     updateEntity,
 } from '../store/chat-data.js';
@@ -213,6 +216,9 @@ export function findCharacterDuplicates(data) {
                 continue;
             }
 
+            // Skip pairs the user has already dismissed ("not the same person").
+            if (isCharacterMergeDismissed(shorter.name, longer.name)) continue;
+
             pairs.push({
                 sourceName: shorter.name,
                 targetName: longer.name,
@@ -340,6 +346,15 @@ function renderCharacterDuplicatePair(pair) {
             <div class="openvault-dup-footer">
                 <button class="openvault-char-merge-confirm openvault-dup-action-btn" data-source-name="${escapeHtml(pair.sourceName)}" data-target-name="${escapeHtml(pair.targetName)}">
                     <i class="fa-solid fa-object-group"></i> Merge "${escapeHtml(pair.sourceName)}" → "${escapeHtml(pair.targetName)}"
+                </button>
+                <button class="openvault-char-rename-btn openvault-dup-action-btn" data-rename-name="${escapeHtml(pair.sourceName)}" title="Edit &quot;${escapeHtml(pair.sourceName)}&quot; into its full name (e.g. add a surname)">
+                    <i class="fa-solid fa-pen"></i> Rename "${escapeHtml(pair.sourceName)}"
+                </button>
+                <button class="openvault-char-rename-btn openvault-dup-action-btn" data-rename-name="${escapeHtml(pair.targetName)}" title="Edit &quot;${escapeHtml(pair.targetName)}&quot; into its full name">
+                    <i class="fa-solid fa-pen"></i> Rename "${escapeHtml(pair.targetName)}"
+                </button>
+                <button class="openvault-char-dismiss-btn openvault-dup-action-btn secondary" data-source-name="${escapeHtml(pair.sourceName)}" data-target-name="${escapeHtml(pair.targetName)}" title="They are not the same person — don't suggest this again">
+                    <i class="fa-solid fa-user-slash"></i> Not the same
                 </button>
             </div>
         </div>
@@ -549,6 +564,61 @@ export async function handleCharacterMerge(sourceName, targetName) {
 }
 
 /**
+ * Dismiss a suggested character merge — records that the two characters are
+ * distinct ("not the same person") so the pair stops being re-suggested.
+ * @param {string} sourceName - First character display name
+ * @param {string} targetName - Second character display name
+ */
+export async function handleCharacterDismiss(sourceName, targetName) {
+    if (!sourceName || !targetName) return;
+    try {
+        const changed = await dismissCharacterMerge(sourceName, targetName);
+        showToast('info', changed ? 'Marked as not the same person' : 'Already dismissed');
+        const container = document.getElementById('openvault_duplicates_content');
+        if (container) renderDuplicatesPanel(container);
+    } catch (err) {
+        console.error('[OpenVault] Character dismiss failed:', err);
+        showToast('error', `Dismiss failed: ${err.message}`);
+    }
+}
+
+/**
+ * Rename a character to its full name (e.g. "Marcus" → "Marcus Williams").
+ * Prompts for the new name, then migrates it across every identity store.
+ * @param {string} oldName - Current character display name
+ */
+export async function handleCharacterRename(oldName) {
+    if (!oldName) return;
+    const newName = window.prompt(`Rename "${oldName}" to its full name:`, oldName);
+    if (newName === null) return; // cancelled
+    const trimmed = String(newName).trim();
+    if (!trimmed || trimmed.toLowerCase() === String(oldName).toLowerCase()) return;
+    try {
+        const result = await renameCharacter(oldName, trimmed);
+        if (!result?.success) {
+            if (result?.collision) {
+                showToast('warning', `"${trimmed}" already exists — use Merge to combine them instead`);
+            } else {
+                showToast('error', 'Failed to rename character');
+            }
+            return;
+        }
+        if (result.stChanges) {
+            const { applySyncChanges } = await import('../extraction/extract.js');
+            await applySyncChanges(result.stChanges);
+        }
+        showToast('success', `Renamed "${oldName}" → "${trimmed}"`);
+        const container = document.getElementById('openvault_duplicates_content');
+        if (container) renderDuplicatesPanel(container);
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            console.error('[OpenVault] Character rename failed:', err);
+            showToast('error', `Rename failed: ${err.message}`);
+        }
+    }
+}
+
+/**
  * Bind duplicate review events to a container element.
  * @param {HTMLElement|JQuery} $container - jQuery or DOM element
  */
@@ -565,6 +635,17 @@ export function bindDuplicateEvents($container) {
         const sourceName = $(this).data('source-name');
         const targetName = $(this).data('target-name');
         handleCharacterMerge(String(sourceName ?? ''), String(targetName ?? ''));
+    });
+
+    $container.on('click', '.openvault-char-dismiss-btn', function () {
+        const sourceName = $(this).data('source-name');
+        const targetName = $(this).data('target-name');
+        handleCharacterDismiss(String(sourceName ?? ''), String(targetName ?? ''));
+    });
+
+    $container.on('click', '.openvault-char-rename-btn', function () {
+        const name = $(this).data('rename-name');
+        handleCharacterRename(String(name ?? ''));
     });
 
     $container.on('click', '.openvault-dup-action-btn', function () {

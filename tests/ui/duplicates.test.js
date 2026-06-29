@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { findCharacterDuplicates } from '../../src/ui/duplicates.js';
+import { characterMergePairKey } from '../../src/store/chat-data.js';
 
 const person = (name, mentions = 0, description = '') => ({ name, type: 'PERSON', mentions, description });
 const withGraph = (nodes, extra = {}) => ({ graph: { nodes }, ...extra });
+
+describe('characterMergePairKey', () => {
+    it('produces a stable, order-independent key', () => {
+        expect(characterMergePairKey('Alice', 'Bob')).toBe(characterMergePairKey('Bob', 'Alice'));
+    });
+
+    it('lowercases and sorts the names', () => {
+        expect(characterMergePairKey('Marcus', 'Alex')).toBe('alex||marcus');
+    });
+
+    it('handles empty / falsy names defensively', () => {
+        expect(characterMergePairKey('', '')).toBe('||');
+        expect(characterMergePairKey('Alice', null)).toBe('||alice');
+    });
+});
 
 describe('findCharacterDuplicates', () => {
     it('flags a bare name as a duplicate of its fuller form', () => {

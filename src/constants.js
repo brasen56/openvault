@@ -27,6 +27,12 @@ export const CANON_NOTES_KEY = 'canon_notes';
 // 'always' | 'never'> on the openvault data object. Absent key = 'auto'
 // (auto-inject when reflection count >= identityMinReflections).
 export const INJECTION_OVERRIDES_KEY = 'injection_overrides';
+// Dismissed character-merge pairs from the Duplicates tab. Stored as a set of
+// stable pair keys ("a||b", lowercased + alphabetically ordered) on the openvault
+// data object. A dismissed pair stops being re-suggested so the user can keep two
+// distinct characters (e.g. "Marcus" and "Marcus Feltner") apart without the panel
+// nagging every refresh.
+export const MERGE_DISMISSALS_KEY = 'merge_dismissals';
 
 // Sentinel speaker label used in narrator mode, where one character card voices
 // many NPCs. Replaces the card name in the extraction transcript so the card name
@@ -78,6 +84,11 @@ export const defaultSettings = {
     // name from being extracted as a character and tells the LLM to attribute
     // events to the NPC named in the prose instead.
     narratorMode: false,
+    // Force the extractor to always emit full character names (e.g. "Marcus
+    // Williams" instead of "Marcus"). Reduces duplicate-character splits caused
+    // by first-name-only extractions, so the Duplicates tab suggests fewer false
+    // merges between distinct characters who share a first name.
+    forceFullNameExtraction: false,
     // Transient reclassification ("AI Reclassify") completion budget. Thinking models
     // spend tokens on reasoning before the JSON, so this caps the response size. Raise it
     // only if reclassify reports truncation (see README); keep it modest for small models.

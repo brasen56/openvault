@@ -9,6 +9,7 @@ import {
     GRAPH_JACCARD_DUPLICATE_THRESHOLD,
     INJECTION_OVERRIDES_KEY,
     MEMORIES_KEY,
+    MERGE_DISMISSALS_KEY,
     METADATA_KEY,
     PROCESSED_MESSAGES_KEY,
 } from '../constants.js';
@@ -53,6 +54,7 @@ export function getOpenVaultData() {
             contradiction_analyzed: {},
             [CANON_NOTES_KEY]: {},
             [INJECTION_OVERRIDES_KEY]: {},
+            [MERGE_DISMISSALS_KEY]: {},
         };
     }
     const data = context.chatMetadata[METADATA_KEY];
@@ -1089,4 +1091,131 @@ export async function deleteCharacterFromState(name) {
     await getDeps().saveChatConditional();
     logDebug(`Deleted character "${name}" from character_states`);
     return true;
+}
+
+// =============================================================================
+// Character-Merge Dismissals & Renames (Duplicates tab)
+// =============================================================================
+// A dismissal records "these two characters are NOT the same person" so the
+// Duplicates tab stops re-suggesting the merge. Stored as a set of stable pair
+// keys ("a||b", lowercased + alphabetically ordered) on the openvault data
+// object under MERGE_DISMISSALS_KEY.
+
+/**
+ * Build a stable, order-independent pair key for two character names.
+ * @param {string} a - First character display name
+ * @param {string} b - Second character display name
+ * @returns {string} Stable pair key ("alpha||beta", lowercased + sorted)
+ */
+export function characterMergePairKey(a, b) {
+    const x = String(a || '').trim().toLowerCase();
+    const y = String(b || '').trim().toLowerCase();
+    return [x, y].sort().join('||');
+}
+
+/**
+ * Read the set of dismissed character-merge pairs. Defensive against
+ * unmigrated data: materializes an empty object on first read.
+ * @returns {Record<string, boolean>} Map of pairKey -> true
+ */
+export function getMergeDismissals() {
+    const data = getOpenVaultData();
+    if (!data) return {};
+    if (!data[MERGE_DISMISSALS_KEY] || typeof data[MERGE_DISMISSALS_KEY] !== 'object') {
+        data[MERGE_DISMISSALS_KEY] = {};
+    }
+    return data[MERGE_DISMISSALS_KEY];
+}
+
+/**
+ * Check whether a character pair has been dismissed ("not the same person").
+ * @param {string} a - First character display name
+ * @param {string} b - Second character display name
+ * @returns {boolean} True if the user previously dismissed this pair
+ */
+export function isCharacterMergeDismissed(a, b) {
+    const dismissals = getMergeDismissals();
+    return !!dismissals[characterMergePairKey(a, b)];
+}
+
+/**
+ * Dismiss a suggested character merge — records that the two characters are
+ * distinct so the Duplicates tab stops re-suggesting them. Idempotent.
+ * @param {string} a - First character display name
+ * @param {string} b - Second character display name
+ * @returns {Promise<boolean>} True if a new dismissal was persisted
+ */
+export async function dismissCharacterMerge(a, b) {
+    const data = getOpenVaultData();
+    if (!data) return false;
+    const key = characterMergePairKey(a, b);
+    if (!data[MERGE_DISMISSALS_KEY] || typeof data[MERGE_DISMISSALS_KEY] !== 'object') {
+        data[MERGE_DISMISSALS_KEY] = {};
+    }
+    if (data[MERGE_DISMISSALS_KEY][key]) return false; // already dismissed
+    data[MERGE_DISMISSALS_KEY][key] = true;
+    await getDeps().saveChatConditional();
+    logDebug(`Dismissed character merge for pair: ${key}`);
+    return true;
+}
+
+/**
+ * Rename a character across every identity store (graph node + the
+ * display-name-keyed character_states / reflection_state / memories / canon_notes),
+ * without merging it into another character. This is the "edit name → full name"
+ * path used by the Duplicates tab so a bare first name ("Marcus") can be corrected
+ * to its full form ("Marcus Williams") in place.
+ *
+ * It reuses `reconcileCharacterIdentity` to migrate the name-keyed stores and
+ * `updateEntity` to rename the graph node (rewriting edges + redirects), then
+ * applies any ST Vector sync changes.
+ *
+ * @param {string} oldName - Current character display name
+ * @param {string} newName - New display name (e.g. the full name)
+ * @returns {Promise<{success: boolean, collision?: boolean, stChanges?: {toDelete?: {hash: number}[], toSync?: {hash: number, text: string, item: any}[]}}>} `collision: true` means the new name already exists — merge instead
+ */
+export async function renameCharacter(oldName, newName) {
+    const data = getOpenVaultData();
+    if (!data) return { success: false };
+    const trimmedOld = String(oldName || '').trim();
+    const trimmedNew = String(newName || '').trim();
+    if (!trimmedOld || !trimmedNew) return { success: false };
+    if (trimmedOld.toLowerCase() === trimmedNew.toLowerCase()) return { success: false };
+
+    // Collision guard: if the new name already exists as a distinct graph node,
+    // a rename would orphan the old node (updateEntity refuses to overwrite an
+    // existing key) while reconcileCharacterIdentity silently folds the stores —
+    // leaving an inconsistent half-merge. Refuse and steer the caller to Merge,
+    // which is the correct operation for combining two existing characters.
+    const oldKey = normalizeKey(trimmedOld);
+    const newKey = normalizeKey(trimmedNew);
+    const nodes = data.graph?.nodes || {};
+    if (newKey !== oldKey && nodes[newKey]) {
+        return { success: false, collision: true };
+    }
+
+    /** @type {{toDelete?: {hash: number}[], toSync?: {hash: number, text: string, item: any}[]} | null} */
+    let stChanges = null;
+
+    // 1. Migrate the display-name-keyed stores (character_states, reflection_state,
+    //    memories, canon_notes) from oldName -> newName.
+    reconcileCharacterIdentity(data, trimmedOld, trimmedNew);
+
+    // 2. If there's a graph node for the old name, rename it (rewrites edges +
+    //    merge redirects).
+    if (nodes[oldKey]) {
+        const result = await updateEntity(oldKey, { name: trimmedNew });
+        if (result?.stChanges) {
+            stChanges = {
+                toDelete: [...(result.stChanges.toDelete || [])],
+                toSync: [...(result.stChanges.toSync || [])],
+            };
+        }
+    } else {
+        // No graph node — just persist the store reconciliation above.
+        await getDeps().saveChatConditional();
+    }
+
+    logInfo(`Renamed character "${trimmedOld}" → "${trimmedNew}"`);
+    return { success: true, stChanges: stChanges || undefined };
 }

@@ -848,6 +848,7 @@ async function fetchEventsFromLLM(contextParams, existingMemories, abortSignal) 
         prefill: contextParams.prefill,
         outputLanguage: contextParams.outputLanguage,
         narrator: contextParams.narrator,
+        forceFullNames: contextParams.forceFullNames,
     });
 
     const t0 = performance.now();
@@ -888,6 +889,7 @@ async function fetchGraphFromLLM(contextParams, formattedEvents, abortSignal) {
             prefill: contextParams.prefill,
             outputLanguage: contextParams.outputLanguage,
             narrator: contextParams.narrator,
+            forceFullNames: contextParams.forceFullNames,
         });
 
         const t0 = performance.now();
@@ -1253,6 +1255,7 @@ export async function extractMemories(messageIds = null, targetChatId = null, op
             prefill: resolveExtractionPrefill(settings),
             outputLanguage: resolveOutputLanguage(settings),
             narrator: narratorName,
+            forceFullNames: !!settings.forceFullNameExtraction,
         };
 
         // Stage 1: Event extraction (LLM call)

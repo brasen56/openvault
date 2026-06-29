@@ -21,7 +21,7 @@ import { EVENT_SCHEMA } from './schema.js';
 
 /**
  * Build the event extraction prompt (Stage 1).
- * @param {BasePromptParams} params - Prompt builder parameters
+ * @param {BasePromptParams & { forceFullNames?: boolean }} params - Prompt builder parameters
  * @returns {LLMMessages} Array of {role, content} message objects
  */
 export function buildEventExtractionPrompt({
@@ -32,6 +32,7 @@ export function buildEventExtractionPrompt({
     prefill,
     outputLanguage = 'auto',
     narrator = null,
+    forceFullNames = false,
 }) {
     const { char: characterName, user: userName } = names;
     const safeCharName = characterName || 'Character';
@@ -72,7 +73,11 @@ ${
     narrator
         ? `The messages are narrated by ${narrator}, who voices many different NPCs — ${narrator} is NOT a character and must never appear in characters_involved, witnesses, emotional_impact, or relationship_impact. Attribute each event to the actual NPC named in the prose (the one speaking or acting). Use the user's character name ${safeUserName} exactly. Use EXACT character names as written; never transliterate them into another script.`
         : `Use EXACT character names: ${safeCharName}, ${safeUserName}. Never transliterate these names into another script.`
-}
+}${
+        forceFullNames
+            ? '\n\nIMPORTANT: Always use each character\u2019s FULL name (given name + surname/family name) exactly as it is established in the story \u2014 never reduce a character to a first name only. If only a first name has been used so far, record that first name as-is rather than inventing a surname. Using full names keeps distinct characters who share a first name from being wrongly merged.'
+            : ''
+    }
 
 ${constraints}`;
 

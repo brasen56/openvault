@@ -68,6 +68,7 @@ describe('store/chat-data', () => {
                 contradiction_analyzed: {},
                 canon_notes: {},
                 injection_overrides: {},
+                merge_dismissals: {},
             });
         });
 

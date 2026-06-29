@@ -392,6 +392,11 @@
                             <span>Narrator / GM mode</span>
                         </label>
                         <small class="openvault-hint">Enable when one character card narrates and voices many NPCs. The card name is treated as a storyteller, not a character — events are attributed to the NPC named in the prose instead of the card. Leave off for normal single-character chats.</small>
+                        <label class="checkbox_label" style="margin-top: 10px;">
+                            <input id="openvault_force_full_name_extraction" type="checkbox" />
+                            <span>Force full character names</span>
+                        </label>
+                        <small class="openvault-hint">Tell the extractor to always use full names (given + surname) instead of bare first names. Reduces duplicate-character splits when two NPCs share a first name. Disable if your chat uses only single names.</small>
                         <label for="openvault_extraction_token_budget">
                             Extraction Batch Size: <span id="openvault_extraction_token_budget_value">8000</span> tokens
                             <small class="openvault-default-hint" data-default-key="extractionTokenBudget"></small>

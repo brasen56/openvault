@@ -22,7 +22,7 @@ import { EDGE_CONSOLIDATION_SCHEMA, GRAPH_SCHEMA } from './schema.js';
 
 /**
  * Build the graph extraction prompt (Stage B).
- * @param {GraphPromptParams} params - Prompt builder parameters
+ * @param {GraphPromptParams & { forceFullNames?: boolean }} params - Prompt builder parameters
  * @returns {LLMMessages} Array of {role, content} message objects
  */
 export function buildGraphExtractionPrompt({
@@ -34,6 +34,7 @@ export function buildGraphExtractionPrompt({
     prefill,
     outputLanguage = 'auto',
     narrator = null,
+    forceFullNames = false,
 }) {
     const { char: characterName, user: userName } = names;
     const safeCharName = characterName || 'Character';
@@ -70,7 +71,11 @@ ${
     narrator
         ? `The messages are narrated by ${narrator}, who voices many different NPCs — ${narrator} is NOT an entity and must never appear as a node or in a relationship. Extract the actual NPCs named in the prose. Use the user's character name ${safeUserName} exactly. Use EXACT character names as written; never transliterate them into another script.`
         : `Use EXACT character names: ${safeCharName}, ${safeUserName}. Never transliterate these names into another script.`
-}
+}${
+        forceFullNames
+            ? '\n\nIMPORTANT: Always use each character\u2019s FULL name (given name + surname/family name) exactly as it is established in the story \u2014 never reduce a character to a first name only. If only a first name has been used so far, record that first name as-is rather than inventing a surname. Using full names keeps distinct characters who share a first name from being wrongly merged.'
+            : ''
+    }
 
 ${constraints}`;
 

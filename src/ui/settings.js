@@ -928,6 +928,7 @@ function bindUIElements() {
         updatePayloadCalculator();
     });
     bindSetting('narrator_mode', 'narratorMode', 'bool');
+    bindSetting('force_full_name_extraction', 'forceFullNameExtraction', 'bool');
 
     // Token budget settings
     bindSetting('visible_chat_budget', 'visibleChatBudget');
@@ -1400,6 +1401,7 @@ export function bindSidePanelGeneralSettings($panel) {
     bindChk('#openvault_side_debug', 'debugMode');
     bindChk('#openvault_side_request_logging', 'requestLogging');
     bindChk('#openvault_side_narrator_mode', 'narratorMode');
+    bindChk('#openvault_side_force_full_name_extraction', 'forceFullNameExtraction');
     bindChk('#openvault_side_reflection_generation', 'reflectionGenerationEnabled');
     bindChk('#openvault_side_reflection_injection', 'reflectionInjectionEnabled');
 
@@ -1571,6 +1573,7 @@ export function updateSidePanelGeneralSettings() {
     chk('openvault_side_debug', settings.debugMode);
     chk('openvault_side_request_logging', settings.requestLogging);
     chk('openvault_side_narrator_mode', settings.narratorMode);
+    chk('openvault_side_force_full_name_extraction', settings.forceFullNameExtraction ?? false);
     chk('openvault_side_reflection_generation', settings.reflectionGenerationEnabled);
     chk('openvault_side_reflection_injection', settings.reflectionInjectionEnabled);
 
@@ -1865,6 +1868,7 @@ export function updateUI() {
     updateWordsDisplay(settings.extractionRearviewTokens, 'openvault_extraction_rearview_words');
 
     $('#openvault_narrator_mode').prop('checked', settings.narratorMode);
+    $('#openvault_force_full_name_extraction').prop('checked', settings.forceFullNameExtraction ?? false);
 
     // Token budget settings
     $('#openvault_visible_chat_budget').val(settings.visibleChatBudget);
