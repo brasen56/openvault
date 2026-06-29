@@ -89,6 +89,12 @@ export const defaultSettings = {
     // by first-name-only extractions, so the Duplicates tab suggests fewer false
     // merges between distinct characters who share a first name.
     forceFullNameExtraction: false,
+    // Send a JSON schema with extraction requests to enforce structured output.
+    // ON works with OpenAI-compatible backends that support json_schema response
+    // formats. Turn OFF for providers that reject the schema parameter (e.g.
+    // Z.ai / GLM returns "1210 Invalid API parameter") — the prompt still
+    // describes the JSON shape and the lenient parser handles prose-wrapped JSON.
+    structuredOutputEnabled: true,
     // Transient reclassification ("AI Reclassify") completion budget. Thinking models
     // spend tokens on reasoning before the JSON, so this caps the response size. Raise it
     // only if reclassify reports truncation (see README); keep it modest for small models.

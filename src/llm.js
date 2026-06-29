@@ -244,7 +244,14 @@ export async function callLLM(messages, config, options = {}) {
         return content;
     }
 
-    const jsonSchema = options.structured && getJsonSchema ? getJsonSchema() : undefined;
+    // Structured output (json_schema) can be globally disabled for backends that
+    // reject the schema parameter (e.g. Z.ai / GLM → "1210 Invalid API parameter").
+    // `!== false` keeps it on for pre-existing configs that lack the key.
+    const structuredAllowed = settings.structuredOutputEnabled !== false;
+    if (options.structured && !structuredAllowed) {
+        logDebug(`${errorContext}: structured output disabled in settings — sending request without json_schema`);
+    }
+    const jsonSchema = options.structured && structuredAllowed && getJsonSchema ? getJsonSchema() : undefined;
 
     // --- Main request with retry + backup failover ---
     try {

@@ -197,6 +197,11 @@
                         <span>Force Full Character Names</span>
                     </label>
                     <small class="openvault-hint">Extractor uses full names (given + surname) to avoid duplicate-character splits</small>
+                    <label class="checkbox_label">
+                        <input type="checkbox" id="openvault_side_structured_output_enabled" />
+                        <span>Structured Output (JSON schema)</span>
+                    </label>
+                    <small class="openvault-hint">Turn OFF for providers that reject the schema param (e.g. Z.ai / GLM "1210")</small>
 
                     <label for="openvault_side_extraction_profile" style="margin-top: 10px;">Extraction Profile</label>
                     <select id="openvault_side_extraction_profile" class="text_pole"></select>

@@ -122,6 +122,31 @@ describe('callLLM backup profile failover', () => {
         expect(sendRequest).toHaveBeenCalledTimes(2);
     });
 
+    it('sends json_schema for structured calls by default', async () => {
+        const sendRequest = vi.fn().mockResolvedValue({ content: '{}' });
+        setupTestContext({
+            settings: { extractionProfile: 'main-id', backupProfile: '' },
+            deps: { connectionManager: { sendRequest } },
+        });
+        const schema = { name: 'Test', value: { type: 'object' } };
+        const structuredConfig = { ...testConfig, getJsonSchema: () => schema };
+
+        await callLLM(testMessages, structuredConfig, { structured: true });
+        expect(sendRequest.mock.calls[0][4]).toEqual({ jsonSchema: schema });
+    });
+
+    it('omits json_schema when structuredOutputEnabled is false', async () => {
+        const sendRequest = vi.fn().mockResolvedValue({ content: '{}' });
+        setupTestContext({
+            settings: { extractionProfile: 'main-id', backupProfile: '', structuredOutputEnabled: false },
+            deps: { connectionManager: { sendRequest } },
+        });
+        const structuredConfig = { ...testConfig, getJsonSchema: () => ({ name: 'Test', value: {} }) };
+
+        await callLLM(testMessages, structuredConfig, { structured: true });
+        expect(sendRequest.mock.calls[0][4]).toEqual({});
+    });
+
     it('skips backup when backupProfile is empty', async () => {
         const sendRequest = vi.fn().mockRejectedValueOnce(new Error('main down'));
         setupTestContext({

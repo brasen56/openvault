@@ -929,6 +929,7 @@ function bindUIElements() {
     });
     bindSetting('narrator_mode', 'narratorMode', 'bool');
     bindSetting('force_full_name_extraction', 'forceFullNameExtraction', 'bool');
+    bindSetting('structured_output_enabled', 'structuredOutputEnabled', 'bool');
 
     // Token budget settings
     bindSetting('visible_chat_budget', 'visibleChatBudget');
@@ -1402,6 +1403,7 @@ export function bindSidePanelGeneralSettings($panel) {
     bindChk('#openvault_side_request_logging', 'requestLogging');
     bindChk('#openvault_side_narrator_mode', 'narratorMode');
     bindChk('#openvault_side_force_full_name_extraction', 'forceFullNameExtraction');
+    bindChk('#openvault_side_structured_output_enabled', 'structuredOutputEnabled');
     bindChk('#openvault_side_reflection_generation', 'reflectionGenerationEnabled');
     bindChk('#openvault_side_reflection_injection', 'reflectionInjectionEnabled');
 
@@ -1574,6 +1576,7 @@ export function updateSidePanelGeneralSettings() {
     chk('openvault_side_request_logging', settings.requestLogging);
     chk('openvault_side_narrator_mode', settings.narratorMode);
     chk('openvault_side_force_full_name_extraction', settings.forceFullNameExtraction ?? false);
+    chk('openvault_side_structured_output_enabled', settings.structuredOutputEnabled ?? true);
     chk('openvault_side_reflection_generation', settings.reflectionGenerationEnabled);
     chk('openvault_side_reflection_injection', settings.reflectionInjectionEnabled);
 
@@ -1869,6 +1872,7 @@ export function updateUI() {
 
     $('#openvault_narrator_mode').prop('checked', settings.narratorMode);
     $('#openvault_force_full_name_extraction').prop('checked', settings.forceFullNameExtraction ?? false);
+    $('#openvault_structured_output_enabled').prop('checked', settings.structuredOutputEnabled ?? true);
 
     // Token budget settings
     $('#openvault_visible_chat_budget').val(settings.visibleChatBudget);
