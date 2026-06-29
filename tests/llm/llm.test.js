@@ -147,6 +147,28 @@ describe('callLLM backup profile failover', () => {
         expect(sendRequest.mock.calls[0][4]).toEqual({});
     });
 
+    it('sends includePreset:true by default', async () => {
+        const sendRequest = vi.fn().mockResolvedValue({ content: 'ok' });
+        setupTestContext({
+            settings: { extractionProfile: 'main-id', backupProfile: '' },
+            deps: { connectionManager: { sendRequest } },
+        });
+
+        await callLLM(testMessages, testConfig);
+        expect(sendRequest.mock.calls[0][3].includePreset).toBe(true);
+    });
+
+    it('sends includePreset:false when minimalRequestParams is enabled', async () => {
+        const sendRequest = vi.fn().mockResolvedValue({ content: 'ok' });
+        setupTestContext({
+            settings: { extractionProfile: 'main-id', backupProfile: '', minimalRequestParams: true },
+            deps: { connectionManager: { sendRequest } },
+        });
+
+        await callLLM(testMessages, testConfig);
+        expect(sendRequest.mock.calls[0][3].includePreset).toBe(false);
+    });
+
     it('skips backup when backupProfile is empty', async () => {
         const sendRequest = vi.fn().mockRejectedValueOnce(new Error('main down'));
         setupTestContext({

@@ -202,6 +202,11 @@
                         <span>Structured Output (JSON schema)</span>
                     </label>
                     <small class="openvault-hint">Turn OFF for providers that reject the schema param (e.g. Z.ai / GLM "1210")</small>
+                    <label class="checkbox_label">
+                        <input type="checkbox" id="openvault_side_minimal_request_params" />
+                        <span>Minimal Request Parameters</span>
+                    </label>
+                    <small class="openvault-hint">Drops preset samplers (top_k, min_p, etc.) for backends that reject them (e.g. GLM-5.1)</small>
 
                     <label for="openvault_side_extraction_profile" style="margin-top: 10px;">Extraction Profile</label>
                     <select id="openvault_side_extraction_profile" class="text_pole"></select>

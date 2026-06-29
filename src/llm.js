@@ -193,12 +193,19 @@ export async function callLLM(messages, config, options = {}) {
 
     // --- Helper: execute a single LLM request against a given profile ---
     async function executeRequest(targetProfileId) {
+        // includePreset:false sends a lean payload (no preset sampler params) for
+        // backends that reject them (e.g. Z.ai GLM-5.1 → "1210 Invalid API parameter").
+        // May also reset temperature/top_p to backend defaults. Off by default.
+        const includePreset = settings.minimalRequestParams !== true;
+        if (!includePreset) {
+            logDebug(`${errorContext}: minimal request params enabled — sending without preset sampler params`);
+        }
         const requestPromise = deps.connectionManager.sendRequest(
             targetProfileId,
             messages,
             maxTokens,
             {
-                includePreset: true,
+                includePreset,
                 includeInstruct: true,
                 stream: false,
             },

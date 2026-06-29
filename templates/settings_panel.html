@@ -402,6 +402,11 @@
                             <span>Structured output (JSON schema)</span>
                         </label>
                         <small class="openvault-hint">Sends a JSON schema to enforce well-formed extraction output. Leave ON for most OpenAI-compatible backends. Turn OFF if your provider rejects it (e.g. Z.ai / GLM returns "1210 Invalid API parameter") — extraction then relies on the prompt + lenient parsing instead.</small>
+                        <label class="checkbox_label" style="margin-top: 10px;">
+                            <input id="openvault_minimal_request_params" type="checkbox" />
+                            <span>Minimal request parameters</span>
+                        </label>
+                        <small class="openvault-hint">Sends a lean request without preset sampler params (top_k, min_p, repetition_penalty, etc.). Enable only if your provider rejects those — notably Z.ai GLM-5.1 ("1210 Invalid API parameter"). May reset temperature/top_p to backend defaults; fine for most providers, so leave OFF unless extraction errors.</small>
                         <label for="openvault_extraction_token_budget">
                             Extraction Batch Size: <span id="openvault_extraction_token_budget_value">8000</span> tokens
                             <small class="openvault-default-hint" data-default-key="extractionTokenBudget"></small>

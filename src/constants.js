@@ -95,6 +95,13 @@ export const defaultSettings = {
     // Z.ai / GLM returns "1210 Invalid API parameter") — the prompt still
     // describes the JSON shape and the lenient parser handles prose-wrapped JSON.
     structuredOutputEnabled: true,
+    // Send a minimal request parameter set for extraction calls by passing
+    // includePreset:false to SillyTavern's ConnectionManager. This drops the
+    // preset sampler params (top_k, top_a, min_p, repetition_penalty, penalties)
+    // that some backends reject — notably Z.ai GLM-5.1 returns "1210 Invalid API
+    // parameter". Off by default; may also reset temperature/top_p to backend
+    // defaults (fine for deterministic extraction). See [[glm-5.1-extraction-incompatible]].
+    minimalRequestParams: false,
     // Transient reclassification ("AI Reclassify") completion budget. Thinking models
     // spend tokens on reasoning before the JSON, so this caps the response size. Raise it
     // only if reclassify reports truncation (see README); keep it modest for small models.
