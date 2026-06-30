@@ -1658,3 +1658,129 @@
     margin: 8px 0 4px;
     opacity: 0.8;
 }
+
+/* =============================================================================
+   Drift Warnings (Phase 2 of ROADMAP_Drift_Defense.md)
+   Mirrors the near-duplicate pair layout but with warning-colored accents
+   (amber/red) so conflicts read distinctly from benign redundancy.
+   ============================================================================= */
+
+.openvault-dossier-drift {
+    border-top: 1px dashed var(--SmartThemeBorderColor, #333);
+    padding-top: 6px;
+}
+
+.openvault-drift-pair {
+    background: color-mix(in srgb, rgba(204, 85, 85, 0.08) 50%, var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.15)));
+    border: 1px solid rgba(204, 85, 85, 0.2);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+}
+
+.openvault-drift-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.openvault-drift-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.68em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: rgba(204, 85, 85, 0.18);
+    color: #e8a060;
+}
+
+.openvault-drift-scores {
+    font-size: 0.78em;
+    color: var(--SmartThemeEmColor, #888);
+    font-weight: 500;
+}
+
+.openvault-drift-reason {
+    font-size: 0.8em;
+    line-height: 1.4;
+    color: var(--SmartThemeEmColor, #aaa);
+    margin-bottom: 6px;
+    font-style: italic;
+    opacity: 0.85;
+}
+
+.openvault-drift-cards {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.openvault-drift-card {
+    flex: 1;
+    min-width: 0;
+    background: var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.2));
+    border: 1px solid var(--SmartThemeBorderColor, #333);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.openvault-drift-card-label {
+    font-size: 0.68em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    background: rgba(204, 85, 85, 0.08);
+    color: var(--SmartThemeEmColor, #888);
+}
+
+.openvault-drift-card-body {
+    padding: 8px 10px;
+}
+
+.openvault-drift-summary {
+    font-size: 0.85em;
+    line-height: 1.4;
+}
+
+.openvault-drift-footer {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.openvault-drift-keep {
+    background: rgba(72, 136, 204, 0.12);
+    border-color: rgba(72, 136, 204, 0.3);
+}
+
+.openvault-drift-skip {
+    opacity: 0.7;
+}
+
+/* Candidate notice (pre-scan) — subtle inline button */
+.openvault-drift-scan-btn {
+    padding: 3px 10px;
+    margin-left: 6px;
+    font-size: 0.78em;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(204, 136, 68, 0.12);
+    border-color: rgba(204, 136, 68, 0.25);
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--SmartThemeBodyColor, #ccc);
+    vertical-align: middle;
+}
+
+.openvault-drift-scan-btn:hover {
+    background: rgba(204, 136, 68, 0.2);
+}
+
+.openvault-drift-scan-btn:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}

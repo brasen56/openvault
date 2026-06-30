@@ -11,6 +11,7 @@ import { escapeHtml } from '../utils/dom.js';
 import { hasEmbedding } from '../utils/embedding-codec.js';
 import { formatMemoryDate, formatMemoryImportance, formatWitnesses, getTransientDecayInfo } from './helpers.js';
 import { findNearDuplicateReflections } from '../reflection/duplicates.js';
+import { findContradictionCandidates } from '../reflection/contradiction.js';
 
 // CSS class constants
 const CLASSES = {
@@ -294,6 +295,7 @@ export function renderCharacterDossier(dossier) {
                 ${renderDossierReflections(reflectionsByLevel)}
             </div>
             ${renderDossierDuplicateSuggestions(dossier)}
+            ${renderDossierDriftWarnings(dossier)}
             <div class="openvault-dossier-section">
                 <div class="openvault-dossier-section-title"><i class="fa-solid fa-diagram-project"></i> Relationships</div>
                 ${renderDossierRelationships(relationships)}
@@ -494,6 +496,114 @@ function renderDossierDuplicateSuggestions(dossier) {
             <div class="openvault-dossier-section-title"><i class="fa-solid fa-clone"></i> Near-duplicate insights (${pairs.length})</div>
             <p class="openvault-dossier-canon-help">These insights say similar things. Merging archives one and folds its evidence into the other, keeping the dossier from inflating one theme.</p>
             <div class="openvault-dup-list">${cards}</div>
+        </div>
+    `;
+}
+
+/**
+ * Render drift warnings on the dossier (Phase 2 of ROADMAP_Drift_Defense.md).
+ *
+ * Surfaces *candidate* reflection pairs that may represent contradictory
+ * present-tense traits (drift). Unlike Phase 1's near-duplicates (which are
+ * confirmed by cosine similarity alone), drift candidates are only
+ * *pre-filtered* by embeddings here — the real drift-vs-development judgment
+ * requires an LLM call (`batchReflectionContradictionScan`). When confirmed
+ * warnings are available (via `dossier._driftWarnings`, populated by the
+ * side-panel caller after a batch scan), they render as actionable cards with
+ * keep-A / keep-B / skip resolution buttons.
+ *
+ * When no confirmed warnings are available but candidates exist (the common
+ * case before the first scan), a lightweight notice is shown prompting the user
+ * to run a drift scan, so the feature is discoverable without being noisy.
+ *
+ * Reads `dossier._rawReflections` (attached by `buildCharacterDossier`),
+ * `dossier._driftCandidateThreshold`, and `dossier._driftWarnings`. All optional
+ * — when absent, the section is omitted entirely.
+ *
+ * @param {Object} dossier
+ * @returns {string} HTML (empty string when no drift data is available)
+ */
+function renderDossierDriftWarnings(dossier) {
+    const rawReflections = dossier?._rawReflections;
+    if (!Array.isArray(rawReflections) || rawReflections.length < 2) return '';
+
+    // Confirmed drift warnings (populated after a batch LLM scan)
+    const warnings = Array.isArray(dossier?._driftWarnings) ? dossier._driftWarnings : [];
+    // Candidate pairs from the embeddings pre-filter (cheap, no LLM)
+    const candidates = findContradictionCandidates(rawReflections, {
+        threshold: dossier?._driftCandidateThreshold,
+    });
+
+    if (warnings.length === 0 && candidates.length === 0) return '';
+
+    // ── Confirmed drift warnings (LLM-verified) ──────────────────────────
+    const warningCards = warnings
+        .map((w, i) => {
+            const pct = Math.round((w.confidence ?? 0) * 100);
+            const aId = escapeHtml(w.a?.id || '');
+            const bId = escapeHtml(w.b?.id || '');
+            const aSummary = escapeHtml(w.a?.summary || 'No summary');
+            const bSummary = escapeHtml(w.b?.summary || 'No summary');
+            const reason = escapeHtml(w.reason || '');
+            const survivorSummary = w.survivingSummary ? escapeHtml(w.survivingSummary) : '';
+
+            // The "keep A/B" buttons archive the loser and (optionally) apply
+            // the LLM's suggested canon summary to the survivor. A hidden field
+            // carries the canon suggestion so the action handler can pre-fill it.
+            const canonA = survivorSummary && w.survivingSummary === w.a?.summary ? survivorSummary : '';
+            const canonB = survivorSummary && w.survivingSummary === w.b?.summary ? survivorSummary : '';
+
+            return `
+                <div class="openvault-drift-pair openvault-dossier-drift-pair" data-index="${i}">
+                    <div class="openvault-drift-header">
+                        <span class="openvault-drift-badge"><i class="fa-solid fa-triangle-exclamation"></i> Drift Warning</span>
+                        <span class="openvault-drift-scores">${pct}% confidence</span>
+                    </div>
+                    <div class="openvault-drift-reason">${reason}</div>
+                    <div class="openvault-drift-cards">
+                        <div class="openvault-drift-card openvault-drift-card-a">
+                            <div class="openvault-drift-card-label">A (earlier)</div>
+                            <div class="openvault-drift-card-body">
+                                <div class="openvault-drift-summary">${aSummary}</div>
+                            </div>
+                        </div>
+                        <div class="openvault-drift-card openvault-drift-card-b">
+                            <div class="openvault-drift-card-label">B (later)</div>
+                            <div class="openvault-drift-card-body">
+                                <div class="openvault-drift-summary">${bSummary}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="openvault-drift-footer">
+                        <button class="openvault-drift-keep openvault-dossier-action-btn" data-action="dossier-resolve-drift" data-survivor-id="${aId}" data-absorbed-id="${bId}" data-canon="${canonA}" title="Keep A (earlier) as canon, archive B">
+                            <i class="fa-solid fa-check"></i> Keep A
+                        </button>
+                        <button class="openvault-drift-keep openvault-dossier-action-btn" data-action="dossier-resolve-drift" data-survivor-id="${bId}" data-absorbed-id="${aId}" data-canon="${canonB}" title="Keep B (later) as canon, archive A">
+                            <i class="fa-solid fa-check"></i> Keep B
+                        </button>
+                        <button class="openvault-drift-skip openvault-dossier-action-btn secondary" data-action="dossier-skip-drift" data-a-id="${aId}" data-b-id="${bId}" title="Dismiss; stop flagging this pair as drift">
+                            <i class="fa-solid fa-forward"></i> Dismiss
+                        </button>
+                    </div>
+                </div>
+            `;
+        })
+        .join('');
+
+    // ── Candidate notice (no LLM scan run yet) ───────────────────────────
+    const candidateNotice =
+        warnings.length === 0 && candidates.length > 0
+            ? `<p class="openvault-dossier-canon-help"><i class="fa-solid fa-circle-info"></i> ${candidates.length} potential drift candidate${candidates.length === 1 ? '' : 's'} detected. Run a drift scan to check for contradictions. <button class="openvault-dossier-action-btn openvault-drift-scan-btn" data-action="dossier-run-drift-scan" title="Run an LLM drift scan on this character's reflections"><i class="fa-solid fa-magnifying-glass"></i> Scan for drift</button></p>`
+            : '';
+
+    if (warningCards === '' && candidateNotice === '') return '';
+
+    return `
+        <div class="openvault-dossier-section openvault-dossier-drift">
+            <div class="openvault-dossier-section-title"><i class="fa-solid fa-triangle-exclamation"></i> Drift warnings${warnings.length > 0 ? ` (${warnings.length})` : ''}</div>
+            <p class="openvault-dossier-canon-help">These insights may conflict. Resolving keeps one as canon (the other is archived with its evidence folded in). Drift = two present-tense traits that can't both be true; development (an old state replaced by a new one) is not flagged.</p>
+            ${candidateNotice}
+            <div class="openvault-drift-list">${warningCards}</div>
         </div>
     `;
 }

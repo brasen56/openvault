@@ -192,6 +192,19 @@ export const defaultSettings = {
     llmContradictionSingleCharEnabled: false, // Master toggle for the similarity-gated pass
     llmContradictionSingleCharMaxCalls: 3, // Separate per-batch LLM call budget for it
     llmContradictionSimilarityThreshold: 0.6, // Min embedding cosine to treat two memories as related
+    // Drift Defense — reflection contradiction surfacing (Phase 2 of
+    // ROADMAP_Drift_Defense.md). Flag-only: detects conflicting present-tense
+    // reflections ("trusts the party" vs. "refuses to be vulnerable") as drift
+    // warnings. Runs batched on the same interval cadence as the event pipeline.
+    // Default off — the drift-vs-development judgment is harder per pair and
+    // requires an LLM call. Shares confidence/batch-interval/max-calls with the
+    // event pipeline (those knobs are tuned for the same verifier class).
+    llmReflectionContradictionEnabled: false, // Master toggle for reflection drift detection
+    // Embeddings pre-filter candidate band: thematically adjacent but potentially
+    // opposed. An over-fetch that defers the real decision to the LLM. Below the
+    // Phase 1 near-duplicate band (0.72) so near-dupes don't get re-flagged as
+    // contradictions; high enough to catch semantically-related opposing traits.
+    llmReflectionContradictionCandidateThreshold: 0.45,
     // Bucket balance settings (score-first budgeting with soft chronological balancing)
     bucketMinRepresentation: 0.2, // 20% minimum per bucket
     bucketSoftBalanceBudget: 0.05, // 5% budget for soft balancing

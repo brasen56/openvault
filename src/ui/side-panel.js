@@ -8,6 +8,7 @@
 import { CHARACTERS_KEY, extensionFolderPath, MEMORIES_KEY, UI_DEFAULT_HINTS } from '../constants.js';
 import { getDeps } from '../deps.js';
 import { mergeReflectionInto } from '../reflection/duplicates.js';
+import { batchReflectionContradictionScan, resolveDriftWarning } from '../reflection/contradiction.js';
 import {
     addCanonNote,
     archiveMemories,
@@ -476,6 +477,7 @@ function bindSidePanelEvents() {
         const dossier = buildCharacterDossier(name, data, settings.reflectionThreshold);
         dossier.identityOverride = getIdentityOverride(name);
         dossier._duplicateThreshold = settings.reflectionDuplicateThreshold;
+        dossier._driftCandidateThreshold = settings.llmReflectionContradictionCandidateThreshold;
         $dossier.html(renderCharacterDossier(dossier));
         $row.addClass('openvault-character-expanded');
         $dossier.slideDown(200);
@@ -531,6 +533,12 @@ function bindSidePanelEvents() {
             await handleMergeReflection(this);
         } else if (action === 'dossier-skip-duplicate') {
             await handleSkipDuplicate(this);
+        } else if (action === 'dossier-resolve-drift') {
+            await handleResolveDrift(this);
+        } else if (action === 'dossier-skip-drift') {
+            await handleSkipDrift(this);
+        } else if (action === 'dossier-run-drift-scan') {
+            await handleRunDriftScan(this);
         }
     });
 
@@ -671,7 +679,7 @@ function handleExportDossierLorebook(btn) {
  * place so the UI reflects the corrected vault immediately.
  * @param {HTMLElement} btn
  */
-function refreshDossierFromButton(btn) {
+function refreshDossierFromButton(btn, options = {}) {
     const $row = $(btn).closest('.openvault-character-row');
     const name = $row.data('character');
     if (!name) return;
@@ -682,6 +690,12 @@ function refreshDossierFromButton(btn) {
     const dossier = buildCharacterDossier(name, data, settings.reflectionThreshold);
     dossier.identityOverride = getIdentityOverride(name);
     dossier._duplicateThreshold = settings.reflectionDuplicateThreshold;
+    dossier._driftCandidateThreshold = settings.llmReflectionContradictionCandidateThreshold;
+    // Confirmed drift warnings (from a manual scan) — optional, passed by the
+    // drift scan handler so the dossier renders them immediately.
+    if (Array.isArray(options.driftWarnings)) {
+        dossier._driftWarnings = options.driftWarnings;
+    }
     $dossier.html(renderCharacterDossier(dossier));
 }
 
@@ -795,6 +809,140 @@ async function handleSkipDuplicate(btn) {
     await saveOpenVaultData();
     showToast('info', 'Pair skipped (both kept)');
     refreshDossierFromButton(btn);
+}
+
+/**
+ * Resolve a drift warning (Phase 2 of ROADMAP_Drift_Defense.md).
+ * Keeps the survivor as canon, archives the absorbed one (with its evidence
+ * unioned onto the survivor). If the LLM provided a surviving_summary and the
+ * user chose the matching side, that canon text is applied to the survivor —
+ * making the corrected trait explicit. The action also offers to write a canon
+ * note so future reflections stay constrained. Persists and refreshes.
+ * @param {HTMLElement} btn
+ */
+async function handleResolveDrift(btn) {
+    const survivorId = String($(btn).data('survivor-id') || '');
+    const absorbedId = String($(btn).data('absorbed-id') || '');
+    const canonText = String($(btn).data('canon') || '').trim();
+    if (!survivorId || !absorbedId || survivorId === absorbedId) return;
+    const data = getOpenVaultData();
+    if (!data) return;
+    const memories = data[MEMORIES_KEY] || [];
+    const survivor = memories.find((m) => m.id === survivorId);
+    const absorbed = memories.find((m) => m.id === absorbedId);
+    if (!survivor || !absorbed) {
+        showToast('error', 'Could not find one of those reflections');
+        return;
+    }
+    resolveDriftWarning(survivor, absorbed, canonText || null);
+    const { saveOpenVaultData } = await import('../store/chat-data.js');
+    await saveOpenVaultData();
+
+    // Offer to write a canon note constraining future reflections (the roadmap's
+    // lean: prompt, not auto-write — canon notes are authoritative). Pre-fill
+    // with the surviving trait so the user can just confirm.
+    const name = $(btn).closest('.openvault-character-row').data('character');
+    if (name && confirm('Write a canon note from the surviving trait to constrain future reflections?')) {
+        const noteText = canonText || survivor.summary || '';
+        if (noteText) {
+            await addCanonNote(String(name), noteText);
+        }
+    }
+
+    showToast('success', 'Drift resolved — evidence unioned onto the kept reflection');
+    refreshDossierFromButton(btn);
+}
+
+/**
+ * Dismiss a drift warning: mark both reflections as drift-reviewed so the pair
+ * stops surfacing without resolving. Mirrors the duplicate "skip" path but uses
+ * the `_drift_reviewed` flag. Persists and refreshes the dossier.
+ * @param {HTMLElement} btn
+ */
+async function handleSkipDrift(btn) {
+    const aId = String($(btn).data('a-id') || '');
+    const bId = String($(btn).data('b-id') || '');
+    if (!aId || !bId) return;
+    const data = getOpenVaultData();
+    if (!data) return;
+    const memories = data[MEMORIES_KEY] || [];
+    const a = memories.find((m) => m.id === aId);
+    const b = memories.find((m) => m.id === bId);
+    if (a) a._drift_reviewed = true;
+    if (b) b._drift_reviewed = true;
+    const { saveOpenVaultData } = await import('../store/chat-data.js');
+    await saveOpenVaultData();
+    showToast('info', 'Drift warning dismissed (both kept)');
+    refreshDossierFromButton(btn);
+}
+
+/**
+ * Run a drift scan (Phase 2 of ROADMAP_Drift_Defense.md) on the character whose
+ * dossier contains the button. This is the manual entry point — the batch
+ * interval cadence (inherited from the event pipeline) is the automated path.
+ *
+ * Gated by `llmReflectionContradictionEnabled`. Uses the embeddings pre-filter
+ * to bound the candidate set, then LLM-verifies each candidate pair. Confirmed
+ * drift warnings are surfaced on the dossier card via `_driftWarnings`.
+ * @param {HTMLElement} btn
+ */
+async function handleRunDriftScan(btn) {
+    const name = $(btn).closest('.openvault-character-row').data('character');
+    if (!name) return;
+
+    const settings = getDeps().getExtensionSettings().openvault || {};
+    const enabled = settings.llmReflectionContradictionEnabled ?? false;
+    if (!enabled) {
+        showToast(
+            'warning',
+            'Reflection drift detection is off. Enable it in Settings → Drift Defense.'
+        );
+        return;
+    }
+
+    const data = getOpenVaultData();
+    if (!data) return;
+    const dossier = buildCharacterDossier(name, data, settings.reflectionThreshold);
+    const reflections = dossier._rawReflections || [];
+    if (reflections.length < 2) {
+        showToast('info', 'Not enough reflections to scan for drift');
+        return;
+    }
+
+    // Ensure the analyzed-pair cache exists (shared with the event pipeline).
+    if (!data.contradiction_analyzed) data.contradiction_analyzed = {};
+
+    const $btn = $(btn);
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Scanning…');
+
+    try {
+        const warnings = await batchReflectionContradictionScan(reflections, name, {
+            maxCalls: settings.llmContradictionMaxCalls ?? 5,
+            confidenceThreshold: settings.llmContradictionConfidence ?? 0.7,
+            candidateThreshold: settings.llmReflectionContradictionCandidateThreshold,
+            analyzedCache: data.contradiction_analyzed,
+        });
+
+        // Persist the updated cache so analyzed pairs aren't re-checked.
+        const { saveOpenVaultData } = await import('../store/chat-data.js');
+        await saveOpenVaultData();
+
+        if (warnings.length > 0) {
+            showToast('warning', `Drift scan found ${warnings.length} conflict(s)`);
+        } else {
+            showToast('success', 'No drift detected');
+        }
+
+        // Re-render with the warnings attached.
+        refreshDossierFromButton(btn, { driftWarnings: warnings });
+    } catch (err) {
+        if (err.name !== 'AbortError') {
+            console.error('[OpenVault] Drift scan failed:', err);
+            showToast('error', `Drift scan failed: ${err.message}`);
+        }
+    } finally {
+        $btn.prop('disabled', false).html('<i class="fa-solid fa-magnifying-glass"></i> Scan for drift');
+    }
 }
 
 async function handleClearMemoryDatabase() {

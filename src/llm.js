@@ -15,6 +15,7 @@ import {
     getEdgeConsolidationJsonSchema,
     getEventExtractionJsonSchema,
     getGraphExtractionJsonSchema,
+    getReflectionContradictionJsonSchema,
     getUnifiedReflectionJsonSchema,
 } from './extraction/structured.js';
 import { getSessionSignal, setLastApiCallTime } from './state.js';
@@ -100,6 +101,18 @@ export const LLM_CONFIGS = {
         errorContext: 'Contradiction verification',
         timeoutMs: 60000,
         getJsonSchema: getContradictionVerificationJsonSchema,
+    },
+    // Drift Defense — reflection contradiction surfacing (Phase 2 of
+    // ROADMAP_Drift_Defense.md). Forked LLM verifier for the drift-vs-
+    // development judgment over reflection pairs. Same LLM call shape and
+    // confidence threshold as the event pipeline, but with a forked prompt
+    // and a classification schema (drift / development / consistent).
+    reflectionContradiction: {
+        profileSettingKey: 'extractionProfile',
+        maxTokens: 500,
+        errorContext: 'Reflection drift verification',
+        timeoutMs: 60000,
+        getJsonSchema: getReflectionContradictionJsonSchema,
     },
 };
 

@@ -587,3 +587,55 @@ export function parseContradictionVerificationResponse(content) {
         recoverBareString(data, 'reason')
     );
 }
+
+// --- Reflection Contradiction (Drift Defense Phase 2) Schema ---
+
+/**
+ * Schema for LLM reflection-contradiction verification.
+ *
+ * Forked from `ContradictionVerificationSchema` to support the drift-vs-
+ * development judgment (ROADMAP_Drift_Defense.md → Phase 2). Two reflections
+ * about the same character are **drift** when they describe mutually exclusive
+ * present-tense traits. A superseded past trait plus a newer evolved one is
+ * **development**, not drift.
+ *
+ * `classification` lets the LLM distinguish the three outcomes explicitly:
+ *  - `drift` — two present-tense traits that cannot both be true simultaneously
+ *  - `development` — the newer reflection supersedes the older on the same axis
+ *  - `consistent` — the reflections do not conflict (merely adjacent)
+ */
+export const ReflectionContradictionSchema = z.object({
+    classification: z
+        .enum(['drift', 'development', 'consistent'])
+        .describe('drift = conflicting present-tense traits; development = superseded-then-evolved; consistent = no conflict'),
+    confidence: z
+        .number()
+        .min(0)
+        .max(1)
+        .catch(0.5)
+        .describe('Confidence level of the classification (0.0-1.0)'),
+    reason: z.string().min(1).describe('Brief explanation of the classification'),
+    surviving_summary: z
+        .union([z.string().min(1), z.null()])
+        .default(null)
+        .describe('For drift: the trait that should survive (canon suggestion). Null otherwise.'),
+});
+
+/**
+ * Get jsonSchema for reflection contradiction verification
+ * @returns {Object} ConnectionManager jsonSchema object
+ */
+export function getReflectionContradictionJsonSchema() {
+    return toJsonSchema(ReflectionContradictionSchema, 'ReflectionContradiction');
+}
+
+/**
+ * Parse reflection contradiction verification response
+ * @param {string} content - Raw LLM response
+ * @returns {Object} Validated reflection contradiction classification
+ */
+export function parseReflectionContradictionResponse(content) {
+    return parseStructuredResponse(content, ReflectionContradictionSchema, (data) =>
+        recoverBareString(data, 'reason')
+    );
+}
