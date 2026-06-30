@@ -403,6 +403,10 @@ export function buildCharacterDossier(name, data, reflectionThreshold = 40) {
         },
         aliases: selfNode?.aliases || [],
         canonNotes: data?.canon_notes?.[name] || [],
+        // Raw (unenriched) reflection memory objects, carrying embeddings. Used by
+        // the dossier's near-duplicate suggestions (Phase 1 of ROADMAP_Drift_Defense).
+        // Underscore-prefixed because it's raw store data, not display data.
+        _rawReflections: reflections,
     };
 }
 

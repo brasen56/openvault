@@ -10,6 +10,7 @@ import { isEmbeddingsEnabled } from '../embeddings.js';
 import { escapeHtml } from '../utils/dom.js';
 import { hasEmbedding } from '../utils/embedding-codec.js';
 import { formatMemoryDate, formatMemoryImportance, formatWitnesses, getTransientDecayInfo } from './helpers.js';
+import { findNearDuplicateReflections } from '../reflection/duplicates.js';
 
 // CSS class constants
 const CLASSES = {
@@ -292,6 +293,7 @@ export function renderCharacterDossier(dossier) {
                 <div class="openvault-dossier-section-title"><i class="fa-solid fa-lightbulb"></i> Insights</div>
                 ${renderDossierReflections(reflectionsByLevel)}
             </div>
+            ${renderDossierDuplicateSuggestions(dossier)}
             <div class="openvault-dossier-section">
                 <div class="openvault-dossier-section-title"><i class="fa-solid fa-diagram-project"></i> Relationships</div>
                 ${renderDossierRelationships(relationships)}
@@ -417,6 +419,82 @@ function renderDossierEvidence(evidence) {
             <summary><i class="fa-solid fa-link"></i> Evidence (${evidence.length})</summary>
             <ul class="openvault-dossier-evidence-list">${items}</ul>
         </details>
+    `;
+}
+
+/**
+ * Render near-duplicate reflection suggestions on the dossier (Phase 1 of
+ * ROADMAP_Drift_Defense.md). Surfaces pairs of this character's reflections
+ * whose embedding cosine similarity exceeds the threshold, so the user can
+ * merge redundant insights that slipped past the synthesis-time dedup.
+ *
+ * Reads `dossier._rawReflections` (the unenriched reflection memory objects
+ * with embeddings, attached by the side-panel caller) and
+ * `dossier._duplicateThreshold`. Both are optional — when absent, the section
+ * is omitted, so the dossier renders identically to before on code paths that
+ * don't populate them (e.g. pure-helper tests).
+ *
+ * @param {Object} dossier
+ * @returns {string} HTML (empty string when no duplicate pairs are found)
+ */
+function renderDossierDuplicateSuggestions(dossier) {
+    const rawReflections = dossier?._rawReflections;
+    if (!Array.isArray(rawReflections) || rawReflections.length < 2) return '';
+
+    const pairs = findNearDuplicateReflections(rawReflections, {
+        threshold: dossier?._duplicateThreshold,
+    });
+    if (pairs.length === 0) return '';
+
+    const cards = pairs
+        .map((pair, i) => {
+            const pct = Math.round(pair.cosineSim * 100);
+            const aId = escapeHtml(pair.a.id || '');
+            const bId = escapeHtml(pair.b.id || '');
+            const aSummary = escapeHtml(pair.a.summary || 'No summary');
+            const bSummary = escapeHtml(pair.b.summary || 'No summary');
+            return `
+                <div class="openvault-dup-pair openvault-dossier-dup-pair" data-index="${i}">
+                    <div class="openvault-dup-header">
+                        <span class="openvault-dup-badge">Near-Duplicate</span>
+                        <span class="openvault-dup-scores">${pct}% similar</span>
+                    </div>
+                    <div class="openvault-dup-cards">
+                        <div class="openvault-dup-card openvault-dup-card-a">
+                            <div class="openvault-dup-card-label">A</div>
+                            <div class="openvault-dup-card-body">
+                                <div class="openvault-dup-summary">${aSummary}</div>
+                            </div>
+                        </div>
+                        <div class="openvault-dup-card openvault-dup-card-b">
+                            <div class="openvault-dup-card-label">B</div>
+                            <div class="openvault-dup-card-body">
+                                <div class="openvault-dup-summary">${bSummary}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="openvault-dup-footer">
+                        <button class="openvault-dup-keep openvault-dossier-action-btn" data-action="dossier-merge-reflection" data-survivor-id="${aId}" data-absorbed-id="${bId}" title="Keep A, archive B (unions their evidence)">
+                            <i class="fa-solid fa-check"></i> Keep A
+                        </button>
+                        <button class="openvault-dup-keep openvault-dossier-action-btn" data-action="dossier-merge-reflection" data-survivor-id="${bId}" data-absorbed-id="${aId}" title="Keep B, archive A (unions their evidence)">
+                            <i class="fa-solid fa-check"></i> Keep B
+                        </button>
+                        <button class="openvault-dup-skip openvault-dossier-action-btn secondary" data-action="dossier-skip-duplicate" data-a-id="${aId}" data-b-id="${bId}" title="Keep both; stop suggesting this pair">
+                            <i class="fa-solid fa-forward"></i> Skip
+                        </button>
+                    </div>
+                </div>
+            `;
+        })
+        .join('');
+
+    return `
+        <div class="openvault-dossier-section openvault-dossier-duplicates">
+            <div class="openvault-dossier-section-title"><i class="fa-solid fa-clone"></i> Near-duplicate insights (${pairs.length})</div>
+            <p class="openvault-dossier-canon-help">These insights say similar things. Merging archives one and folds its evidence into the other, keeping the dossier from inflating one theme.</p>
+            <div class="openvault-dup-list">${cards}</div>
+        </div>
     `;
 }
 

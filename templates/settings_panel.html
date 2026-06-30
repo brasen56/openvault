@@ -500,6 +500,16 @@
                         <input type="range" id="openvault_max_reflections" min="10" max="200" step="10" />
                         <small class="openvault-hint">Maximum stored insights per character. Older ones are archived when exceeded</small>
 
+                        <!-- Drift Defense — retrospective reflection dedup (Phase 1) -->
+                        <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);">
+                            <label for="openvault_reflection_duplicate_threshold">
+                                Near-Duplicate Insight Threshold: <span id="openvault_reflection_duplicate_threshold_value">0.72</span>
+                                <small class="openvault-default-hint" data-default-key="reflectionDuplicateThreshold"></small>
+                            </label>
+                            <input type="range" id="openvault_reflection_duplicate_threshold" min="0.50" max="0.85" step="0.01" />
+                            <small class="openvault-hint">Surfaces pairs of this character's insights that say the same thing (e.g. "vain" vs "prideful") as merge suggestions on the dossier. Sits below the synthesis-time dedup band (0.80) so it catches what that gate missed. Lower = more suggestions.</small>
+                        </div>
+
                         <!-- Injection toggle -->
                         <div style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
                             <label class="checkbox_label">

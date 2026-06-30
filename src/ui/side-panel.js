@@ -7,6 +7,7 @@
 
 import { CHARACTERS_KEY, extensionFolderPath, MEMORIES_KEY, UI_DEFAULT_HINTS } from '../constants.js';
 import { getDeps } from '../deps.js';
+import { mergeReflectionInto } from '../reflection/duplicates.js';
 import {
     addCanonNote,
     archiveMemories,
@@ -474,6 +475,7 @@ function bindSidePanelEvents() {
         const settings = getDeps().getExtensionSettings().openvault || {};
         const dossier = buildCharacterDossier(name, data, settings.reflectionThreshold);
         dossier.identityOverride = getIdentityOverride(name);
+        dossier._duplicateThreshold = settings.reflectionDuplicateThreshold;
         $dossier.html(renderCharacterDossier(dossier));
         $row.addClass('openvault-character-expanded');
         $dossier.slideDown(200);
@@ -525,6 +527,10 @@ function bindSidePanelEvents() {
             await handleAddCanonNote(this);
         } else if (action === 'dossier-remove-canon-note') {
             await handleRemoveCanonNote(this);
+        } else if (action === 'dossier-merge-reflection') {
+            await handleMergeReflection(this);
+        } else if (action === 'dossier-skip-duplicate') {
+            await handleSkipDuplicate(this);
         }
     });
 
@@ -675,6 +681,7 @@ function refreshDossierFromButton(btn) {
     const settings = getDeps().getExtensionSettings().openvault || {};
     const dossier = buildCharacterDossier(name, data, settings.reflectionThreshold);
     dossier.identityOverride = getIdentityOverride(name);
+    dossier._duplicateThreshold = settings.reflectionDuplicateThreshold;
     $dossier.html(renderCharacterDossier(dossier));
 }
 
@@ -738,6 +745,56 @@ async function handleRemoveCanonNote(btn) {
         showToast('success', 'Canon note removed');
         refreshDossierFromButton(btn);
     }
+}
+
+/**
+ * Merge two near-duplicate reflections (Phase 1 of ROADMAP_Drift_Defense.md).
+ * Keeps the survivor, archives the absorbed one (with its evidence unioned onto
+ * the survivor), then persists and refreshes the dossier so the pair stops
+ * surfacing. No confirmation prompt — the action is reversible from Manage.
+ * @param {HTMLElement} btn
+ */
+async function handleMergeReflection(btn) {
+    const survivorId = String($(btn).data('survivor-id') || '');
+    const absorbedId = String($(btn).data('absorbed-id') || '');
+    if (!survivorId || !absorbedId || survivorId === absorbedId) return;
+    const data = getOpenVaultData();
+    if (!data) return;
+    const memories = data[MEMORIES_KEY] || [];
+    const survivor = memories.find((m) => m.id === survivorId);
+    const absorbed = memories.find((m) => m.id === absorbedId);
+    if (!survivor || !absorbed) {
+        showToast('error', 'Could not find one of those reflections');
+        return;
+    }
+    mergeReflectionInto(survivor, absorbed);
+    const { saveOpenVaultData } = await import('../store/chat-data.js');
+    await saveOpenVaultData();
+    showToast('success', 'Merged — evidence unioned onto the kept reflection');
+    refreshDossierFromButton(btn);
+}
+
+/**
+ * Skip a near-duplicate suggestion: mark both reflections as reviewed so the
+ * pair stops surfacing without merging. Mirrors the event duplicates "skip"
+ * path (`_dup_reviewed`). Persists and refreshes the dossier.
+ * @param {HTMLElement} btn
+ */
+async function handleSkipDuplicate(btn) {
+    const aId = String($(btn).data('a-id') || '');
+    const bId = String($(btn).data('b-id') || '');
+    if (!aId || !bId) return;
+    const data = getOpenVaultData();
+    if (!data) return;
+    const memories = data[MEMORIES_KEY] || [];
+    const a = memories.find((m) => m.id === aId);
+    const b = memories.find((m) => m.id === bId);
+    if (a) a._dup_reviewed = true;
+    if (b) b._dup_reviewed = true;
+    const { saveOpenVaultData } = await import('../store/chat-data.js');
+    await saveOpenVaultData();
+    showToast('info', 'Pair skipped (both kept)');
+    refreshDossierFromButton(btn);
 }
 
 async function handleClearMemoryDatabase() {

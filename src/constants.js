@@ -162,6 +162,12 @@ export const defaultSettings = {
     // Reflection control toggles
     reflectionGenerationEnabled: true, // Enable automatic reflection generation
     reflectionInjectionEnabled: true, // Enable reflection injection into context
+    // Retrospective reflection dedup (ROADMAP_Drift_Defense.md → Phase 1). Sits
+    // below the synthesis-time replace band (0.80) so the dossier surfaces what
+    // the synthesis-time dedup missed. Shown on the dossier card as merge suggestions.
+    // Literal 0.72 mirrors DEFAULT_REFLECTION_DUPLICATE_THRESHOLD below; inlined
+    // here because `defaultSettings` is evaluated before the later const declaration.
+    reflectionDuplicateThreshold: 0.72,
     // Reranker settings (optional second-pass reranking via external API)
     rerankerEnabled: false, // Enable/disable reranker
     rerankerApiUrl: '', // e.g., 'https://api.jina.ai/v1' or 'http://localhost:11434'
@@ -294,6 +300,11 @@ export const REFLECTION_DEDUP_REJECT_THRESHOLD = 0.9;
 /** Reflection deduplication: replace threshold (auto: reject - 0.10) */
 export const REFLECTION_DEDUP_REPLACE_THRESHOLD = 0.8;
 
+/** Retrospective reflection dedup: cosine threshold for the second-line scan
+ * (ROADMAP_Drift_Defense.md → Phase 1). Deliberately below the synthesis-time
+ * replace band (0.80) so this surfaces what `filterDuplicateReflections` missed. */
+export const DEFAULT_REFLECTION_DUPLICATE_THRESHOLD = 0.72;
+
 /** Reflection decay: messages before reflections lose priority */
 export const REFLECTION_DECAY_THRESHOLD = 750;
 
@@ -387,6 +398,8 @@ export const UI_DEFAULT_HINTS = {
     bucketSoftBalanceBudget: defaultSettings.bucketSoftBalanceBudget,
     // Reflection count limit
     maxReflectionsPerCharacter: defaultSettings.maxReflectionsPerCharacter,
+    // Drift Defense — retrospective reflection dedup
+    reflectionDuplicateThreshold: defaultSettings.reflectionDuplicateThreshold,
     // Dedup
     dedupJaccardThreshold: defaultSettings.dedupJaccardThreshold,
     // Auto-hide

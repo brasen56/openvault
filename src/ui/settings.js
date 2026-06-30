@@ -715,6 +715,7 @@ const RESETTABLE_KEYS = [
     'reflectionThreshold',
     'maxInsightsPerReflection',
     'maxReflectionsPerCharacter',
+    'reflectionDuplicateThreshold',
     'alpha',
     'forgetfulnessBaseLambda',
     'vectorSimilarityThreshold',
@@ -1134,6 +1135,7 @@ function bindUIElements() {
 
     // Max reflections per character
     bindSetting('max_reflections', 'maxReflectionsPerCharacter');
+    bindSetting('reflection_duplicate_threshold', 'reflectionDuplicateThreshold', 'float');
 
     // Jaccard dedup threshold
     bindSetting('dedup_jaccard', 'dedupJaccardThreshold', 'float');
@@ -1991,6 +1993,10 @@ export function updateUI() {
     // Max reflections per character — prevents reflection memory bloat
     $('#openvault_max_reflections').val(settings.maxReflectionsPerCharacter);
     $('#openvault_max_reflections_value').text(settings.maxReflectionsPerCharacter);
+
+    // Drift Defense — retrospective reflection dedup threshold (Phase 1)
+    $('#openvault_reflection_duplicate_threshold').val(settings.reflectionDuplicateThreshold);
+    $('#openvault_reflection_duplicate_threshold_value').text(settings.reflectionDuplicateThreshold);
 
     // Jaccard dedup threshold — token-overlap filter for near-duplicates
     $('#openvault_dedup_jaccard').val(settings.dedupJaccardThreshold);
