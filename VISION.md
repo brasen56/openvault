@@ -1,7 +1,8 @@
 # VISION — OpenVault
 
 What OpenVault is *for*. This is the north star that scopes every roadmap
-(`ROADMAP_Dossier.md`, `ROADMAP_Batch_operations.md`, `ROADMAP_Future.md`).
+(`ROADMAP_Dossier.md`, `ROADMAP_Drift_Defense.md`, `ROADMAP_Profile.md`,
+`ROADMAP_Batch_operations.md`, `ROADMAP_Future.md`).
 When a feature idea doesn't serve this, it belongs in someone else's extension.
 
 ---
@@ -139,6 +140,31 @@ adapter that, when enabled, reads VectFox's structured EventBase events
 extraction remains the default for anyone not on VectFox or with pre-VectFox
 long histories (per the polled user base). This is the only remaining large
 piece — it stays behind extraction's existing seam (`src/extraction/`).
+
+**"Extraction" is three outputs, not one.** Disabling OpenVault extraction in
+favor of VectFox events turns off the per-message LLM cost (the win), but
+extraction also builds the **graph** (nodes/edges/relationships) and
+**character_states** (emotion, known_events) — not just event memories. The
+Stage 3 adapter must re-point *all three* at VectFox's events (its
+`characters`/`concepts`/`cause`/`result` can supply event records + co-occurrence
+edges), or the relationship view and emotion state silently stagnate while
+reflections keep flowing. Reflection *synthesis* still runs — it's the gem, and
+it's cheap/periodic, not per-message.
+
+**Migration & identity reconciliation (prerequisite, not optional).** For a user
+with prior OpenVault data, the danger is *not* data loss — existing memories,
+reflections, character_states, and graph nodes persist and keep feeding the
+dossier; a reflection doesn't care whether its `source_ids` came from OpenVault
+or VectFox. The danger is **duplication**: VectFox's `characters` strings come
+from a different pipeline with different normalization, so an ingested "Astarion"
+that doesn't resolve to the existing node spawns a *twin* character with a *split
+reflection history*. This is the same class as the merge-redirect bug — except no
+redirect links the two, because they never shared a pipeline. So Stage 3 needs a
+one-time **identity reconciliation** at the seam (map VectFox names onto existing
+canonical names via `normalizeKey` + the alias/merge-redirect system; route the
+ambiguous cases to the duplicates UI) *before* the first ingest. Brand-new chats
+are unaffected — this is purely a prior-user migration concern. This is a concrete
+reason drift-defense + the merge machinery land **before** Stage 3.
 
 ### Pre-existing test failures (unrelated to the pivot — fix when convenient)
 
