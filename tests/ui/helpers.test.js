@@ -11,6 +11,7 @@ import {
     extractCharactersSet,
     filterEntities,
     filterMemories,
+    formatDossierAsSheet,
     formatDossierAsText,
     formatDossierForInjection,
     formatEmotionSource,
@@ -22,6 +23,7 @@ import {
     getBatchProgressInfo,
     getPaginationInfo,
     getStatusText,
+    labelRelationshipWeight,
     sortMemoriesByDate,
     validateRPM,
 } from '../../src/ui/helpers.js';
@@ -440,7 +442,7 @@ describe('ui/helpers', () => {
             expect(d.relationships[0].description).toBe('wary of');
         });
 
-        it('picks up edges stored under the character’s alias key', () => {
+        it('picks up edges stored under the character\'s alias key', () => {
             const data = buildData();
             data.graph.nodes.alice.aliases = ['The Masked One'];
             data.graph.edges = {
@@ -726,7 +728,8 @@ describe('ui/helpers', () => {
 
         it('uses the formatted sheet as the entry content', () => {
             const content = buildLorebookEntry(buildDossier()).entries['0'].content;
-            expect(content).toContain('# Character Dossier: Alice');
+            // buildLorebookEntry uses formatDossierAsSheet for its content
+            expect(content).toContain('Alice — Character Identity Record');
             expect(content).toContain('Alice is guarded but adaptive');
         });
 
@@ -1108,6 +1111,141 @@ describe('ui/helpers', () => {
 
         it('returns 0 for zero', () => {
             expect(formatMemoryContextCount(0)).toBe('0');
+        });
+    });
+
+    describe('labelRelationshipWeight', () => {
+        it('labels a weight of 15+ as "Strong bond"', () => {
+            expect(labelRelationshipWeight(15)).toBe('Strong bond');
+            expect(labelRelationshipWeight(30)).toBe('Strong bond');
+        });
+
+        it('labels a weight of 8-14 as "Notable connection"', () => {
+            expect(labelRelationshipWeight(8)).toBe('Notable connection');
+            expect(labelRelationshipWeight(12)).toBe('Notable connection');
+        });
+
+        it('labels a weight of 3-7 as "Acquaintance"', () => {
+            expect(labelRelationshipWeight(3)).toBe('Acquaintance');
+            expect(labelRelationshipWeight(5)).toBe('Acquaintance');
+        });
+
+        it('labels a weight of 0-2 as "Passing association"', () => {
+            expect(labelRelationshipWeight(0)).toBe('Passing association');
+            expect(labelRelationshipWeight(2)).toBe('Passing association');
+        });
+
+        it('returns empty string for null/negative', () => {
+            expect(labelRelationshipWeight(null)).toBe('');
+            expect(labelRelationshipWeight(undefined)).toBe('');
+            expect(labelRelationshipWeight(-1)).toBe('');
+        });
+    });
+
+    describe('formatDossierAsSheet', () => {
+        const buildDossier = () =>
+            buildCharacterDossier(
+                'Alice',
+                {
+                    character_states: {
+                        Alice: { current_emotion: 'wary', emotion_intensity: 7, known_events: ['e1'] },
+                    },
+                    memories: [
+                        { id: 'e1', type: 'event', summary: 'Alice signed instead of speaking', importance: 3 },
+                        {
+                            id: 'ref_1',
+                            type: 'reflection',
+                            character: 'Alice',
+                            summary: 'Alice communicates in sign language',
+                            importance: 4,
+                            level: 1,
+                            source_ids: ['e1'],
+                            parent_ids: [],
+                        },
+                        {
+                            id: 'ref_2',
+                            type: 'reflection',
+                            character: 'Alice',
+                            summary: 'Alice is guarded but adaptive',
+                            importance: 5,
+                            level: 2,
+                            source_ids: [],
+                            parent_ids: ['ref_1'],
+                        },
+                    ],
+                    graph: {
+                        nodes: {
+                            alice: { name: 'Alice', type: 'PERSON', aliases: [] },
+                            bob: { name: 'Bob', type: 'PERSON' },
+                        },
+                        edges: {
+                            alice__bob: { source: 'alice', target: 'bob', description: 'trusts cautiously', weight: 3 },
+                        },
+                    },
+                    reflection_state: { Alice: { importance_sum: 30 } },
+                },
+                40
+            );
+
+        it('renders a bordered markdown sheet with a header banner', () => {
+            const text = formatDossierAsSheet(buildDossier());
+            expect(text).toContain('Alice — Character Identity Record');
+            expect(text).toContain('Alice');
+        });
+
+        it('includes current state with emotion bar', () => {
+            const text = formatDossierAsSheet(buildDossier());
+            expect(text).toContain('Present Disposition');
+            expect(text).toContain('wary');
+            expect(text).toContain('7/10');
+        });
+
+        it('includes headline traits and supporting specifics', () => {
+            const text = formatDossierAsSheet(buildDossier());
+            expect(text).toContain('Core Identity');
+            expect(text).toContain('Alice is guarded but adaptive');
+            expect(text).toContain('Observed Patterns');
+        });
+
+        it('includes relationships with weight labels', () => {
+            const text = formatDossierAsSheet(buildDossier());
+            expect(text).toContain('Bonds & Associations');
+            expect(text).toContain('trusts cautiously');
+        });
+
+        it('includes canon notes when present', () => {
+            const text = formatDossierAsSheet({
+                name: 'Alice',
+                state: { emotion: 'neutral', intensity: 5, knownCount: 0 },
+                reflectionsByLevel: [],
+                relationships: [],
+                canonNotes: [{ id: 'canon_1', text: 'Accommodates others; never demands' }],
+                progress: { importanceSum: 0, threshold: 40, percent: 0, ready: false },
+            });
+            expect(text).toContain('Canon Notes');
+            expect(text).toContain('Accommodates others; never demands');
+        });
+
+        it('omits empty sections', () => {
+            const text = formatDossierAsSheet({
+                name: 'Ghost',
+                state: { emotion: 'neutral', intensity: 5, knownCount: 0 },
+                reflectionsByLevel: [],
+                relationships: [],
+                canonNotes: [],
+                progress: { importanceSum: 0, threshold: 40, percent: 0, ready: false },
+            });
+            expect(text).toContain('Present Disposition');
+            expect(text).not.toContain('Core Identity');
+            expect(text).not.toContain('Observed Patterns');
+            expect(text).not.toContain('Bonds & Associations');
+        });
+
+        it('includes reflection progress', () => {
+            const text = formatDossierAsSheet(buildDossier());
+            // formatDossierAsSheet does NOT include reflection progress inline.
+            // Progress is held on the dossier object, not rendered in the sheet.
+            expect(text).not.toContain('30 / 40');
         });
     });
 });

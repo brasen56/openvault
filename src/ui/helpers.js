@@ -583,6 +583,145 @@ export function formatDossierForInjection(dossier, { maxTokens = 2000 } = {}) {
 }
 
 /**
+ * Map graph edge weight to a human-readable relationship strength label.
+ *
+ * @param {number|undefined} weight
+ * @returns {string}
+ */
+export function labelRelationshipWeight(weight) {
+    if (weight == null || weight < 0) return '';
+    if (weight >= 15) return 'Strong bond';
+    if (weight >= 8) return 'Notable connection';
+    if (weight >= 3) return 'Acquaintance';
+    return 'Passing association';
+}
+
+/**
+ * Render a dossier as a human-readable character sheet / CV in plain markdown.
+ *
+ * Unlike `formatDossierAsText` (which dumps all data verbatim) and
+ * `formatDossierForInjection` (which aggressively caps for token budget),
+ * this formatter produces a polished reference document with:
+ *   - A narrative blurb assembled from top-level synthesis traits
+ *   - Section caps suitable for human reading (not a raw dump)
+ *   - Readable relationship weight labels instead of cryptic numbers
+ *   - Descriptive section names (`Core Identity`, `Observed Patterns`, etc.)
+ *
+ * Pure — no DOM, no mutation.
+ *
+ * @param {ReturnType<typeof buildCharacterDossier>} dossier
+ * @param {Object} [options]
+ * @param {number} [options.headlineCap=15]   Max headline traits (level >= 2)
+ * @param {number} [options.specificsCap=20]  Max supporting specifics (level 1)
+ * @param {number} [options.relationshipCap=10] Max relationships
+ * @param {boolean} [options.includeFooter=true]
+ * @returns {string}
+ */
+export function formatDossierAsSheet(dossier, {
+    headlineCap = 15,
+    specificsCap = 20,
+    relationshipCap = 10,
+    includeFooter = true,
+} = {}) {
+    const name = dossier?.name || 'Unknown';
+    const state = dossier?.state || {};
+    const byLevel = dossier?.reflectionsByLevel || [];
+    const relationships = dossier?.relationships || [];
+    const canonNotes = dossier?.canonNotes || [];
+
+    // Split reflections by synthesis level.
+    const level3 = [];
+    const headline = [];
+    const specifics = [];
+    for (const group of byLevel) {
+        const items = group.reflections || [];
+        if (group.level >= 3) {
+            for (const r of items) level3.push(r.summary || '');
+        }
+        const bucket = group.level >= 2 ? headline : specifics;
+        for (const r of items) bucket.push(r.summary || '');
+    }
+
+    const headlineTrimmed = headline.slice(0, headlineCap);
+    const specificsTrimmed = specifics.slice(0, specificsCap);
+    const relationshipsTrimmed = relationships.slice(0, relationshipCap);
+
+    const lines = [];
+    lines.push(`# ${name} — Character Identity Record`);
+    lines.push('');
+
+    // ── Narrative blurb (level-3 synthesis) ─────────────────────────
+    if (level3.length >= 2) {
+        const blurb = level3.slice(0, 5).join('. ') + '.';
+        lines.push(blurb);
+        lines.push('');
+    }
+
+    // ── Present Disposition ─────────────────────────────────────────
+    lines.push('## Present Disposition');
+    const emotionLabel = state.emotion || 'neutral';
+    const emotionSource = state.emotionSource ? ` ${state.emotionSource}` : '';
+    const intensityLabel = state.intensity != null ? ` (strength ${state.intensity}/10)` : '';
+    lines.push(`Currently **${emotionLabel}**${emotionSource}${intensityLabel}. Aware of ${state.knownCount ?? 0} recent events.`);
+    lines.push('');
+
+    // ── Canon Notes (authoritative) ─────────────────────────────────
+    if (canonNotes.length > 0) {
+        lines.push('## Canon Notes');
+        lines.push('*Authoritative user corrections that override any inferred pattern:*');
+        for (const note of canonNotes) {
+            lines.push(`- ${note.text || ''}`.trim());
+        }
+        lines.push('');
+    }
+
+    // ── Core Identity (level >= 2) ──────────────────────────────────
+    if (headlineTrimmed.length > 0) {
+        lines.push('## Core Identity');
+        for (const item of headlineTrimmed) lines.push(`- ${item}`);
+        if (headline.length > headlineCap) {
+            lines.push(`  *(+${headline.length - headlineCap} more traits not shown)*`);
+        }
+        lines.push('');
+    }
+
+    // ── Observed Patterns (level 1) ─────────────────────────────────
+    if (specificsTrimmed.length > 0) {
+        lines.push('## Observed Patterns');
+        for (const item of specificsTrimmed) lines.push(`- ${item}`);
+        if (specifics.length > specificsCap) {
+            lines.push(`  *(+${specifics.length - specificsCap} more patterns not shown)*`);
+        }
+        lines.push('');
+    }
+
+    // ── Bonds & Associations ────────────────────────────────────────
+    if (relationshipsTrimmed.length > 0) {
+        lines.push('## Bonds & Associations');
+        for (const rel of relationshipsTrimmed) {
+            const label = labelRelationshipWeight(rel.weight);
+            const tag = label ? `*(${label})*` : '';
+            const desc = rel.description || 'related';
+            if (tag) {
+                lines.push(`- **${rel.name}** ${tag} — ${desc}`);
+            } else {
+                lines.push(`- **${rel.name}** — ${desc}`);
+            }
+        }
+        if (relationships.length > relationshipCap) {
+            lines.push(`  *(+${relationships.length - relationshipCap} more associations not shown)*`);
+        }
+        lines.push('');
+    }
+
+    if (includeFooter) {
+        lines.push('---');
+        lines.push('*Compiled by OpenVault — Character Identity Record*');
+    }
+    return lines.join('\n');
+}
+
+/**
  * Build a standalone SillyTavern World Info (lorebook) JSON object from a
  * dossier, so it can be imported directly via ST's World Info import without
  * hand-editing.
@@ -590,7 +729,7 @@ export function formatDossierForInjection(dossier, { maxTokens = 2000 } = {}) {
  * One entry per character: the activation `key` is the character's display
  * name plus their graph aliases (so the entry triggers however they're
  * referred to), and `content` is the readable sheet from
- * `formatDossierAsText`. Only ST's documented World Info fields are emitted —
+ * `formatDossierAsSheet`. Only ST's documented World Info fields are emitted —
  * no OpenVault-internal ids leak into the entry.
  *
  * Pure — no DOM, no mutation.
@@ -612,7 +751,7 @@ export function buildLorebookEntry(dossier) {
         key: keys.length > 0 ? keys : [name],
         keysecondary: [],
         comment: `OpenVault Dossier: ${name}`,
-        content: formatDossierAsText(dossier),
+        content: formatDossierAsSheet(dossier),
         constant: false,
         vectorized: false,
         selective: true,

@@ -44,6 +44,7 @@ import {
     buildLorebookEntry,
     filterEntities,
     filterMemories,
+    formatDossierAsSheet,
     formatDossierAsText,
     formatMemoryDate,
     formatMemoryImportance,
@@ -642,12 +643,12 @@ function buildDossierFromButton(btn) {
     return buildCharacterDossier(name, data, settings.reflectionThreshold);
 }
 
-/** Copy a character dossier to the clipboard as plain text (read-only export). */
+/** Copy a character dossier to the clipboard as a formatted character sheet. */
 async function handleCopyDossierText(btn) {
     try {
         const dossier = buildDossierFromButton(btn);
         if (!dossier) return;
-        await navigator.clipboard.writeText(formatDossierAsText(dossier));
+        await navigator.clipboard.writeText(formatDossierAsSheet(dossier));
         showToast('success', `Dossier for "${dossier.name}" copied to clipboard`);
     } catch (err) {
         console.error('[OpenVault] Dossier copy error:', err);
