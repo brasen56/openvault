@@ -524,6 +524,20 @@
                             <small class="openvault-hint">Minimum cosine similarity between an insight and its cited evidence for it to count as grounded. Below this floor, the insight is flagged as ungrounded. 0.30 is deliberately low — the goal is to catch completely unrelated text, not enforce tight paraphrasing.</small>
                         </div>
 
+                        <!-- Drift Defense — reflection contradiction / drift detection (Phase 2) -->
+                        <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);">
+                            <label class="checkbox_label">
+                                <input type="checkbox" id="openvault_reflection_contradiction_enabled" />
+                                <span>Drift detection (conflicting insights)</span>
+                            </label>
+                            <small class="openvault-hint">Surfaces pairs of this character's insights that describe mutually-exclusive present-tense states (e.g. "trusts the party" vs. "refuses to be vulnerable") as drift warnings on the dossier. Distinguishes drift from legitimate character development using timestamps. Uses an LLM call per candidate pair (shares the contradiction API settings below). Default off — enable to unlock the "Scan for drift" button on each dossier card.</small>
+                            <label for="openvault_reflection_contradiction_candidate_threshold" style="display:block; margin-top: 8px;">
+                                Drift Candidate Threshold: <span id="openvault_reflection_contradiction_candidate_threshold_value">0.45</span>
+                            </label>
+                            <input type="range" id="openvault_reflection_contradiction_candidate_threshold" min="0.20" max="0.70" step="0.01" />
+                            <small class="openvault-hint">Minimum cosine similarity for two insights to be considered a potential drift pair (the embeddings pre-filter band). Thematically adjacent but below the near-duplicate band (0.72). Higher = fewer candidates (cheaper scans); lower = more candidates (broader net).</small>
+                        </div>
+
                         <!-- Injection toggle -->
                         <div style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
                             <label class="checkbox_label">

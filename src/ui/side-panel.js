@@ -7,8 +7,8 @@
 
 import { CHARACTERS_KEY, extensionFolderPath, MEMORIES_KEY, UI_DEFAULT_HINTS } from '../constants.js';
 import { getDeps } from '../deps.js';
-import { mergeReflectionInto } from '../reflection/duplicates.js';
 import { batchReflectionContradictionScan, resolveDriftWarning } from '../reflection/contradiction.js';
+import { mergeReflectionInto } from '../reflection/duplicates.js';
 import {
     addCanonNote,
     archiveMemories,
@@ -845,6 +845,20 @@ async function handleResolveDrift(btn) {
         return;
     }
     resolveDriftWarning(survivor, absorbed, canonText || null);
+
+    // If canon text changed the survivor's summary, its embedding is now stale
+    // (resolveDriftWarning drops it). Re-embed so downstream dedup/contradiction/
+    // grounding checks compare against a vector that matches the new text.
+    // Best-effort: failures are logged but don't block the resolution.
+    if (canonText && typeof canonText === 'string' && canonText.trim()) {
+        try {
+            const { enrichEventsWithEmbeddings } = await import('../embeddings.js');
+            await enrichEventsWithEmbeddings([survivor]);
+        } catch (err) {
+            console.warn('[OpenVault] Failed to re-embed survivor after drift resolution:', err.message);
+        }
+    }
+
     const { saveOpenVaultData } = await import('../store/chat-data.js');
     await saveOpenVaultData();
 
@@ -903,10 +917,7 @@ async function handleRunDriftScan(btn) {
     const settings = getDeps().getExtensionSettings().openvault || {};
     const enabled = settings.llmReflectionContradictionEnabled ?? false;
     if (!enabled) {
-        showToast(
-            'warning',
-            'Reflection drift detection is off. Enable it in Settings → Drift Defense.'
-        );
+        showToast('warning', 'Reflection drift detection is off. Enable it in Settings → Drift Defense.');
         return;
     }
 

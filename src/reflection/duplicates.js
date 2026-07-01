@@ -17,15 +17,13 @@
  * ROADMAP_Drift_Defense.md → Phase 1.
  */
 
+import { DEFAULT_REFLECTION_DUPLICATE_THRESHOLD } from '../constants.js';
 import { cosineSimilarity } from '../retrieval/math.js';
 import { getEmbedding, hasEmbedding } from '../utils/embedding-codec.js';
 
-/**
- * Default cosine-similarity threshold for retrospective near-duplicate detection.
- * Sits below the synthesis-time replace band (REFLECTION_DEDUP_REPLACE_THRESHOLD
- * = 0.80) so this module surfaces what that gate missed.
- */
-export const DEFAULT_REFLECTION_DUPLICATE_THRESHOLD = 0.72;
+// Re-export so existing importers (if any) still resolve. The single source of
+// truth lives in `constants.js`; this avoids the two copies silently diverging.
+export { DEFAULT_REFLECTION_DUPLICATE_THRESHOLD };
 
 /**
  * A candidate near-duplicate pair of reflections.

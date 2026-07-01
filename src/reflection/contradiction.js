@@ -30,12 +30,12 @@
 
 import { defaultSettings, extensionName } from '../constants.js';
 import { getDeps } from '../deps.js';
-import { callLLM, callOpenAICompat, LLM_CONFIGS } from '../llm.js';
 import { parseReflectionContradictionResponse } from '../extraction/structured.js';
+import { callLLM, callOpenAICompat, LLM_CONFIGS } from '../llm.js';
 import { record } from '../perf/store.js';
-import { cyrb53, getEmbedding, hasEmbedding } from '../utils/embedding-codec.js';
-import { logDebug, logWarn } from '../utils/logging.js';
 import { cosineSimilarity } from '../retrieval/math.js';
+import { cyrb53, deleteEmbedding, getEmbedding, hasEmbedding } from '../utils/embedding-codec.js';
+import { logDebug, logWarn } from '../utils/logging.js';
 
 /**
  * Default cosine-similarity threshold for the embeddings pre-filter candidate
@@ -79,9 +79,7 @@ export function findContradictionCandidates(reflections, options = {}) {
     const threshold = Number.isFinite(options?.threshold)
         ? Math.max(0, Math.min(1, options.threshold))
         : DEFAULT_REFLECTION_CONTRADICTION_CANDIDATE_THRESHOLD;
-    const dupBand = Number.isFinite(options?.dupBand)
-        ? Math.max(0, Math.min(1, options.dupBand))
-        : 0.72; // DEFAULT_REFLECTION_DUPLICATE_THRESHOLD — Phase 1's floor
+    const dupBand = Number.isFinite(options?.dupBand) ? Math.max(0, Math.min(1, options.dupBand)) : 0.72; // DEFAULT_REFLECTION_DUPLICATE_THRESHOLD — Phase 1's floor
 
     if (!Array.isArray(reflections) || reflections.length < 2) return [];
 
@@ -287,14 +285,17 @@ export async function verifyReflectionContradiction(reflectionA, reflectionB, ch
 
     // Gate: only confirm drift when confidence is high enough. Development and
     // consistent classifications are always returned (for logging), but only
-    // drift below threshold is downgraded to "consistent" so it doesn't surface
-    // as a warning.
+    // drift below threshold is downgraded to "uncertain" so it doesn't surface
+    // as a warning. "uncertain" is semantically distinct from "consistent"
+    // (which means "these reflections do not conflict") — it means "we couldn't
+    // confirm drift at the required confidence," so the result is accurate and
+    // downstream consumers can distinguish the two states.
     let classification = parsed.classification;
     if (classification === 'drift' && parsed.confidence < confidenceThreshold) {
         logDebug(
-            `Reflection drift: downgrading low-confidence drift (${parsed.confidence.toFixed(2)} < ${confidenceThreshold}) to consistent`
+            `Reflection drift: downgrading low-confidence drift (${parsed.confidence.toFixed(2)} < ${confidenceThreshold}) to uncertain`
         );
-        classification = 'consistent';
+        classification = 'uncertain';
     }
 
     logDebug(
@@ -350,11 +351,7 @@ export async function verifyReflectionContradiction(reflectionA, reflectionB, ch
  * @returns {Promise<DriftWarning[]>} Confirmed drift warnings (flag-only)
  */
 export async function batchReflectionContradictionScan(reflections, characterName, options = {}) {
-    const {
-        maxCalls = 5,
-        confidenceThreshold = 0.7,
-        analyzedCache = null,
-    } = options;
+    const { maxCalls = 5, confidenceThreshold = 0.7, analyzedCache = null } = options;
 
     const deps = getDeps();
     const settings = deps.getExtensionSettings()?.[extensionName] || {};
@@ -442,9 +439,16 @@ export function resolveDriftWarning(survivor, absorbed, canonText = null) {
     survivor.source_ids = unionIds(survivor.source_ids, absorbed.source_ids);
     survivor.parent_ids = unionIds(survivor.parent_ids, absorbed.parent_ids);
 
-    // Apply canon text if provided (makes the surviving trait explicit).
+    // Apply canon text if provided (makes the surviving trait explicit). When
+    // the summary changes, the survivor's existing embedding is now stale — it
+    // was computed from the OLD text. Drop it here (pure — no I/O) so
+    // downstream dedup/contradiction/grounding checks don't compare against a
+    // vector that no longer matches. The caller is responsible for triggering
+    // a re-embedding (e.g. `enrichEventsWithEmbeddings([survivor])`); see
+    // `handleResolveDrift` in side-panel.js.
     if (canonText && typeof canonText === 'string' && canonText.trim()) {
         survivor.summary = canonText.trim();
+        deleteEmbedding(survivor);
     }
 
     // Archive the absorbed reflection.

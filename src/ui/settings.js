@@ -718,6 +718,8 @@ const RESETTABLE_KEYS = [
     'reflectionDuplicateThreshold',
     'reflectionGroundingCheckEnabled',
     'reflectionGroundingThreshold',
+    'llmReflectionContradictionEnabled',
+    'llmReflectionContradictionCandidateThreshold',
     'alpha',
     'forgetfulnessBaseLambda',
     'vectorSimilarityThreshold',
@@ -1141,6 +1143,13 @@ function bindUIElements() {
     // Drift Defense — grounding check (Phase 3)
     bindSetting('reflection_grounding_check_enabled', 'reflectionGroundingCheckEnabled', 'bool');
     bindSetting('reflection_grounding_threshold', 'reflectionGroundingThreshold', 'float');
+    // Drift Defense — reflection contradiction / drift detection (Phase 2)
+    bindSetting('reflection_contradiction_enabled', 'llmReflectionContradictionEnabled', 'bool');
+    bindSetting(
+        'reflection_contradiction_candidate_threshold',
+        'llmReflectionContradictionCandidateThreshold',
+        'float'
+    );
 
     // Jaccard dedup threshold
     bindSetting('dedup_jaccard', 'dedupJaccardThreshold', 'float');
@@ -2004,9 +2013,24 @@ export function updateUI() {
     $('#openvault_reflection_duplicate_threshold_value').text(settings.reflectionDuplicateThreshold);
 
     // Drift Defense — grounding check at synthesis (Phase 3)
-    $('#openvault_reflection_grounding_check_enabled').prop('checked', settings.reflectionGroundingCheckEnabled ?? true);
+    $('#openvault_reflection_grounding_check_enabled').prop(
+        'checked',
+        settings.reflectionGroundingCheckEnabled ?? true
+    );
     $('#openvault_reflection_grounding_threshold').val(settings.reflectionGroundingThreshold ?? 0.3);
     $('#openvault_reflection_grounding_threshold_value').text(settings.reflectionGroundingThreshold ?? 0.3);
+
+    // Drift Defense — reflection contradiction / drift detection (Phase 2)
+    $('#openvault_reflection_contradiction_enabled').prop(
+        'checked',
+        settings.llmReflectionContradictionEnabled ?? false
+    );
+    $('#openvault_reflection_contradiction_candidate_threshold').val(
+        settings.llmReflectionContradictionCandidateThreshold ?? 0.45
+    );
+    $('#openvault_reflection_contradiction_candidate_threshold_value').text(
+        settings.llmReflectionContradictionCandidateThreshold ?? 0.45
+    );
 
     // Jaccard dedup threshold — token-overlap filter for near-duplicates
     $('#openvault_dedup_jaccard').val(settings.dedupJaccardThreshold);

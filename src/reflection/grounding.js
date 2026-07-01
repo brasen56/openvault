@@ -128,6 +128,19 @@ export function checkReflectionGrounding(reflection, allMemories, options = {}) 
     }
 
     const reflectionVec = getEmbedding(reflection);
+    // Defensive: `hasEmbedding` returns true for `_st_synced` objects (ST Vector
+    // Storage mode), but `getEmbedding` returns null for those because there's
+    // no local vector. Without this guard, every cosine sim below returns 0 and
+    // the reflection is false-positive flagged as ungrounded.
+    if (!reflectionVec) {
+        return {
+            grounded: true,
+            maxSimilarity: 0,
+            checkedEvidenceIds: [],
+            missingEvidenceIds: [],
+            reason: null,
+        };
+    }
     const checkedEvidenceIds = [];
     const missingEvidenceIds = [];
     let maxSimilarity = 0;
