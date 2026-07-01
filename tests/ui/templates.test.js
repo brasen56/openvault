@@ -349,6 +349,23 @@ describe('ui/templates', () => {
             });
             expect(html).not.toContain('<script>x</script>');
         });
+
+        // Regression: every dossier action button must carry a class that the
+        // side-panel delegated click handler matches. Originally that handler
+        // only matched `.openvault-export-import-btn`, but several Phase 1/2/3
+        // buttons were rendered with only `.openvault-dossier-action-btn`,
+        // silently breaking their click handling ("Scan for drift" etc.).
+        // See commit 9ca484f / ROADMAP_Drift_Defense.md Phase 2.
+        it('every dossier action button carries a delegation-matched class', () => {
+            const html = renderCharacterDossier(buildDossier());
+            // Extract every button element that sets a `data-action` attribute.
+            const buttons = html.match(/<button[^>]*data-action="[^"]*"[^>]*>/g) || [];
+            expect(buttons.length).toBeGreaterThan(0);
+            for (const btn of buttons) {
+                const ok = btn.includes('openvault-export-import-btn') || btn.includes('openvault-dossier-action-btn');
+                expect(ok, `dossier action button missing delegation class: ${btn}`).toBe(true);
+            }
+        });
     });
 });
 

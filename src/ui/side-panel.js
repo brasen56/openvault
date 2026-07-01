@@ -505,7 +505,15 @@ function bindSidePanelEvents() {
     // =========================================================================
     // Export/Import events (feature #6)
     // =========================================================================
-    $panel.on('click', '.openvault-export-import-btn', async function (_e) {
+    // Dossier action buttons (drift scan, mark-wrong, merge, resolve, skip,
+    // canon notes, copy/export) are routed through a single delegated handler
+    // keyed on `data-action`. They carry EITHER `openvault-export-import-btn`
+    // (the legacy marker, shared with the real export/import panel buttons) OR
+    // `openvault-dossier-action-btn` (the dossier-scoped marker). The selector
+    // must match BOTH — several Phase 1/2/3 buttons were rendered with only the
+    // dossier marker, which silently broke their click handling (the "Scan for
+    // drift" button being the most visible symptom). See commit 9ca484f.
+    $panel.on('click', '.openvault-export-import-btn, .openvault-dossier-action-btn', async function (_e) {
         const action = $(this).data('action');
         if (action === 'export') {
             exportMemoriesToFile();
