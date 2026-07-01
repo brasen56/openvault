@@ -716,6 +716,8 @@ const RESETTABLE_KEYS = [
     'maxInsightsPerReflection',
     'maxReflectionsPerCharacter',
     'reflectionDuplicateThreshold',
+    'reflectionGroundingCheckEnabled',
+    'reflectionGroundingThreshold',
     'alpha',
     'forgetfulnessBaseLambda',
     'vectorSimilarityThreshold',
@@ -1136,6 +1138,9 @@ function bindUIElements() {
     // Max reflections per character
     bindSetting('max_reflections', 'maxReflectionsPerCharacter');
     bindSetting('reflection_duplicate_threshold', 'reflectionDuplicateThreshold', 'float');
+    // Drift Defense — grounding check (Phase 3)
+    bindSetting('reflection_grounding_check_enabled', 'reflectionGroundingCheckEnabled', 'bool');
+    bindSetting('reflection_grounding_threshold', 'reflectionGroundingThreshold', 'float');
 
     // Jaccard dedup threshold
     bindSetting('dedup_jaccard', 'dedupJaccardThreshold', 'float');
@@ -1997,6 +2002,11 @@ export function updateUI() {
     // Drift Defense — retrospective reflection dedup threshold (Phase 1)
     $('#openvault_reflection_duplicate_threshold').val(settings.reflectionDuplicateThreshold);
     $('#openvault_reflection_duplicate_threshold_value').text(settings.reflectionDuplicateThreshold);
+
+    // Drift Defense — grounding check at synthesis (Phase 3)
+    $('#openvault_reflection_grounding_check_enabled').prop('checked', settings.reflectionGroundingCheckEnabled ?? true);
+    $('#openvault_reflection_grounding_threshold').val(settings.reflectionGroundingThreshold ?? 0.3);
+    $('#openvault_reflection_grounding_threshold_value').text(settings.reflectionGroundingThreshold ?? 0.3);
 
     // Jaccard dedup threshold — token-overlap filter for near-duplicates
     $('#openvault_dedup_jaccard').val(settings.dedupJaccardThreshold);

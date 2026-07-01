@@ -1784,3 +1784,72 @@
     opacity: 0.5;
     cursor: wait;
 }
+
+/* =============================================================================
+   Drift Defense — Grounding warnings (Phase 3)
+   Mirrors the drift/dup pair-card structure but for single flagged reflections.
+   ============================================================================= */
+
+.openvault-dossier-grounding {
+    border-top: 1px dashed var(--SmartThemeBorderColor, #333);
+    padding-top: 6px;
+}
+
+.openvault-grounding-item {
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    background: color-mix(in srgb, rgba(204, 136, 68, 0.08) 50%, var(--SmartThemeBlurTintColor, rgba(0, 0, 0, 0.15)));
+    border-left: 2px solid rgba(204, 136, 68, 0.6);
+    border-radius: 4px;
+}
+
+.openvault-grounding-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.openvault-grounding-badge {
+    display: inline-block;
+    font-size: 0.68em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: rgba(204, 136, 68, 0.18);
+    color: rgb(204, 136, 68);
+    white-space: nowrap;
+}
+
+.openvault-grounding-badge i {
+    margin-right: 3px;
+}
+
+.openvault-grounding-meta {
+    font-size: 0.72em;
+    color: var(--SmartThemeEmColor, #888);
+    text-align: right;
+}
+
+.openvault-grounding-summary {
+    font-size: 0.9em;
+    line-height: 1.4;
+    margin-bottom: 6px;
+}
+
+.openvault-grounding-footer {
+    display: flex;
+    gap: 6px;
+}
+
+.openvault-grounding-footer .openvault-dossier-action-btn.secondary {
+    opacity: 0.7;
+    background: rgba(120, 120, 120, 0.12);
+}
+
+.openvault-grounding-footer .openvault-dossier-action-btn.secondary:hover {
+    opacity: 1;
+    background: rgba(120, 120, 120, 0.2);
+}

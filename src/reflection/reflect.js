@@ -34,6 +34,7 @@ import {
     resolveOutputLanguage,
 } from '../prompts/index.js';
 import { cosineSimilarity, tokenize } from '../retrieval/math.js';
+import { checkReflectionGrounding, stampGroundingResult } from './grounding.js';
 import { generateId } from '../store/chat-data.js';
 import { cyrb53, getEmbedding, hasEmbedding } from '../utils/embedding-codec.js';
 import { logDebug } from '../utils/logging.js';
@@ -353,6 +354,38 @@ export async function generateReflections(characterName, allMemories, characterS
 
     // Generate embeddings for reflections
     await enrichEventsWithEmbeddings(newReflections);
+
+    // Drift Defense — grounding check at synthesis (Phase 3 of
+    // ROADMAP_Drift_Defense.md). Flag-only: stamps a warning on reflections
+    // whose text is semantically far from the evidence they actually cite
+    // (`source_ids ∪ parent_ids`). Pure local computation (cosine similarity,
+    // no LLM), gated by setting. Runs after embeddings are generated so the
+    // reflection can be scored against its cited events and parent reflections.
+    const groundingEnabled =
+        settings.reflectionGroundingCheckEnabled ?? defaultSettings.reflectionGroundingCheckEnabled;
+    if (groundingEnabled) {
+        const groundingThreshold =
+            settings.reflectionGroundingThreshold ?? defaultSettings.reflectionGroundingThreshold;
+        let groundedCount = 0;
+        let flaggedCount = 0;
+        for (const ref of newReflections) {
+            const groundingResult = checkReflectionGrounding(ref, allMemories, { threshold: groundingThreshold });
+            stampGroundingResult(ref, groundingResult);
+            if (groundingResult.grounded) {
+                groundedCount++;
+            } else {
+                flaggedCount++;
+                logDebug(
+                    `Reflection grounding [${characterName}]: FLAGGED "${ref.summary}" — ${groundingResult.reason} (max similarity ${(groundingResult.maxSimilarity * 100).toFixed(0)}% < ${(groundingThreshold * 100).toFixed(0)}%)`
+                );
+            }
+        }
+        if (flaggedCount > 0) {
+            logDebug(
+                `Reflection grounding [${characterName}]: ${groundedCount} grounded, ${flaggedCount} flagged ungrounded`
+            );
+        }
+    }
 
     // Dedup: 3-tier filter (reject/replace/add) reflections based on similarity
     const reflectionDedupThreshold = REFLECTION_DEDUP_REJECT_THRESHOLD;

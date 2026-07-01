@@ -478,6 +478,10 @@ function bindSidePanelEvents() {
         dossier.identityOverride = getIdentityOverride(name);
         dossier._duplicateThreshold = settings.reflectionDuplicateThreshold;
         dossier._driftCandidateThreshold = settings.llmReflectionContradictionCandidateThreshold;
+        // Phase 3 grounding check: the template needs the full memory stream to
+        // look up cited evidence, and the threshold from settings.
+        dossier._allMemories = data[MEMORIES_KEY] || [];
+        dossier._groundingThreshold = settings.reflectionGroundingThreshold;
         $dossier.html(renderCharacterDossier(dossier));
         $row.addClass('openvault-character-expanded');
         $dossier.slideDown(200);
@@ -539,6 +543,8 @@ function bindSidePanelEvents() {
             await handleSkipDrift(this);
         } else if (action === 'dossier-run-drift-scan') {
             await handleRunDriftScan(this);
+        } else if (action === 'dossier-dismiss-grounding') {
+            await handleDismissGrounding(this);
         }
     });
 
@@ -691,6 +697,10 @@ function refreshDossierFromButton(btn, options = {}) {
     dossier.identityOverride = getIdentityOverride(name);
     dossier._duplicateThreshold = settings.reflectionDuplicateThreshold;
     dossier._driftCandidateThreshold = settings.llmReflectionContradictionCandidateThreshold;
+    // Phase 3 grounding check: the template needs the full memory stream to
+    // look up cited evidence, and the threshold from settings.
+    dossier._allMemories = data[MEMORIES_KEY] || [];
+    dossier._groundingThreshold = settings.reflectionGroundingThreshold;
     // Confirmed drift warnings (from a manual scan) — optional, passed by the
     // drift scan handler so the dossier renders them immediately.
     if (Array.isArray(options.driftWarnings)) {
@@ -943,6 +953,27 @@ async function handleRunDriftScan(btn) {
     } finally {
         $btn.prop('disabled', false).html('<i class="fa-solid fa-magnifying-glass"></i> Scan for drift');
     }
+}
+
+/**
+ * Dismiss a grounding warning (Phase 3 of ROADMAP_Drift_Defense.md).
+ * Marks the flagged reflection as grounding-reviewed so it stops surfacing
+ * without being archived. Mirrors the drift/duplicate "skip" paths but uses
+ * the `_grounding_reviewed` flag. Persists and refreshes the dossier.
+ * @param {HTMLElement} btn
+ */
+async function handleDismissGrounding(btn) {
+    const reflectionId = String($(btn).attr('data-reflection-id') || '');
+    if (!reflectionId) return;
+    const data = getOpenVaultData();
+    if (!data) return;
+    const memories = data[MEMORIES_KEY] || [];
+    const reflection = memories.find((m) => m.id === reflectionId);
+    if (reflection) reflection._grounding_reviewed = true;
+    const { saveOpenVaultData } = await import('../store/chat-data.js');
+    await saveOpenVaultData();
+    showToast('info', 'Grounding warning dismissed');
+    refreshDossierFromButton(btn);
 }
 
 async function handleClearMemoryDatabase() {

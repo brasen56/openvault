@@ -205,6 +205,20 @@ export const defaultSettings = {
     // Phase 1 near-duplicate band (0.72) so near-dupes don't get re-flagged as
     // contradictions; high enough to catch semantically-related opposing traits.
     llmReflectionContradictionCandidateThreshold: 0.45,
+    // Drift Defense — grounding check at synthesis (Phase 3 of
+    // ROADMAP_Drift_Defense.md). Flag-only: stamps a warning on reflections
+    // whose text is semantically far from the evidence they actually cite
+    // (`source_ids ∪ parent_ids`), before they land in the dossier. Pure local
+    // computation (cosine similarity, no LLM) — default ON because it is as
+    // cheap as the synthesis-time dedup that already always runs.
+    reflectionGroundingCheckEnabled: true,
+    // Minimum max-cosine-similarity to the cited evidence set for a reflection
+    // to count as grounded. Below this, the reflection is flagged. 0.30 is
+    // deliberately low — the goal is to catch completely unrelated text, not
+    // to enforce tight paraphrasing. Legitimate abstraction that drifts from
+    // raw events but stays close to its parent reflections is not flagged
+    // because the parents are in the comparison set.
+    reflectionGroundingThreshold: 0.3,
     // Bucket balance settings (score-first budgeting with soft chronological balancing)
     bucketMinRepresentation: 0.2, // 20% minimum per bucket
     bucketSoftBalanceBudget: 0.05, // 5% budget for soft balancing

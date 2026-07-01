@@ -12,6 +12,7 @@ import { hasEmbedding } from '../utils/embedding-codec.js';
 import { formatMemoryDate, formatMemoryImportance, formatWitnesses, getTransientDecayInfo } from './helpers.js';
 import { findNearDuplicateReflections } from '../reflection/duplicates.js';
 import { findContradictionCandidates } from '../reflection/contradiction.js';
+import { findUngroundedReflections } from '../reflection/grounding.js';
 
 // CSS class constants
 const CLASSES = {
@@ -296,6 +297,7 @@ export function renderCharacterDossier(dossier) {
             </div>
             ${renderDossierDuplicateSuggestions(dossier)}
             ${renderDossierDriftWarnings(dossier)}
+            ${renderDossierGroundingWarnings(dossier)}
             <div class="openvault-dossier-section">
                 <div class="openvault-dossier-section-title"><i class="fa-solid fa-diagram-project"></i> Relationships</div>
                 ${renderDossierRelationships(relationships)}
@@ -604,6 +606,71 @@ function renderDossierDriftWarnings(dossier) {
             <p class="openvault-dossier-canon-help">These insights may conflict. Resolving keeps one as canon (the other is archived with its evidence folded in). Drift = two present-tense traits that can't both be true; development (an old state replaced by a new one) is not flagged.</p>
             ${candidateNotice}
             <div class="openvault-drift-list">${warningCards}</div>
+        </div>
+    `;
+}
+
+/**
+ * Render grounding warnings on the dossier (Phase 3 of ROADMAP_Drift_Defense.md).
+ *
+ * Surfaces this character's reflections flagged as ungrounded — their text is
+ * semantically far from the evidence they actually cite (`source_ids ∪
+ * parent_ids`). Unlike Phase 2's drift warnings (which require an LLM call to
+ * confirm), grounding flags are stamped *at synthesis time* by a pure local
+ * cosine-similarity check (`stampGroundingResult` in `reflect.js`).
+ *
+ * Reads `dossier._rawReflections` (the raw reflection memory objects, attached
+ * by the side-panel caller) and `dossier._allMemories` (the full memory stream,
+ * needed to look up cited evidence). Both optional — when absent, the section
+ * is omitted entirely.
+ *
+ * @param {Object} dossier
+ * @returns {string} HTML (empty string when no ungrounded reflections are found)
+ */
+function renderDossierGroundingWarnings(dossier) {
+    const rawReflections = dossier?._rawReflections;
+    if (!Array.isArray(rawReflections) || rawReflections.length === 0) return '';
+
+    const allMemories = Array.isArray(dossier?._allMemories) ? dossier._allMemories : [];
+    if (allMemories.length === 0) return '';
+
+    const ungrounded = findUngroundedReflections(rawReflections, allMemories, {
+        threshold: dossier?._groundingThreshold,
+    });
+    if (ungrounded.length === 0) return '';
+
+    const cards = ungrounded
+        .map((u, i) => {
+            const reflection = u.reflection;
+            const id = escapeHtml(reflection?.id || '');
+            const summary = escapeHtml(reflection?.summary || 'No summary');
+            const pct = Math.round((u.maxSimilarity || 0) * 100);
+            const levelTag = reflection?.level ? `L${reflection.level}` : 'L1';
+            const reasonText =
+                u.reason === 'no_cited_evidence'
+                    ? 'This insight cites no evidence at all.'
+                    : `Highest similarity to cited evidence: ${pct}%.`;
+            return `
+                <div class="openvault-grounding-item openvault-dossier-grounding-item" data-index="${i}">
+                    <div class="openvault-grounding-header">
+                        <span class="openvault-grounding-badge"><i class="fa-solid fa-anchor-circle-xmark"></i> Ungrounded</span>
+                        <span class="openvault-grounding-meta">${levelTag} · ${reasonText}</span>
+                    </div>
+                    <div class="openvault-grounding-summary">${summary}</div>
+                    <div class="openvault-grounding-footer">
+                        <button class="openvault-btn openvault-export-import-btn openvault-dossier-action-btn" data-action="dossier-mark-wrong" data-reflection-id="${id}" title="Archive this insight so it stops influencing the character"><i class="fa-solid fa-ban"></i> Mark wrong</button>
+                        <button class="openvault-dossier-action-btn secondary" data-action="dossier-dismiss-grounding" data-reflection-id="${id}" title="Dismiss; stop flagging this insight"><i class="fa-solid fa-forward"></i> Dismiss</button>
+                    </div>
+                </div>
+            `;
+        })
+        .join('');
+
+    return `
+        <div class="openvault-dossier-section openvault-dossier-grounding">
+            <div class="openvault-dossier-section-title"><i class="fa-solid fa-anchor-circle-xmark"></i> Ungrounded insights (${ungrounded.length})</div>
+            <p class="openvault-dossier-canon-help">These insights are semantically far from the evidence they cite — they may be hallucinated. Legitimate higher-level synthesis (distant from raw events but close to parent insights) is not flagged. Dismiss if the abstraction is intended, or mark wrong to archive.</p>
+            <div class="openvault-grounding-list">${cards}</div>
         </div>
     `;
 }
