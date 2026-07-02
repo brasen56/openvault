@@ -605,8 +605,14 @@ describe('graph extraction with zero events', () => {
             relationships: [],
         });
 
+        // Each attempt makes 2 LLM calls (events, then graph). Zero-event batches
+        // are retried up to MAX_EMPTY_RETRIES times before being finalized.
         const sendRequest = vi
             .fn()
+            .mockResolvedValueOnce({ content: zeroEventsResponse })
+            .mockResolvedValueOnce({ content: graphResponse })
+            .mockResolvedValueOnce({ content: zeroEventsResponse })
+            .mockResolvedValueOnce({ content: graphResponse })
             .mockResolvedValueOnce({ content: zeroEventsResponse })
             .mockResolvedValueOnce({ content: graphResponse });
 
@@ -623,14 +629,25 @@ describe('graph extraction with zero events', () => {
             },
         });
 
-        const _result = await extractMemories([0, 1]);
+        // Attempts 1-2: batch is queued for retry; graph merge is deferred so
+        // retried attempts don't double-count entity mentions
+        const first = await extractMemories([0, 1]);
+        expect(first.status).toBe('no_events_retry');
+        expect(mockData.graph.nodes['shadow guild']).toBeUndefined();
 
-        // Graph extraction should have been called (2 LLM calls, not 1)
-        expect(sendRequest).toHaveBeenCalledTimes(2);
+        const second = await extractMemories([0, 1]);
+        expect(second.status).toBe('no_events_retry');
 
-        // Entity should exist in the graph
+        // Attempt 3 exhausts retries: batch finalizes and graph updates land
+        await extractMemories([0, 1]);
+
+        // Graph extraction ran alongside events on every attempt (2 LLM calls each)
+        expect(sendRequest).toHaveBeenCalledTimes(6);
+
+        // Entity should exist in the graph, applied exactly once
         expect(mockData.graph.nodes['shadow guild']).toBeDefined();
         expect(mockData.graph.nodes['shadow guild'].type).toBe('ORGANIZATION');
+        expect(mockData.graph.nodes['shadow guild'].mentions).toBe(1);
     });
 });
 
